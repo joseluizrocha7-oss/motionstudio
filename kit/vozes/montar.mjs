@@ -17,7 +17,8 @@ import { fileURLToPath } from "node:url";
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const argR = (n, p) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : p; };
 const ROTEIRO = JSON.parse(readFileSync(join(AQUI, "..", argR("roteiro", "roteiro.json")), "utf8"));
-const TOMADAS = join(AQUI, "tomadas");
+// Uma pasta de tomadas por voz (roteiro.voz.pasta): o montar.mjs nunca mistura duas vozes.
+const TOMADAS = join(AQUI, ROTEIRO.voz.pasta || "tomadas");
 const SAIDA = join(AQUI, "..", "film", argR("audio", "audio"));
 const TMP = join(AQUI, argR("audio", "audio") === "audio" ? "tmp" : "tmp-" + argR("audio", "audio"));
 mkdirSync(SAIDA, { recursive: true });
@@ -63,13 +64,16 @@ for (const bloco of ROTEIRO.blocos) {
     const linhas = JSON.parse(readFileSync(`${base}.lines.json`, "utf8"));
     const palavras = JSON.parse(readFileSync(`${base}.words.json`, "utf8"));
     const medida = JSON.parse(readFileSync(`${base}.medida.json`, "utf8"));
-    // Frase reescrita depois da tomada: só ela sai; as outras frases da tomada continuam valendo.
-    const antiga = linhas.map((l, i) => norm(l.text) !== norm(esperadas[i] || ""));
-    if (linhas.length !== esperadas.length || antiga.every(Boolean)) { console.log(`  ${bloco.id}-${n}: frases não batem com o roteiro, fora`); continue; }
-    if (antiga.some(Boolean)) console.log(`  ${bloco.id}-${n}: frase(s) ${antiga.map((a, i) => (a ? i + 1 : 0)).filter(Boolean).join(", ")} com texto antigo, fora`);
-    for (let s = 0; s < linhas.length; s++) {
-      if (antiga[s]) continue;
-      const l = linhas[s], m = medida.linhas[s] || {};
+    // Cada frase da tomada vale para a frase do roteiro com o MESMO texto, em qualquer posição:
+    // frase reescrita, tirada ou posta no meio do bloco (rodada 4) não invalida as outras.
+    const usadas = new Set();
+    const destino = linhas.map((l) => { const k = esperadas.findIndex((e, j) => !usadas.has(j) && norm(e) === norm(l.text)); if (k >= 0) usadas.add(k); return k; });
+    if (destino.every((k) => k < 0)) { console.log(`  ${bloco.id}-${n}: nenhuma frase bate com o roteiro, fora`); continue; }
+    if (destino.some((k) => k < 0)) console.log(`  ${bloco.id}-${n}: frase(s) ${destino.map((k, i) => (k < 0 ? i + 1 : 0)).filter(Boolean).join(", ")} com texto antigo, fora`);
+    for (let i = 0; i < linhas.length; i++) {
+      const s = destino[i];
+      if (s < 0) continue;
+      const l = linhas[i], m = medida.linhas[i] || {};
       const pergunta = /\?$/.test(l.text.trim());
       let pena = 0;
       const motivos = [];
@@ -82,7 +86,7 @@ for (const bloco of ROTEIRO.blocos) {
       }
       const estimadas = palavras.filter((p) => p.est && p.start >= l.start - 0.01 && p.end <= l.end + 0.01).length;
       if (estimadas) { pena += estimadas * 3; motivos.push(`${estimadas} palavra(s) não reconhecida(s)`); }
-      const anterior = linhas[s - 1], seguinte = linhas[s + 1];
+      const anterior = linhas[i - 1], seguinte = linhas[i + 1];
       (candidatas[s] ||= []).push({ n, s, pena, motivos, ini: l.start, fim: l.end, texto: l.text,
         livreAntes: anterior ? l.start - anterior.end : l.start, livreDepois: seguinte ? seguinte.start - l.end : 9,
         palavras: palavras.filter((p) => p.start >= l.start - 0.01 && p.end <= l.end + 0.01) });
@@ -106,6 +110,31 @@ const ALVO_DB = -20;   // LUFS de cada frase
 // Quanto se guarda antes (a respiração) e depois de cada frase. O roteiro pode encurtar
 // (`respiracao`, `cauda`): a versão de 1 minuto precisa de vãos menores que 0,49 s.
 const RESP = ROTEIRO.respiracao ?? 0.32, CAUDA = ROTEIRO.cauda ?? 0.12;
+// O fim da frase pelo Whisper chega cedo: em "Tecnologia da Informação." a voz seguia 0,28 s
+// depois dele e a cauda de 0,12 s cortou o "-ção" ("cortou seco", Jose, 17/10). O fim de cada
+// frase passa a ser o silêncio medido na tomada: o primeiro trecho de 80 ms abaixo de -50 dB
+// depois do fim do Whisper, sem passar da próxima frase da tomada nem de 0,8 s.
+function fimReal(wav, fim, livre) {
+  const ate = Math.min(fim + 0.8, fim + livre - 0.06);
+  if (ate <= fim) return fim;
+  const raw = execFileSync("ffmpeg", ["-v", "error", "-ss", fim.toFixed(3), "-to", ate.toFixed(3), "-i", wav, "-f", "s16le", "-ac", "1", "-ar", "16000", "-"], { maxBuffer: 1 << 26 });
+  const n = Math.floor(raw.length / 2), j = 160;   // janelas de 10 ms
+  let quietas = 0;
+  for (let k = 0; k + j <= n; k += j) {
+    let s = 0;
+    for (let i = k; i < k + j; i++) { const v = raw.readInt16LE(i * 2) / 32768; s += v * v; }
+    if (10 * Math.log10(s / j + 1e-12) < -50) { if (++quietas === 8) return fim + (k + j) / 16000 - 0.08; } else quietas = 0;
+  }
+  return ate;
+}
+for (const f of plano) {
+  const real = fimReal(join(TOMADAS, `${f.bloco}-${f.tomada}.wav`), f.fim, f.livreDepois);
+  f.estendido = +(real - f.fim).toFixed(3);
+  f.livreDepois -= real - f.fim;
+  f.fim = real;
+}
+const longas = plano.filter((f) => f.estendido > CAUDA);
+console.log(`fim pelo silêncio: ${longas.length} de ${plano.length} frases iam além da cauda de ${CAUDA} s (até +${Math.max(0, ...plano.map((f) => f.estendido)).toFixed(2)} s)`);
 let t = 0;
 const pecas = [];
 const palavrasFinais = [], linhasFinais = [];

@@ -15,7 +15,8 @@ import { fileURLToPath } from "node:url";
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const argR = (n, p) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : p; };
 const ROTEIRO = JSON.parse(readFileSync(join(AQUI, "..", argR("roteiro", "roteiro.json")), "utf8"));
-const TOMADAS = join(AQUI, "tomadas");
+// Uma pasta de tomadas por voz (roteiro.voz.pasta): o montar.mjs nunca mistura duas vozes.
+const TOMADAS = join(AQUI, ROTEIRO.voz.pasta || "tomadas");
 const ENTONACAO = "C:/Users/josel/.claude/skills/motionmaxxing/scripts/entonacao.mjs";
 mkdirSync(TOMADAS, { recursive: true });
 

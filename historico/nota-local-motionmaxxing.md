@@ -74,3 +74,11 @@ de cada uma, com o caso e a data.
 >   - O S4 estimou a trilha 3,6 dB abaixo da fala por causa das respirações nos vãos curtos; medida em faixas separadas (`mix.py --no-normalize` só com a voz e só com a trilha), ela estava 14,6 dB abaixo. Medir as faixas antes de baixar a trilha (baixá-la 10 dB pelo alerta deixou-a 22,6 dB abaixo).
 > - Origem, versão instalada e o que foi mudado nesta cópia: `ORIGEM.md`.
 
+
+## Noite de 16/10/2026: o que o tutorial do Aprovador ensinou depois que a motionstudio nasceu
+
+- Emenda sem recodificar (concat com inpoint/outpoint) duplicou e perdeu quadros: daí o `scripts/trocar-trecho.sh`, que junta decodificando.
+- Fim com a marca chegando antes do nome e um pulso de 5% no nome mediu 2,1 s parado (G3): no 9:16 a marca é pequena e o pulso não conta como movimento. Resolveu a marca chegando com o próprio nome e o filme acabando 0,7 s depois da voz (1,27 s parado).
+- Contorno só nas palavras "Conectado como" cortava a frase no meio e ficava por baixo da pílula do passo seguinte: o Jose achou "bugado". Alvo de frase = o parágrafo inteiro; contorno sai antes da pílula seguinte.
+- O Jose propôs girar a tela para o usuário virar o celular no trecho do computador; a recomendação foi não fazer (cada reprodutor gira o vídeo de um jeito) e ampliar o monitor na largura do quadro com a câmera na tabela. Ele seguiu a recomendação por omissão (foi dormir com a meta de entregar os dois vídeos).
+- Só o modo claro, e telas da versão em produção (1.30.115): o curto feito com telas da 1.30.112 foi refeito.

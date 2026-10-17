@@ -50,6 +50,14 @@ No Windows desta máquina, `python3` não existe: usar `py -3`.
 - **Boas-vindas e fecho em vídeo para usuário novo** (Wellington, 16/10): abrir dando
   boas-vindas a quem acabou de receber o acesso, guiar os primeiros passos, terminar com
   as boas-vindas de novo junto da marca.
+- **Em pé do começo ao fim.** Tutorial de app em 9:16 não pede para o usuário virar o
+  celular (cada reprodutor gira o vídeo de um jeito); trecho de computador entra com o
+  monitor na largura do quadro e a câmera chegando no que importa (a tabela, a tela).
+- **Um tema só quando pedirem.** O Jose escolheu só o modo claro para o tutorial do
+  Aprovador (16/10); a troca de tema aparece no passeio por Ajustes (o toque em Escuro deixa
+  o app escuro por um instante e o toque em Claro volta).
+- **Telas da versão que está em produção.** Fotografar do código da tag de produção; vídeo
+  com versão antiga no topo do app foi refeito a pedido do Jose (16/10, 1.30.112 para 1.30.115).
 
 ## Que filme é
 
@@ -80,7 +88,10 @@ roteiro. Depois `film/gerar-fala.mjs` grava os tempos (`assets/fala.js`).
 
 **4. Telas.** Fotos do app de verdade, operado num Chromium com a API simulada e dados
 fictícios, cada alvo com a sua caixa (`medidas.js`). Os dois temas do app, se ele tiver.
-Modelo: `capturar.mjs` do caso de referência.
+Modelo: `capturar.mjs` do caso de referência. Alvo que é uma frase recebe a caixa do
+parágrafo inteiro (o elemento, `getByText(...)`), nunca só a das palavras: um contorno em
+"Conectado como" cortando a frase no meio pareceu defeito ao Jose (16/10). E todo contorno
+sai antes de a pílula do passo seguinte entrar.
 
 **5. Filme.** `film/fonte/`: `base.html` (câmera, telas, contorno, toque, gesto, peças,
 marca do fim), `iphone.js` (Safari e Tela de Início, ilustrativos), a linha do tempo e

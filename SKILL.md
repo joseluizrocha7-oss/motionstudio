@@ -35,11 +35,18 @@ No Windows desta máquina, `python3` não existe: usar `py -3`.
   a câmera chega perto só no momento-chave.
 - **Som enxuto.** Frases da voz niveladas uma a uma (-20 LUFS), trilha num volume só do
   começo ao fim (uns 14 dB abaixo da voz), poucos efeitos e baixos, corte da voz só em
-  silêncio medido. Mistura final em -16 LUFS.
+  silêncio medido: cada frase termina onde a tomada fica 80 ms abaixo de -50 dB, não no fim
+  que o Whisper marca (ele chega cedo; com 0,12 s de cauda o "-ção" da última palavra do
+  tutorial saiu cortado, "cortou seco e acabou o vídeo", Jose, 17/10). Mistura final em -16
+  LUFS, com a trilha descendo nos últimos 1,6 s.
 - **Fala e tela juntas.** Texto na tela diz o que a voz diz, na mesma hora; cada um leva
   `M.mark(quadro, 'fala', '<palavras>')` e o `ouvir.py` confere (S3).
-- **Voz em pt-BR nativa.** Gemini TTS, voz `pt-br-training-1` para instrucional (a
-  ElevenLabs "Raquel" foi reprovada por sotaque). Frase que termina em nome de botão sobe
+- **Voz em pt-BR nativa.** Gemini TTS. Para o Jose, desde 17/10, a voz é a `pt-br-podcaster-6`
+  também no tutorial ("Usa a mesma voz do comercial swipes"; ele a escolheu de ouvido entre três
+  amostras para o comercial). Ela tende a terminar frase subindo: 8 tomadas nos blocos grandes,
+  estilo pedindo fim descendo, pausa entre frases do roteiro. A `pt-br-training-1` foi a do
+  tutorial até a rodada 4. Tomadas de cada voz numa pasta própria (`roteiro.voz.pasta`). (A
+  ElevenLabs "Raquel" foi reprovada por sotaque.) Frase que termina em nome de botão sobe
   no fim: na `fala`, o nome vai em minúsculas, ou a frase é reescrita para terminar em verbo
   ("Toque em Reconectar quando a senha mudar."). Sigla e nome próprio na grafia de fala
   ("T.I." vira "tê í", "90" vira "noventa"). O saldo do Gemini é o mesmo dos sistemas em
@@ -50,8 +57,12 @@ No Windows desta máquina, `python3` não existe: usar `py -3`.
 - **Abertura, partes e fecho em vídeo para usuário novo** (Wellington, 16 e 17/10): abrir
   dando boas-vindas a quem acabou de receber o acesso ("Olá! Seja bem-vindo ao novo
   Aprovador."), dizer as partes do vídeo e separar a configuração inicial (feita uma vez) do
-  uso no dia a dia, cada parte aberta por uma cartela com o celular fora de cena ("O início
-  está muito acelerado, sem uma segregação clara de setup inicial e funcionalidades de uso").
+  uso no dia a dia ("O início está muito acelerado, sem uma segregação clara de setup inicial e
+  funcionalidades de uso"). A parte se anuncia pela voz, com o app em cena e uma pílula escura
+  pequena no alto ("Parte 1 de 3 · Configuração inicial"); enquanto a voz nomeia os passos, a
+  tela mostra cada um. Cartela de tela inteira com o celular fora de cena, NÃO: o Jose tirou
+  ("Não precisa desses menus entre as etapas do vídeo, pode ir falando enquanto apresenta a
+  tela do app", 17/10).
   Fecho fluido, dizendo a quem procurar ("Aproveite seu novo aplicativo e, em caso de
   dúvidas, entre em contato com a área de Tecnologia da Informação."), com a marca.
   Sem detalhe técnico que não é passo do usuário: o "acesso salvo por 90 dias" saiu
@@ -148,7 +159,7 @@ ilustrativo), `LEIA-ME.md` do projeto (o que sai, como refazer, onde mexer), ent
 | G0 o render existe | duração e som batem com o planejado | `look.py --expect --expect-audio` |
 | G1 texto legível | por olho; app em tamanho de celular fica abaixo dos 4% da altura: escolha, dizer no NOTE.md | folha de contato |
 | G2 sem quadro vazio | nenhuma sequência de mais de 3 quadros chapados | `look.py` |
-| G3 fim curto | final parado de 0,6 a 1,4 s (a marca do fim chegando com o próprio nome na última frase e 0,7 s de folga resolve; pulso pequeno não conta como movimento) | `look.py` |
+| G3 fim curto | final parado de 0,6 a 1,4 s (a marca do fim chegando com o próprio nome na última frase resolve; pulso pequeno não conta como movimento). No tutorial do Jose o fim fica com 1,8 s de marca depois da última palavra e a trilha descendo, a pedido dele ("cortou seco"): o G3 acusa e o NOTE.md diz que é escolha | `look.py` |
 | G4 um herói por quadro | por olho | folha de contato |
 | G5 sem cromo de página | sem rótulo de canto, contador, barra de progresso | `lint.mjs` |
 | Z1 câmera contida | aproximação máxima até 1,5x o plano-base | `camera.mjs` |

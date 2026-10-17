@@ -41,4 +41,4 @@ const fSai = pal('z1', 'Boas') - 10;
 M.kf('#cam', 'opacity', [[0, 1], [fSai, 1], [fSai + 16, 0, 'gentleIn'], [FIM, 0]]);
 camKeys.push([fSai, { ...camAtual }]);
 camKeys.push([fSai + 18, { scale: .92, x: Math.round(W / 2 * .08), y: VERT ? 300 : 160 }, 'accelExit']);
-marcaFinal('z1', { sub: 'Boas-vindas!', comSub: 'Boas', comMarca: 'novo', comPulso: 'Produto' });
+marcaFinal('z1', { sub: 'Boas-vindas!', comSub: 'Boas', comMarca: 'Produto' });

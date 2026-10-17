@@ -302,12 +302,13 @@ function peca(html, x, y, a, b, opt = {}) {
 
 // ---------- A marca do fim ----------
 // Presa à última frase da voz (linha `linha` do roteiro). Exemplo do Aprovador:
-//   marcaFinal('z3', { sub: 'Boas-vindas!', comSub: 'Boas', comMarca: 'novo', comPulso: 'Aprovador' })
-// para "Boas-vindas ao novo app Aprovador!": o texto de baixo entra com a palavra dele, a
-// marca chega um pouco antes do nome (o texto não fica 2 s sozinho no chão vazio) e, no
-// nome, dá um pulso curto (5%) e volta. Assim o fim fica vivo até a última palavra e o
-// final parado cabe no G3 (0,6 a 1,4 s) com o filme acabando 0,7 s depois da voz
-// (montar-filmes.mjs soma essa folga sozinho).
+//   marcaFinal('z3', { sub: 'Boas-vindas!', comSub: 'Boas', comMarca: 'Aprovador' })
+// para "Boas-vindas ao novo app Aprovador!": o texto de baixo entra com a palavra dele e a
+// marca chega com o próprio nome, assentando logo antes do fim; com o filme acabando 0,7 s
+// depois da voz (montar-filmes.mjs soma essa folga) o final parado fica em 0,6 a 0,8 s (G3).
+// Medido em 16/10/2026: marca chegando antes ("novo") com um pulso de 5% no nome deu 2,1 s
+// parado no look.py; no 9:16 a marca é pequena e o pulso não conta como movimento.
+// `comPulso` continua aceito, mas só vale com a marca grande no quadro.
 function marcaFinal(linha, o) {
   let fSub = null;
   if (o.sub) {

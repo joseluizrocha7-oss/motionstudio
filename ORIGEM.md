@@ -14,6 +14,11 @@ skill"), a partir de:
 
 ## O que ainda falta
 
+- **A prova (pedido do Jose em 16/10, 23h):** gerar pela motionstudio o longo no modo claro do
+  tutorial do Aprovador (cancelado na skill antiga), com as telas fotografadas de novo no app
+  1.30.115 (login sem a pergunta dos 90 dias, "mín. 10 caracteres", versão certa no topo; o
+  `capturar.mjs` precisa parar de esperar a janela "Manter conectado?"), e comparar com o
+  longo escuro de 16/10: mesma imagem e mesmo som, só com as correções, e o tempo de máquina.
 - Testar o HyperFrames como motor num trecho de filme real (tempo, imagem igual, desfoque
   com 8 fotos por quadro) e, se ganhar, escrever o adaptador; se não tiver o desfoque,
   trazer para o `render.mjs` a captura em paralelo e o `beginFrame`.

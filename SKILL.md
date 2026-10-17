@@ -128,7 +128,7 @@ ilustrativo), `LEIA-ME.md` do projeto (o que sai, como refazer, onde mexer), ent
 | G0 o render existe | duração e som batem com o planejado | `look.py --expect --expect-audio` |
 | G1 texto legível | por olho; app em tamanho de celular fica abaixo dos 4% da altura: escolha, dizer no NOTE.md | folha de contato |
 | G2 sem quadro vazio | nenhuma sequência de mais de 3 quadros chapados | `look.py` |
-| G3 fim curto | final parado de 0,6 a 1,4 s (a marca do fim com pulso na última palavra e 0,7 s de folga resolve) | `look.py` |
+| G3 fim curto | final parado de 0,6 a 1,4 s (a marca do fim chegando com o próprio nome na última frase e 0,7 s de folga resolve; pulso pequeno não conta como movimento) | `look.py` |
 | G4 um herói por quadro | por olho | folha de contato |
 | G5 sem cromo de página | sem rótulo de canto, contador, barra de progresso | `lint.mjs` |
 | Z1 câmera contida | aproximação máxima até 1,5x o plano-base | `camera.mjs` |
@@ -164,7 +164,8 @@ mesmo filme recomposto para cada quadro (o 16:9 não é o vertical com barras).
 Tutorial "Primeiros passos no Aprovador" (16/10/2026), no repositório do Swipes:
 `conteudo/tutorial-primeiros-passos-2026-10-16/` (`LEIA-ME.md`, `film/NOTE.md`). Captura do
 app com API simulada (`capturar.mjs`, `app/dados.mjs`), longo de 3 min 50 s e curto de
-59,5 s em 9:16 nos dois temas, passeio por Ajustes, simulação do iPhone, fecho com pulso.
+59,5 s em 9:16 nos dois temas, passeio por Ajustes, simulação do iPhone, fecho com a marca
+chegando no nome.
 
 ## Arquivos
 

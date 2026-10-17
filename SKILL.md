@@ -47,9 +47,16 @@ No Windows desta máquina, `python3` não existe: usar `py -3`.
 - **pt-BR com acento em tudo e nunca travessão** (voz, tela, NOTE.md, LEIA-ME).
 - **Ninguém ouviu.** Toda entrega diz que a fala foi conferida por transcrição e medida, e
   que pronúncia de nome próprio e tom só o ouvido do Jose valida.
-- **Boas-vindas e fecho em vídeo para usuário novo** (Wellington, 16/10): abrir dando
-  boas-vindas a quem acabou de receber o acesso, guiar os primeiros passos, terminar com
-  as boas-vindas de novo junto da marca.
+- **Abertura, partes e fecho em vídeo para usuário novo** (Wellington, 16 e 17/10): abrir
+  dando boas-vindas a quem acabou de receber o acesso ("Olá! Seja bem-vindo ao novo
+  Aprovador."), dizer as partes do vídeo e separar a configuração inicial (feita uma vez) do
+  uso no dia a dia, cada parte aberta por uma cartela com o celular fora de cena ("O início
+  está muito acelerado, sem uma segregação clara de setup inicial e funcionalidades de uso").
+  Fecho fluido, dizendo a quem procurar ("Aproveite seu novo aplicativo e, em caso de
+  dúvidas, entre em contato com a área de Tecnologia da Informação."), com a marca.
+- **Narrador em primeira pessoa e sem "app".** "Vamos configurar seu acesso", "vamos
+  conectar"; nas ações, "toque em...". "Aplicativo", nunca "app" na voz ("Ele tá falando app
+  ao pé da letra. Mudar para aplicativo, irá soar melhor."). Wellington, 17/10.
 - **Em pé do começo ao fim.** Tutorial de app em 9:16 não pede para o usuário virar o
   celular (cada reprodutor gira o vídeo de um jeito); trecho de computador entra com o
   monitor na largura do quadro e a câmera chegando no que importa (a tabela, a tela).

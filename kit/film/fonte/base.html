@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>{{TITULO}}</title>
+<meta name="viewport" content="width={{W}}, height={{H}}">
+<link rel="stylesheet" href="./runtime/fonts.css">
+<style>
+/* ACCENT = "aqui": a cor de acento da marca (--acento) marca só o que a voz está nomeando ou o que o dedo vai tocar. */
+:root {
+  --chao: #f3f0e8;
+  --ponto: rgba(46, 42, 36, .13);
+  --tinta: #24221f;
+  --tinta-2: #6b665d;
+  --acento: #e41c2c;
+  --aprovar: #1fa45a;
+  --reprovar: #e5484d;
+  --font: "Inter", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: {{W}}px; height: {{H}}px; overflow: hidden; background: var(--chao); }
+#main { position: absolute; left: 0; top: 0; width: {{W}}px; height: {{H}}px; overflow: hidden; background: var(--chao); color: var(--tinta); font-family: var(--font); font-weight: 500; }
+
+/* O chão: creme com uma grade de pontos que anda devagar o filme inteiro. */
+#grade { position: absolute; left: -120px; top: -120px; width: 2160px; height: 1320px;
+  background-image: radial-gradient(var(--ponto) 1.6px, transparent 1.9px); background-size: 34px 34px; }
+#luz { position: absolute; inset: 0; background: radial-gradient(ellipse 60% 70% at 50% 52%, rgba(255,255,255,.55), rgba(255,255,255,0) 70%); }
+
+#cam { position: absolute; left: 0; top: 0; width: {{W}}px; height: {{H}}px; }
+
+/* O celular: tela de 390 x 844 pontos, na escala 1 no plano-base do 16:9 (no 9:16, #escala aumenta). */
+#escala { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+#celular { position: absolute; left: 752px; top: 135px; width: 416px; height: 870px; border-radius: 60px; background: #121316;
+  box-shadow: 0 2px 0 1px #2c2e33 inset, 0 40px 80px -30px rgba(40, 30, 10, .45), 0 18px 30px -18px rgba(40, 30, 10, .35); }
+#tela { position: absolute; left: 13px; top: 13px; width: 390px; height: 844px; border-radius: 47px; overflow: hidden; background: #0b1120; }
+#tela img.camada { position: absolute; left: 0; top: 0; width: 390px; display: block; }
+.recorte { position: absolute; overflow: hidden; }
+.recorte > img { position: absolute; left: 0; top: 0; display: block; }
+
+/* O que a voz nomeia: contorno na cor de acento da marca. */
+.anel { position: absolute; border: 3px solid var(--acento); border-radius: 12px; box-shadow: 0 0 0 4px rgba(228, 28, 44, .16); pointer-events: none; }
+/* O toque: um dedo visto de cima, translúcido. */
+.toque { position: absolute; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%;
+  background: rgba(255, 255, 255, .34); border: 2px solid rgba(255, 255, 255, .9); box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }
+.onda { position: absolute; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .85); }
+
+/* O título do passo: pílula branca na faixa de cima. */
+.pilula { position: absolute; top: 34px; left: 0; width: {{W}}px; display: flex; justify-content: center; }
+.pilula span { display: inline-flex; align-items: center; gap: 16px; height: 68px; padding: 0 34px 0 14px; border-radius: 34px; background: #fff;
+  box-shadow: 0 10px 30px -14px rgba(60, 45, 20, .35), 0 1px 0 rgba(60, 45, 20, .06); font-size: 31px; font-weight: 600; letter-spacing: -.01em; color: var(--tinta); }
+.pilula b { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: var(--tinta); color: #fff; font-size: 22px; font-weight: 600; }
+
+/* Peças ao lado do celular */
+.peca { position: absolute; font-size: 30px; font-weight: 550; color: var(--tinta); white-space: nowrap; }
+.barra-endereco { display: flex; align-items: center; gap: 16px; height: 76px; padding: 0 30px; border-radius: 38px; background: #fff; box-shadow: 0 14px 36px -18px rgba(60, 45, 20, .45); font-size: 31px; font-weight: 500; }
+.barra-endereco svg { width: 26px; height: 26px; }
+.gesto { display: flex; align-items: center; gap: 16px; height: 72px; padding: 0 30px; border-radius: 36px; background: #fff; box-shadow: 0 14px 36px -18px rgba(60, 45, 20, .45); }
+.gesto i { font-style: normal; font-size: 40px; font-weight: 600; line-height: 1; }
+.planta { display: flex; align-items: center; gap: 18px; height: 70px; padding: 0 28px 0 20px; border-radius: 35px; background: #fff; box-shadow: 0 14px 36px -18px rgba(60, 45, 20, .45); }
+.planta svg { width: 46px; height: 32px; border-radius: 4px; }
+.painel { position: relative; border-radius: 26px; overflow: hidden; background: #0b1120; padding: 30px 32px; box-shadow: 0 30px 70px -30px rgba(40, 30, 10, .55); }
+.painel img { display: block; }
+.nota { display: flex; align-items: center; gap: 14px; height: 64px; padding: 0 26px; border-radius: 32px; background: #fff; box-shadow: 0 14px 36px -18px rgba(60, 45, 20, .45); font-size: 28px; }
+
+#monitor { position: absolute; left: 1010px; top: 250px; width: 860px; }
+#monitor .moldura { width: 860px; height: 548px; padding: 14px; border-radius: 22px; background: #121316; box-shadow: 0 40px 80px -30px rgba(40, 30, 10, .45); }
+#monitor .moldura img { width: 832px; height: 520px; border-radius: 10px; display: block; }
+#monitor .pe { width: 180px; height: 70px; margin: 0 auto; background: linear-gradient(#cfc9bd, #bdb6a8); clip-path: polygon(22% 0, 78% 0, 100% 100%, 0 100%); }
+
+/* A marca: o símbolo (assets/simbolo.png) e o nome do produto ({{NOME}}) */
+.marca { position: absolute; left: 0; width: {{W}}px; display: flex; flex-direction: column; align-items: center; }
+.marca .linha { display: flex; align-items: center; gap: 30px; }
+.marca img { width: 210px; height: auto; display: block; }
+.marca .nome { font-size: 96px; font-weight: 600; letter-spacing: -.03em; color: var(--tinta); white-space: pre; }
+.marca .sub { margin-top: 26px; font-size: 40px; font-weight: 500; color: var(--tinta-2); white-space: pre; }
+{{CSS_FORMATO}}
+</style>
+</head>
+<body>
+<div id="main">
+  <div id="grade"></div>
+  <div id="luz"></div>
+
+  <div id="abertura" class="marca" style="top: 380px">
+    <div class="linha"><img id="simbolo" src="./assets/simbolo.png" alt=""><div id="nome" class="nome">{{NOME}}</div></div>
+    <div id="sub" class="sub">{{SUB}}</div>
+  </div>
+
+  <div id="cam">
+    <div id="lados"></div>
+    <div id="escala"><div id="celular"><div id="tela" data-ui="captured"></div></div></div>
+    <div id="monitor"><div class="moldura" data-ui="captured"><img src="./{{TELAS}}/portal.png" alt=""></div><div class="pe"></div></div>
+  </div>
+
+  <div id="pilulas"></div>
+
+  <div id="fim" class="marca" style="top: 440px">
+    <div class="linha"><img src="./assets/simbolo.png" alt=""><div class="nome">{{NOME}}</div></div>
+  </div>
+</div>
+
+<script src="./runtime/vendor/gsap.min.js"></script>
+<script src="./runtime/motion.js"></script>
+<script src="./{{TELAS}}/medidas.js"></script>
+<script src="./assets/{{FALA}}"></script>
+<script>
+/* SEEK CONTRACT: tudo o que aparece é função pura do tempo; só chamadas Motion. */
+const FPS = 30;
+const DUR = {{DUR}};
+const PASTA = './{{TELAS}}';
+const VERT = {{VERT}};                  // true no 9:16 (1080x1920), false no 16:9
+const W = VERT ? 1080 : 1920, H = VERT ? 1920 : 1080;
+const M = Motion.film({ fps: FPS, duration: DUR, width: W, height: H, clock: 'smooth' });
+const T = window.TELAS, FALA = window.FALA;
+const FIM = Math.round(DUR * FPS);
+const F = (s) => Math.round(s * FPS);
+
+// ---------- A fala ----------
+const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const frases = (id) => FALA.linhas.filter((l) => l.l === id);
+const ini = (id, k = 0) => F(frases(id)[k].a);
+const fim = (id, k = -1) => { const fs = frases(id); return F(fs[k < 0 ? fs.length + k : k].b); };
+function pal(id, termo, n = 1, ponta = 'a') {
+  const alvo = norm(termo);
+  const ps = FALA.palavras.filter((p) => p.l === id && norm(p.w).startsWith(alvo));
+  if (ps.length < n) throw new Error(`palavra "${termo}" (${n}ª) não está na linha ${id}`);
+  return F(ps[n - 1][ponta]);
+}
+const palFim = (id, termo, n = 1) => pal(id, termo, n, 'b');
+
+// ---------- Geometria ----------
+// No 9:16 o celular é K vezes maior e fica entre a pílula (alto) e a faixa das peças (baixo).
+const K = VERT ? 1.75 : 1;
+const CEL = VERT ? { x: Math.round((1080 - 416 * K) / 2), y: 180 } : { x: 752, y: 135 };
+const TX = CEL.x + 13 * K, TY = CEL.y + 13 * K;   // canto da tela do celular no quadro, plano-base
+// Ponto (x, y) da tela do app em coordenadas do quadro, no plano-base.
+const naTela = (x, y) => ({ x: Math.round(TX + K * x), y: Math.round(TY + K * y) });
+// No 9:16 as peças que no 16:9 ficam ao lado do celular vão para a faixa de baixo.
+const FAIXA = 1760;
+if (VERT) {
+  document.getElementById('escala').style.transform = `scale(${K})`;
+  Object.assign(document.getElementById('celular').style, { left: (CEL.x / K) + 'px', top: (CEL.y / K) + 'px' });
+}
+const tela = document.getElementById('tela');
+const lados = document.getElementById('lados');
+const camKeys = [[0, { scale: 1, x: 0, y: 0 }]];
+let camAtual = { scale: 1, x: 0, y: 0 };
+// Câmera: escala s, centrada no celular na horizontal, com o ponto sy da tela
+// o mais perto possível de 560 px (960 no 9:16) na vertical sem mostrar o fim do aparelho.
+let pilulaAte = 0;
+function cam(f0, f1, s, sy = 422, ease = 'softInOut') {
+  if (s > 1.001 && f0 < pilulaAte + 2) { const d = f1 - f0; f0 = pilulaAte + 2; f1 = f0 + d; }
+  const topo = CEL.y, pe = CEL.y + 870 * K, m0 = VERT ? 60 : 40, m1 = H - m0;
+  let y = (VERT ? 960 : 560) - s * (TY + K * sy);
+  if (s > 1.001) {
+    const lo = m1 - s * pe, hi = m0 - s * topo;
+    // No 9:16, aparelho mais baixo que o quadro nessa escala: fica no meio.
+    y = VERT && lo > hi ? H / 2 - s * (topo + pe) / 2 : Math.min(hi, Math.max(lo, y));
+  } else y = 0;
+  const alvo = { scale: s, x: Math.round(W / 2 * (1 - s)), y: Math.round(y) };
+  camKeys.push([f0, { ...camAtual }]);
+  camKeys.push([f1, alvo, ease]);
+  camAtual = alvo;
+}
+const base = (f0, f1 = f0 + 22) => cam(f0, f1, 1);
+
+// ---------- Camadas da tela ----------
+const janelas = new Map();              // elemento -> [[ini, fim, entrada, saída]]
+function camada(nome, opt = {}) {
+  const id = 'c-' + nome + (opt.sufixo || '');
+  let el = document.getElementById(id);
+  if (!el) {
+    if (opt.recorte) {
+      el = document.createElement('div');
+      el.className = 'recorte';
+      el.id = id;
+      Object.assign(el.style, { left: opt.recorte.x + 'px', top: opt.recorte.y + 'px', width: opt.recorte.width + 'px', height: opt.recorte.height + 'px' });
+      const im = document.createElement('img');
+      im.src = `${opt.pasta || PASTA}/${nome}.png`;
+      im.style.width = (opt.larguraImg || opt.recorte.width) + 'px';
+      if (opt.desloc) { im.style.left = -opt.desloc.x + 'px'; im.style.top = -opt.desloc.y + 'px'; }
+      el.appendChild(im);
+    } else {
+      el = document.createElement('img');
+      el.className = 'camada';
+      el.id = id;
+      el.src = `${opt.pasta || PASTA}/${nome}.png`;
+    }
+    el.style.zIndex = opt.z || 1;
+    (opt.pai || tela).appendChild(el);
+  }
+  return el;
+}
+function janela(el, a, b, entra = 0, sai = 0) {
+  if (!janelas.has(el)) janelas.set(el, []);
+  janelas.get(el).push([a, b, entra, sai]);
+}
+// Mostra uma tela inteira de a até b (troca seca, como o app faz).
+const mostra = (nome, a, b, entra = 0, sai = 0, opt = {}) => { const el = camada(nome, opt); janela(el, a, b, entra, sai); return el; };
+function fecharJanelas() {
+  for (const [el, js] of janelas) {
+    js.sort((p, q) => p[0] - q[0]);
+    const k = [[0, 0]];
+    for (const [a, b, e, s] of js) {
+      if (e > 0) { k.push([Math.max(a - e, 0), 0]); k.push([a, 1]); } else { k.push([a, 0]); k.push([a, 1]); }
+      if (b < FIM) { if (s > 0) { k.push([b, 1]); k.push([b + s, 0]); } else { k.push([b, 1]); k.push([b, 0]); } }
+    }
+    k.push([FIM, k[k.length - 1][1]]);
+    const limpo = [];
+    for (const [f, v] of k) { if (limpo.length && limpo[limpo.length - 1][0] > f) continue; limpo.push([f, v]); }
+    M.kf(el, 'autoAlpha', limpo);
+  }
+}
+
+// Sequência de fotos (uma por tecla): cada foto aparece no seu quadro e fica até a próxima.
+function digitar(seq, recorte, a, passo, ate, z = 6) {
+  const nomes = T.sequencias[seq];
+  nomes.forEach((n, i) => {
+    const f = a + i * passo;
+    const g = i + 1 < nomes.length ? a + (i + 1) * passo : Math.max(ate, f + 1);
+    mostra(n, f, g, 0, 0, { recorte, desloc: { x: 0, y: 0 }, z });
+  });
+  return a + (nomes.length - 1) * passo;
+}
+
+// ---------- Contorno e toque ----------
+let nAnel = 0, nToque = 0;
+function anel(caixa, a, b, opt = {}) {
+  const pad = opt.pad ?? 6;
+  const el = document.createElement('div');
+  el.className = 'anel';
+  el.id = 'anel-' + (++nAnel);
+  Object.assign(el.style, { left: (caixa.x - pad) + 'px', top: (caixa.y - pad) + 'px', width: (caixa.width + 2 * pad) + 'px', height: (caixa.height + 2 * pad) + 'px', zIndex: 40 });
+  if (opt.raio) el.style.borderRadius = opt.raio + 'px';
+  (opt.pai || tela).appendChild(el);
+  M.kf(el, 'autoAlpha', [[0, 0], [a, 0], [a + 5, 1], [b, 1], [b + 6, 0], [FIM, 0]]);
+  M.kf(el, 'scale', [[0, 1.12], [a, 1.12], [a + 7, 1, 'softLand'], [FIM, 1]]);
+  M.mark(a, 'anel', opt.rotulo || 'aqui');
+  return el;
+}
+// Toque em (x, y) da tela no quadro f: o dedo chega 7 quadros antes, aperta e sai.
+function toque(x, y, f, opt = {}) {
+  const pai = opt.pai || tela;
+  const d = document.createElement('div');
+  d.className = 'toque'; d.id = 'toque-' + (++nToque);
+  Object.assign(d.style, { left: x + 'px', top: y + 'px', zIndex: 60 });
+  pai.appendChild(d);
+  const o = document.createElement('div');
+  o.className = 'onda'; o.id = 'onda-' + nToque;
+  Object.assign(o.style, { left: x + 'px', top: y + 'px', zIndex: 59 });
+  pai.appendChild(o);
+  M.kf(d, 'autoAlpha', [[0, 0], [f - 8, 0], [f - 4, 1], [f + 6, 1], [f + 12, 0], [FIM, 0]]);
+  M.kf(d, 'scale', [[0, 1.7], [f - 8, 1.7], [f - 2, 1, 'softLand'], [f, .82, 'softInOut'], [f + 3, 1, 'softLand'], [FIM, 1]]);
+  M.kf(o, 'autoAlpha', [[0, 0], [f, 0], [f + 1, .9], [f + 12, 0], [FIM, 0]]);
+  M.kf(o, 'scale', [[0, 1], [f, 1], [f + 12, 2.3, 'softLand'], [FIM, 2.3]]);
+  M.mark(f, 'press', opt.rotulo || 'toque');
+}
+const centro = (c) => ({ x: c.x + c.width / 2, y: c.y + c.height / 2 });
+const alvo = (foto, nome) => { const c = T.fotos[foto].alvos[nome]; if (!c) throw new Error(`alvo ${nome} de ${foto}`); return c; };
+const tocarEm = (foto, nome, f, rot) => { const c = centro(alvo(foto, nome)); toque(c.x, c.y, f, { rotulo: rot }); };
+// As abas do rodapé (cinco, com a mesma largura).
+const aba = (i) => ({ x: T.tabbar.x + T.tabbar.width * (i + .5) / 5, y: T.tabbar.y + 22 });
+
+// ---------- Título do passo ----------
+let nPassos = 0;
+function passo(titulo, a, ate) {
+  const n = ++nPassos;
+  const wrap = document.createElement('div');
+  wrap.className = 'pilula'; wrap.id = 'pilula-' + n;
+  wrap.innerHTML = `<span><b>${n}</b>${titulo}</span>`;
+  document.getElementById('pilulas').appendChild(wrap);
+  const dur = ate ? Math.min(F(3.4), ate - a - 12) : F(3.4);
+  M.enter(wrap, { at: a, frames: 14, ease: 'softLand', from: { y: -46, opacity: 0 } });
+  pilulaAte = a + dur + 12;
+  M.exit(wrap, { at: a + dur, frames: 12, ease: 'accelExit', to: { y: -60, opacity: 0 }, hide: true });
+  M.mark(a, 'passo', titulo);
+}
+
+// ---------- Peças ao lado ----------
+let nPeca = 0;
+function peca(html, x, y, a, b, opt = {}) {
+  const el = document.createElement('div');
+  el.className = 'peca ' + (opt.classe || '');
+  el.id = 'peca-' + (++nPeca);
+  el.innerHTML = html;
+  Object.assign(el.style, { left: x + 'px', top: y + 'px' });
+  if (opt.direita != null) Object.assign(el.style, { left: 'auto', right: opt.direita + 'px' });
+  if (opt.centro) Object.assign(el.style, { left: '0px', width: W + 'px', display: 'flex', justifyContent: 'center' });
+  lados.appendChild(el);
+  const dx = opt.dx ?? -50, dy = opt.dy ?? 0;
+  M.enter(el, { at: a, frames: 14, ease: 'softLand', from: { x: dx, y: dy, opacity: 0, scale: .96 }, smear: { axis: dy ? 'y' : 'x', px: 18, frames: 3 } });
+  if (b) M.exit(el, { at: b, frames: 12, ease: 'accelExit', to: { x: -dx * .6, y: -dy * .6, opacity: 0 }, hide: true });
+  // A peça entra com a palavra que a voz diz naquele instante: marca para o S3 do ouvir.py.
+  if (opt.fala !== false) {
+    const ps = FALA.palavras;
+    let k = -1, melhor = 1e9;
+    ps.forEach((p, i) => { const d = Math.abs(F(p.a) - a); if (d < melhor) { melhor = d; k = i; } });
+    if (k >= 0 && melhor <= 15) M.mark(a, 'fala', [ps[k], ps[k + 1]].filter(Boolean).map((p) => p.w.replace(/[.,:;!?]/g, '')).join(' '));
+  }
+  return el;
+}
+
+// ---------- A marca do fim ----------
+// Presa à última frase da voz (linha `linha` do roteiro). Exemplo do Aprovador:
+//   marcaFinal('z3', { sub: 'Boas-vindas!', comSub: 'Boas', comMarca: 'novo', comPulso: 'Aprovador' })
+// para "Boas-vindas ao novo app Aprovador!": o texto de baixo entra com a palavra dele, a
+// marca chega um pouco antes do nome (o texto não fica 2 s sozinho no chão vazio) e, no
+// nome, dá um pulso curto (5%) e volta. Assim o fim fica vivo até a última palavra e o
+// final parado cabe no G3 (0,6 a 1,4 s) com o filme acabando 0,7 s depois da voz
+// (montar-filmes.mjs soma essa folga sozinho).
+function marcaFinal(linha, o) {
+  let fSub = null;
+  if (o.sub) {
+    const sub = document.createElement('div');
+    sub.id = 'fim-sub'; sub.className = 'sub'; sub.textContent = o.sub;
+    document.getElementById('fim').appendChild(sub);
+    fSub = pal(linha, o.comSub);
+    M.words('#fim-sub', { at: fSub, mech: 'rise', dist: 40, frames: 12 });
+    M.mark(fSub, 'fala', o.comSub);
+  }
+  const fMarca = pal(linha, o.comMarca) - 4;
+  M.enter('#fim .linha', { at: fMarca, frames: 22, ease: 'snapSettle', from: { scale: 1.9, blur: 12, opacity: 0 } });
+  const fPulso = pal(linha, o.comPulso || o.comMarca);
+  const wFim = M.wrap('#fim');
+  const pulso = fPulso > fMarca + 22 ? [[fPulso, 1], [fPulso + 6, 1.05, 'softInOut'], [fPulso + 16, 1, 'softLand']] : [];
+  M.kf(wFim, 'scale', [[0, 1], [fMarca + 22, 1], ...pulso, [FIM, .97, 'glide']]);
+  M.kf(wFim, 'y', [[0, 0], [fMarca + 22, 0], [FIM, -14, 'glide']]);
+  M.mark(fMarca, 'fala', o.comMarca);
+  M.mark(fMarca, 'enter', 'marca final');
+}
+
+// ---------- O cartão que sai com o gesto ----------
+function gesto(k, acao, a, para, opt = {}) {
+  const c = T.card;
+  const g = document.createElement('div');
+  g.className = 'recorte'; g.id = `gesto-${k}-${acao}`;
+  Object.assign(g.style, { left: c.x + 'px', top: c.y + 'px', width: c.width + 'px', height: c.height + 'px', overflow: 'visible', zIndex: 20 });
+  const nomeCard = opt.card || `card-${k}`;
+  const im = document.createElement('img'); im.src = `${PASTA}/${nomeCard}.png`; im.style.width = c.width + 'px'; g.appendChild(im);
+  const st = document.createElement('img'); st.src = `${PASTA}/${nomeCard}-${acao}.png`; st.style.width = c.width + 'px'; st.id = g.id + '-carimbo'; g.appendChild(st);
+  tela.appendChild(g);
+  const d = 16;
+  M.kf(g, 'autoAlpha', [[0, 0], [a, 0], [a, 1], [a + d, 1], [a + d, 0], [FIM, 0]]);
+  M.kf(st, 'opacity', [[0, 0], [a, 0], [a + 7, 1, 'softInOut'], [FIM, 1]]);
+  M.kf(g, 'x', [[0, 0], [a, 0], [a + d, para.x, 'accelExit'], [FIM, para.x]]);
+  M.kf(g, 'y', [[0, 0], [a, 0], [a + d, para.y, 'accelExit'], [FIM, para.y]]);
+  M.kf(g, 'rotation', [[0, 0], [a, 0], [a + d, para.r || 0, 'accelExit'], [FIM, para.r || 0]]);
+  // O dedo segura o cartão e vai junto.
+  const p0 = { x: c.x + c.width * .62, y: c.y + c.height * .42 };
+  const dedo = document.createElement('div'); dedo.className = 'toque'; dedo.id = `dedo-${k}-${acao}`;
+  Object.assign(dedo.style, { left: p0.x + 'px', top: p0.y + 'px', zIndex: 61 });
+  tela.appendChild(dedo);
+  M.kf(dedo, 'autoAlpha', [[0, 0], [a - 8, 0], [a - 4, 1], [a + 9, 1], [a + 13, 0], [FIM, 0]]);
+  M.kf(dedo, 'x', [[0, 0], [a, 0], [a + 12, para.x * .55, 'softInOut'], [FIM, para.x * .55]]);
+  M.kf(dedo, 'y', [[0, 0], [a, 0], [a + 12, para.y * .55, 'softInOut'], [FIM, para.y * .55]]);
+  M.kf(dedo, 'scale', [[0, 1.6], [a - 8, 1.6], [a - 2, .86, 'softLand'], [FIM, .86]]);
+  M.mark(a, 'whip', `gesto ${acao}`);
+  return a + d;
+}
+

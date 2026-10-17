@@ -1,0 +1,36 @@
+// Cria a pasta de um filme novo com o kit da motionstudio:
+//   node ~/.claude/skills/motionstudio/kit/novo-projeto.mjs <pasta-do-projeto>
+//
+// <pasta>/
+//   roteiro.json          o que a voz diz (texto = tela e voz; fala = só voz), por bloco
+//   vozes/                tomadas da voz (Gemini TTS), alinhamento (Whisper) e montagem frase a frase
+//   gerar-som.mjs         trilha e efeitos sintetizados por código (trilha.mjs) e a mixagem
+//   autoteste.mjs         Motion.selfTest do filme (0 divergências antes de renderizar)
+//   tela-vazia.mjs        sonda de celular sem foto (o G2 não vê)
+//   film/fonte/           base.html, iphone.js, pe.html e a linha do tempo (longo.js)
+//   film/montar-filmes.mjs  gera os index-*.html (versões, temas, 9:16 e 16:9)
+//   film/gerar-fala.mjs   tempos da voz para o filme (assets/fala.js)
+//   film/runtime/         o motor de animação (cópia de runtime/ da skill)
+//   film/assets/, film/telas/   símbolo da marca, fotos do app e medidas.js
+// Não sobrescreve nada que já exista.
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const KIT = dirname(fileURLToPath(import.meta.url));
+const SKILL = resolve(KIT, "..");
+const destino = process.argv[2] && resolve(process.argv[2]);
+if (!destino) { console.error("uso: node novo-projeto.mjs <pasta-do-projeto>"); process.exit(2); }
+
+const copiados = [];
+function copiar(de, para) {
+  if (statSync(de).isDirectory()) {
+    mkdirSync(para, { recursive: true });
+    for (const f of readdirSync(de)) copiar(join(de, f), join(para, f));
+  } else if (!existsSync(para)) { cpSync(de, para); copiados.push(para); }
+}
+for (const f of readdirSync(KIT)) if (f !== "novo-projeto.mjs" && f !== "LEIA-ME.md") copiar(join(KIT, f), join(destino, f));
+copiar(join(SKILL, "runtime"), join(destino, "film", "runtime"));
+for (const d of ["film/assets", "film/telas", "vozes/tomadas"]) mkdirSync(join(destino, d), { recursive: true });
+console.log(`${copiados.length} arquivos em ${destino}`);
+console.log("Próximo passo: o roteiro (roteiro.json) e o passo a passo do kit em ~/.claude/skills/motionstudio/kit/LEIA-ME.md");

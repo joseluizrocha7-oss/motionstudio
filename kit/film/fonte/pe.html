@@ -1,0 +1,12 @@
+// ---------- Fecha a câmera e as janelas ----------
+camKeys.sort((a, b) => a[0] - b[0]);
+const camLimpo = [];
+for (const k of camKeys) { if (camLimpo.length && camLimpo[camLimpo.length - 1][0] === k[0]) camLimpo[camLimpo.length - 1] = k; else camLimpo.push(k); }
+camLimpo.push([FIM, { ...camLimpo[camLimpo.length - 1][1] }]);
+M.camera('#cam', camLimpo, { origin: '0px 0px', ease: 'softInOut' });
+fecharJanelas();
+
+window.__ready = Motion.loaded().then(() => { if (/selftest/.test(location.search)) Motion.selfTest(M, { samples: 24 }); });
+</script>
+</body>
+</html>

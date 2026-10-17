@@ -1,0 +1,179 @@
+---
+name: motionstudio
+description: Faz vídeo por código, com qualidade de motion designer e conferência automática. Tutorial de app com as telas de verdade (toques, gestos, simulação de iPhone, voz explicando passo a passo), comercial, promo, anúncio para rede social, vinheta de marca e vídeo de lançamento. Roteiro e voz em pt-BR (Gemini TTS escolhido frase a frase), filme em HTML com animação presa a cada palavra, uma fonte para várias versões (longo e curto, modo escuro e claro, 9:16 e 16:9), trilha e efeitos por código e portões de imagem, câmera, som e tela vazia no arquivo entregue. Usar para qualquer pedido de fazer, planejar, roteirizar, corrigir ou criticar vídeo, motion graphics, tutorial em vídeo, reels, vídeo de onboarding ou de treinamento. Evolução da motionmaxxing nesta máquina: preferir esta.
+---
+
+# motionstudio
+
+Skill de vídeo do Jose, nascida em 16/10/2026 da junção de três coisas:
+
+1. **A motionmaxxing** (github.com/Tejashmakwana/motionmaxxing, Apache-2.0): a direção do
+   filme (ideia, mundo, cortes), as curvas de movimento medidas em 53 filmes profissionais,
+   o motor de animação que volta a qualquer quadro (`runtime/`) e os portões G0 a G5.
+2. **O que foi aprendido aqui, filme a filme** (13 a 16/10/2026): voz Gemini escolhida frase
+   a frase, portões de câmera, som e tela vazia, captura do app de verdade com API simulada,
+   uma fonte para vários filmes, troca de trecho sem desencontrar voz e tela. O porquê de
+   cada regra, com caso e data: `historico/nota-local-motionmaxxing.md`.
+3. **O HyperFrames** (github.com/heygen-com/hyperframes, Apache-2.0), EM AVALIAÇÃO como motor
+   de render: captura por `beginFrame`, trechos em paralelo, GPU. Só entra depois de provar,
+   num trecho de filme real, a mesma imagem (com o desfoque de 8 fotos por quadro) em menos
+   tempo. Até lá o render é o `scripts/render_partes.sh`.
+
+`SKILL` = a pasta deste arquivo (`~/.claude/skills/motionstudio`). Comandos no Git Bash.
+No Windows desta máquina, `python3` não existe: usar `py -3`.
+
+## Regras do Jose (valem por cima de tudo o que vier depois)
+
+- **Formato pelo destino.** Tutorial de app para quem usa o app: 9:16 primeiro (a maioria
+  assiste no celular; "vamos focar no modo 9:16"). Rede social: 9:16 e 16:9. Treinamento
+  para ver no computador ou em reunião: 16:9. Destino não dito: decidir e dizer em uma linha.
+- **Uma versão só de cada formato, em resolução cheia.** Nada de rascunho em meia resolução;
+  confere-se por fotos (`render.mjs --still`) antes do render inteiro.
+- **Qualidade não se troca por tempo.** Desfoque de movimento com 8 fotos por quadro
+  (`--shutter 180 --subframes 8`); o Jose recusou cair para 4. Para acelerar, ver "Render".
+- **Câmera contida.** No máximo 1,5x o plano-base; o aparelho aparece quase o tempo todo e
+  a câmera chega perto só no momento-chave.
+- **Som enxuto.** Frases da voz niveladas uma a uma (-20 LUFS), trilha num volume só do
+  começo ao fim (uns 14 dB abaixo da voz), poucos efeitos e baixos, corte da voz só em
+  silêncio medido. Mistura final em -16 LUFS.
+- **Fala e tela juntas.** Texto na tela diz o que a voz diz, na mesma hora; cada um leva
+  `M.mark(quadro, 'fala', '<palavras>')` e o `ouvir.py` confere (S3).
+- **Voz em pt-BR nativa.** Gemini TTS, voz `pt-br-training-1` para instrucional (a
+  ElevenLabs "Raquel" foi reprovada por sotaque). Frase que termina em nome de botão sobe
+  no fim: na `fala`, o nome vai em minúsculas, ou a frase é reescrita para terminar em verbo
+  ("Toque em Reconectar quando a senha mudar."). Sigla e nome próprio na grafia de fala
+  ("T.I." vira "tê í", "90" vira "noventa"). O saldo do Gemini é o mesmo dos sistemas em
+  produção: gerar só o necessário.
+- **pt-BR com acento em tudo e nunca travessão** (voz, tela, NOTE.md, LEIA-ME).
+- **Ninguém ouviu.** Toda entrega diz que a fala foi conferida por transcrição e medida, e
+  que pronúncia de nome próprio e tom só o ouvido do Jose valida.
+- **Boas-vindas e fecho em vídeo para usuário novo** (Wellington, 16/10): abrir dando
+  boas-vindas a quem acabou de receber o acesso, guiar os primeiros passos, terminar com
+  as boas-vindas de novo junto da marca.
+
+## Que filme é
+
+| pedido | caminho |
+|---|---|
+| tutorial de app, onboarding, treinamento de sistema | o kit (`kit/`), passo a passo abaixo |
+| comercial, promo, anúncio, vinheta, lançamento | o método original: `references/metodo-motionmaxxing.md` e `references/` |
+| sem tela para mostrar (produto físico, foto) | trechos gerados (Veo 3.1) e trilha (Lyria 3) pela chave do Gemini: `historico/`, item "Sem ElevenLabs e sem Higgsfield" |
+
+## Passo a passo: tutorial de app (o caso mais comum)
+
+**0. Caixa de ferramentas e gosto.** `bash "$SKILL/scripts/providers.sh"`; ler
+`taste/verdicts.md` e `taste/edits.md` (o que o Jose aprovou e reprovou).
+
+**1. Projeto.** `node "$SKILL/kit/novo-projeto.mjs" <pasta>` (em `conteudo/<tema>-<data>/`
+do repositório do cliente). O kit e os comandos: `kit/LEIA-ME.md`.
+
+**2. Roteiro** (`roteiro.json`). Blocos por passo; cada linha com `texto` (tela e voz) e,
+quando precisa, `fala` (só voz). Na ordem de quem acabou de receber o acesso: boas-vindas,
+entrar, conectar o que precisa, instalar, a tela principal, as ações, os detalhes, as
+configurações, o fecho. Mostrar ao Jose um roteiro resumido antes de gastar com voz.
+
+**3. Voz.** `vozes/gerar-tomadas.mjs --tomadas 6` (por bloco: a voz precisa saber de onde
+vem e para onde vai) e `vozes/montar.mjs` (escolhe frase a frase pela medida, guarda a
+respiração, nivela). Frase reescrita: mais tomadas com `--inicio 7`; das antigas valem as
+frases que não mudaram. Versão curta com pouco tempo: `respiracao` e `cauda` menores no
+roteiro. Depois `film/gerar-fala.mjs` grava os tempos (`assets/fala.js`).
+
+**4. Telas.** Fotos do app de verdade, operado num Chromium com a API simulada e dados
+fictícios, cada alvo com a sua caixa (`medidas.js`). Os dois temas do app, se ele tiver.
+Modelo: `capturar.mjs` do caso de referência.
+
+**5. Filme.** `film/fonte/`: `base.html` (câmera, telas, contorno, toque, gesto, peças,
+marca do fim), `iphone.js` (Safari e Tela de Início, ilustrativos), a linha do tempo e
+`pe.html`. Cada mudança presa a uma palavra (`pal('e2', 'Entrar')`). `film/montar-filmes.mjs`
+gera os `index-*.html` (versões, temas, 9:16 e 16:9) com a duração tirada da voz.
+No 9:16 o celular é 1,75x o do 16:9; o que fica ao lado do aparelho no 16:9 vai para a faixa
+de baixo, e o que precisa ficar junto do botão vai por cima do app (`z-index`).
+
+**6. Antes do render (todos obrigatórios):**
+```bash
+node autoteste.mjs film/index-vertical.html          # 0 divergências
+node tela-vazia.mjs film/index-vertical.html         # nenhum instante com o celular vazio
+node "$SKILL/scripts/camera.mjs" film/index-vertical.html --el "#celular"   # Z1, Z2
+node "$SKILL/scripts/lint.mjs" film/index-vertical.html                     # G5 (a pílula de passo acusa C1: é o desenho)
+node "$SKILL/scripts/render.mjs" film/index-vertical.html --still 2,40,93 film/stills   # e OLHAR
+```
+
+**7. Som.** `node gerar-som.mjs <events.json de um --still> --total <duração>`: trilha e
+efeitos por código (nada de terceiros), mistura com a voz.
+
+**8. Render**, um formato de cada vez (dois Chromes juntos derrubam a máquina de 16 GB):
+```bash
+bash "$SKILL/scripts/render_partes.sh" film/index-vertical.html film/final-9x16.mp4 --dur <s> --audio film/audio/mix.wav -- --shutter 180 --subframes 8
+```
+Correção depois do render pronto: `scripts/trocar-trecho.sh` (renderiza só os trechos e junta
+quadro a quadro). Nunca emendar sem recodificar.
+
+**9. Portões no arquivo que vai ser entregue:**
+```bash
+py -3 "$SKILL/scripts/look.py" film/final-9x16.mp4 --out film/look-9x16 --expect <s> --expect-audio
+py -3 "$SKILL/scripts/ouvir.py" film/final-9x16.mp4 --roteiro film/audio/vo.txt --eventos film/final-9x16.mp4.events.json --sfx film/audio/sfx-eventos.json --motor whisper --modelo medium
+```
+Olhar a folha de contato (`look-*/sheet.jpg`) quadro por quadro. Alerta do Whisper ("frases
+emendadas", palavra não ouvida) se confere medindo antes de mexer: transcrever só o trecho
+e medir o silêncio na narração.
+
+**10. Entrega.** `film/NOTE.md` com os números de cada portão (e o que é real e o que é
+ilustrativo), `LEIA-ME.md` do projeto (o que sai, como refazer, onde mexer), entrada em
+`tarefas.md` do cliente. Dizer que ninguém ouviu.
+
+## Portões
+
+| portão | passa | quem mede |
+|---|---|---|
+| G0 o render existe | duração e som batem com o planejado | `look.py --expect --expect-audio` |
+| G1 texto legível | por olho; app em tamanho de celular fica abaixo dos 4% da altura: escolha, dizer no NOTE.md | folha de contato |
+| G2 sem quadro vazio | nenhuma sequência de mais de 3 quadros chapados | `look.py` |
+| G3 fim curto | final parado de 0,6 a 1,4 s (a marca do fim com pulso na última palavra e 0,7 s de folga resolve) | `look.py` |
+| G4 um herói por quadro | por olho | folha de contato |
+| G5 sem cromo de página | sem rótulo de canto, contador, barra de progresso | `lint.mjs` |
+| Z1 câmera contida | aproximação máxima até 1,5x o plano-base | `camera.mjs` |
+| Z2 objeto no quadro | metade ou mais do aparelho à vista na mediana | `camera.mjs` |
+| autoteste | 0 divergências entre tocar e saltar | `kit/autoteste.mjs` |
+| tela vazia | nenhum instante com o celular sem foto | `kit/tela-vazia.mjs` |
+| a leitura | sem alerta em frase de impacto, pontuação com pausa | `entonacao.mjs` (o `montar.mjs` já pune) |
+| S1 a S4 | fala inteira, pausas no lugar, fala e tela juntas, mistura enxuta | `ouvir.py` |
+
+ALERTA se corrige como FAIL; alerta que é da transcrição se prova medindo e vai para o
+NOTE.md com a medida.
+
+## Render: o que acelera e o que não
+
+- Medido em 16/10/2026: o Chrome do render na NVIDIA (RTX 4050) levou o mesmo tempo que na
+  Intel (36 s para 60 quadros de 8 fotos) e deu a mesma imagem (47,9 dB). O gargalo é a
+  captura, uma foto por vez (processador a 27%).
+- Ganho de verdade: capturar em paralelo (esbarra na RAM: 16 GB, 1,3 GB livres durante um
+  render; memória de 32 GB prevista para 20/10/2026) ou pelo `beginFrame` (HyperFrames).
+- Regra global do Jose: usar a GPU sempre que der, medindo (`~/.claude/CLAUDE.md`, seção GPU).
+
+## Comercial, promo, anúncio: o método original
+
+Ler `references/metodo-motionmaxxing.md` antes da primeira ideia: os 8 julgamentos do que é
+bom, a lista do que nunca entregar (cromo de página, layout de slide, cartão genérico,
+número inventado, slogan, fim de rodapé de site, filme que ninguém olhou), as 12 leis de
+ofício medidas e o passo a passo (marca, ideia, mundo, roteiro, o momento mais difícil
+primeiro, olhar com honestidade, som, entrega). Entrega de rede social: 9:16 e 16:9, o
+mesmo filme recomposto para cada quadro (o 16:9 não é o vertical com barras).
+
+## Caso de referência
+
+Tutorial "Primeiros passos no Aprovador" (16/10/2026), no repositório do Swipes:
+`conteudo/tutorial-primeiros-passos-2026-10-16/` (`LEIA-ME.md`, `film/NOTE.md`). Captura do
+app com API simulada (`capturar.mjs`, `app/dados.mjs`), longo de 3 min 50 s e curto de
+59,5 s em 9:16 nos dois temas, passeio por Ajustes, simulação do iPhone, fecho com pulso.
+
+## Arquivos
+
+| arquivo | para |
+|---|---|
+| `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`) |
+| `scripts/` | `render.mjs`, `render_partes.sh`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `entonacao.mjs`, `pausas.mjs`, `mix.py`, `voice.py` (ElevenLabs), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
+| `runtime/` | o motor de animação (`motion.js`, API em `runtime/README.md`) |
+| `references/` | o método original (`metodo-motionmaxxing.md`) e os guias de direção, em inglês |
+| `taste/` | os vereditos do Jose e os antes e depois |
+| `historico/` | o porquê de cada regra local, com data e caso |
+| `ORIGEM.md`, `LICENSE`, `NOTICE` | de onde veio cada parte, como trazer novidades das originais, licenças |

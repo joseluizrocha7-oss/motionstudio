@@ -54,6 +54,8 @@ No Windows desta máquina, `python3` não existe: usar `py -3`.
   está muito acelerado, sem uma segregação clara de setup inicial e funcionalidades de uso").
   Fecho fluido, dizendo a quem procurar ("Aproveite seu novo aplicativo e, em caso de
   dúvidas, entre em contato com a área de Tecnologia da Informação."), com a marca.
+  Sem detalhe técnico que não é passo do usuário: o "acesso salvo por 90 dias" saiu
+  a pedido dele ("retirar esse trecho", 17/10).
 - **Narrador em primeira pessoa e sem "app".** "Vamos configurar seu acesso", "vamos
   conectar"; nas ações, "toque em...". "Aplicativo", nunca "app" na voz ("Ele tá falando app
   ao pé da letra. Mudar para aplicativo, irá soar melhor."). Wellington, 17/10.

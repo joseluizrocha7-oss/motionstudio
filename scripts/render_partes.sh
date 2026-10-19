@@ -46,6 +46,15 @@ done
 for x in "${EXTRA[@]:-}"; do case "$x" in --from|--to|--audio|--still) echo "erro: $x não vai aqui (o script divide o filme sozinho)" >&2; exit 2;; esac; done
 
 PASTA="${SAIDA%.*}-partes"; mkdir -p "$PASTA"
+# Trecho guardado só vale para o MESMO filme (19/10/2026, apresentação de um CRM): um render parado e reiniciado
+# depois de mudar o HTML ou a fala aproveitava os trechos velhos (contagem de quadros igual) e o
+# filme saía com 30 s da versão anterior. A assinatura junta o HTML, os arquivos de assets/ e as
+# opções; se mudou, os trechos guardados são refeitos.
+ASSINATURA="$( { cat "$HTML"; cat "$(dirname "$HTML")"/assets/*.js 2>/dev/null; echo "$DUR $FPS $PARTE ${EXTRA[*]-}"; } | sha1sum | cut -c1-40)"
+if [ -f "$PASTA/assinatura.txt" ] && [ "$(cat "$PASTA/assinatura.txt")" != "$ASSINATURA" ]; then
+  echo "$(date +%H:%M:%S) o filme mudou desde os trechos guardados: refazendo todos"; rm -f "$PASTA"/p-*.mp4
+fi
+echo "$ASSINATURA" > "$PASTA/assinatura.txt"
 quadros() { ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 "$1" 2>/dev/null | tr -cd '0-9'; }
 # cortes em múltiplos de --parte, sempre em quadro inteiro
 mapfile -t CORTES < <(awk -v d="$DUR" -v p="$PARTE" -v f="$FPS" 'BEGIN { n = int(d * f + 0.5); k = int(p * f + 0.5); for (q = 0; q < n; q += k) printf "%d\n", q; printf "%d\n", n }')

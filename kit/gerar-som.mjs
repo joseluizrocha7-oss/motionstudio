@@ -15,7 +15,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 // Sonoridade integrada de um arquivo (EBU R128).
 function lufsDe(arq) {
-  const r = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", arq, "-af", "ebur128", "-f", "null", "-"], { encoding: "utf8" });
+  const r = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", arq, "-af", "ebur128=framelog=quiet", "-f", "null", "-"], { encoding: "utf8", maxBuffer: 1 << 28 });
   const s = (r.stderr || "");
   const mI = /I:\s+(-?[\d.]+) LUFS/.exec(s.slice(s.lastIndexOf("Summary")));
   if (!mI) throw new Error(`não li a sonoridade de ${arq}`);
@@ -74,5 +74,5 @@ ff([
   `[v][m][e]amix=inputs=3:normalize=0:duration=longest,alimiter=limit=0.8:level=0,atrim=0:${TOTAL},afade=t=out:st=${(TOTAL - 1.6).toFixed(2)}:d=1.6[s]`,   // a trilha desce no fim, sem cortar seco (Jose, 17/10)
   "-map", "[s]", "-ar", "48000", "-c:a", "pcm_s16le", join(AUDIO, "mix.wav"),
 ]);
-const medida = execFileSync("ffmpeg", ["-hide_banner", "-i", join(AUDIO, "mix.wav"), "-af", "ebur128=peak=true", "-f", "null", "-"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).toString();
+const medida = execFileSync("ffmpeg", ["-hide_banner", "-nostats", "-i", join(AUDIO, "mix.wav"), "-af", "ebur128=peak=true:framelog=quiet", "-f", "null", "-"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 1 << 28 }).toString();
 console.log("mix.wav pronto");

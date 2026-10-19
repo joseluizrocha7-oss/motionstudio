@@ -60,6 +60,10 @@ Em 13/10/2026, à noite, na revisão da skill inteira (pergunta do Jose: "pode s
 
 ## Como atualizar sem perder o que é daqui
 
+> A pasta `~/.claude/skills/motionmaxxing` foi excluída em 19/10/2026. Os comandos abaixo
+> valem para a cópia em `~/.claude/backups/regras-2026-10-19/motionmaxxing.tar.gz`, depois
+> de extraída.
+
 A pasta é um repositório git desde 13/10/2026. O ramo `upstream` é o commit `8c8ec0f` do repositório original; o ramo `local` é ele mais as mudanças desta máquina, um commit por rodada. A pasta `docs/media` (vídeos de demonstração) nunca foi instalada e fica fora, por `sparse-checkout`.
 
 - Ver o que é daqui: `git -C ~/.claude/skills/motionmaxxing diff --stat upstream local`.

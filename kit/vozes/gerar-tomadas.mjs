@@ -9,6 +9,7 @@
 //   node --env-file=../../../.env gerar-tomadas.mjs [--tomadas 3] [--blocos entrar,protheus] [--modelo-whisper small]
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,7 +18,8 @@ const argR = (n, p) => { const i = process.argv.indexOf(`--${n}`); return i > 0 
 const ROTEIRO = JSON.parse(readFileSync(join(AQUI, "..", argR("roteiro", "roteiro.json")), "utf8"));
 // Uma pasta de tomadas por voz (roteiro.voz.pasta): o montar.mjs nunca mistura duas vozes.
 const TOMADAS = join(AQUI, ROTEIRO.voz.pasta || "tomadas");
-const ENTONACAO = "C:/Users/josel/.claude/skills/motionmaxxing/scripts/entonacao.mjs";
+const SKILL = process.env.SKILL || join(homedir(), ".claude", "skills", "motionstudio");
+const ENTONACAO = join(SKILL, "scripts", "entonacao.mjs");
 mkdirSync(TOMADAS, { recursive: true });
 
 const arg = (n, p) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : p; };

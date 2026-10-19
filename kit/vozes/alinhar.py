@@ -9,7 +9,7 @@ O Gemini só devolve o áudio. Este script:
 
 Grava <tomada>.words.json [{"word","start","end"}] e <tomada>.lines.json
 [{"text","start","end"}] (uma linha por frase do roteiro), o formato que o
-entonacao.mjs e o ouvir.py da skill motionmaxxing leem.
+entonacao.mjs e o ouvir.py da motionstudio (scripts/) leem.
 
 Uso: py -3 alinhar.py tomada.wav roteiro.txt [--modelo medium]
 O roteiro é o texto mandado à voz; as marcas <short pause> etc. são ignoradas.

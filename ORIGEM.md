@@ -43,15 +43,16 @@ por 3 motivos:
   logo e o "Aprovador" por cima do celular e do monitor (aos 29,8 s, achado pelo `ler.mjs`).
   Ele nunca foi entregue. Antes de renderizar esse formato, refazer pelo `montar-filmes.mjs`.
 - Capturar em paralelo depois da memória de 32 GB (prevista para 20/10/2026), medindo.
-- Whisper na GPU: instalar cuBLAS 12 e cuDNN 9 (ver a seção GPU do `~/.claude/CLAUDE.md`).
+- Whisper na GPU: instalar cuBLAS 12 e cuDNN 9 (ver `~/.claude/notas/gpu.md`).
 - Generalizar o modelo de captura do app (`capturar.mjs` do caso do Aprovador) em `kit/`.
 
 ## Como trazer novidades das originais
 
-- **motionmaxxing:** o repositório dela fica em `~/.claude/skills/motionmaxxing` (ramos
-  `upstream` e `local`). Para ver o que mudou no original: `git -C ~/.claude/skills/motionmaxxing
-  fetch --filter=blob:none origin main` e `git -C ~/.claude/skills/motionmaxxing diff upstream
-  FETCH_HEAD --stat`. Trazer só o que valer a pena, arquivo por arquivo, e registrar aqui.
+- **motionmaxxing:** a pasta local foi excluída em 19/10/2026. A cópia completa, com o git e
+  os ramos `upstream` e `local`, está em `~/.claude/backups/regras-2026-10-19/motionmaxxing.tar.gz`.
+  Para ver o que mudou no original: clonar `https://github.com/Tejashmakwana/motionmaxxing` numa
+  pasta temporária e comparar com o commit `8c8ec0f`. Trazer só o que valer a pena, arquivo por
+  arquivo, e registrar aqui.
 - **HyperFrames:** `gh repo view heygen-com/hyperframes` e as notas de versão em `releases/`.
 - Esta pasta é um repositório git próprio (ramo `main`); cada rodada de mudança é um commit.
   Nada é enviado para fora.

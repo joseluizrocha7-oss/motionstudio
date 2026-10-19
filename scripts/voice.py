@@ -105,7 +105,7 @@ class ApiError(Exception):
 def http(method, path, body=None, key=None, raw=False, retries=2):
     url = path if path.startswith("http") else API + path
     data = json.dumps(body).encode() if body is not None else None
-    hdr = {"xi-api-key": key or "", "User-Agent": "motionmaxxing/1.0", "Accept": "*/*"}
+    hdr = {"xi-api-key": key or "", "User-Agent": "motionstudio/1.0", "Accept": "*/*"}
     if data is not None:
         hdr["Content-Type"] = "application/json"
     for attempt in range(retries + 1):

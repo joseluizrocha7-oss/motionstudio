@@ -1,35 +1,48 @@
 motionstudio
-Obra derivada da motionmaxxing (abaixo), feita em 16/10/2026 para uso do Jose Luiz
-Rocha de Oliveira. Mudanças em relação à original: SKILL.md reescrita em português,
-kit/ (projeto de tutorial de app), scripts/trocar-trecho.sh, historico/ e as
-alterações marcadas como LOCAL CHANGE e listadas em ORIGEM.md. As mudanças seguem
-sob a mesma Apache License 2.0. Ideias de motor de render (captura por beginFrame,
-trechos em paralelo, GPU) avaliadas a partir do HyperFrames, da HeyGen
-(github.com/heygen-com/hyperframes, Apache-2.0); nenhum arquivo dele foi copiado até agora.
-A conferência de texto por OCR (scripts/ler.mjs, 19/10/2026) parte de uma ideia do editonny
-(github.com/soumatheusgomes/editonny, MIT); nenhum arquivo dele foi copiado.
+Copyright 2026 Jose Luiz Rocha de Oliveira
+
+Licenciada sob a Apache License 2.0 (ver LICENSE).
+
+Esta obra deriva de uma obra licenciada sob a Apache License 2.0. O aviso de
+atribuição da obra original vem abaixo, como a licença exige. Mudanças em
+relação à obra original: SKILL.md reescrita em português; kit/ (projeto de
+tutorial de app, com a voz pelo Gemini TTS); os scripts camera.mjs, ouvir.py,
+entonacao.mjs, pausas.mjs, render_partes.sh, trocar-trecho.sh, ler.mjs e
+ocr-windows.ps1; references/metodo.md; e as alterações marcadas como
+LOCAL CHANGE nos próprios arquivos. As mudanças seguem sob a mesma licença.
+
+Este é o único arquivo do repositório que dá crédito a obras e componentes de
+terceiros. As ferramentas que a skill chama (Chrome, ffmpeg, Gemini, Whisper e
+outras) aparecem pelo nome onde são usadas. Os avisos da obra original que
+tratam de arquivos não distribuídos aqui (docs/media/, docs/hero/) foram
+omitidos, como a seção 4(d) da licença permite.
+
+================================================================================
+Obras e componentes de terceiros
+================================================================================
 
 --------------------------------------------------------------------------------
-Woven SFX   (kit/efeitos-gravados/pop-hand.wav, mouse-click-2.wav, fast-whoosh.wav)
-  github.com/woven-video/woven-sfx, commit 521b446db682a3cae9ae1647e94bbdc312cd9a3a.
-  License: CC0 1.0 Universal (public domain). Full text: kit/efeitos-gravados/SOUNDS_LICENSE
-  Attribution is optional: "Efeitos sonoros: Woven SFX (CC0)".
+Obra original (Apache License 2.0)
 
---------------------------------------------------------------------------------
 motionmaxxing: looksmaxxing for motion graphics
 Made by Tejas Makwana (x.com/makwanatejas170) · github.com/Tejashmakwana/motionmaxxing
 Lives inside FinalMotion · finalmotion.video
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 That license covers the original work in this repository: SKILL.md, references/,
-scripts/, templates/, examples/, taste/, library/, docs/, runtime/motion.js,
-runtime/hero3d/hero3d.js, runtime/native-ui/ and the original images and films
-in docs/media/ and studies/.
+scripts/, templates/, examples/, library/, runtime/motion.js,
+runtime/hero3d/hero3d.js, runtime/native-ui/ and the original images in studies/.
 
 The third-party components below are bundled in this repository. They are NOT
 covered by the Apache License 2.0. Each one stays under its own license, and
 anyone who copies, redistributes or builds on this repository must comply with
 those licenses as well.
+
+--------------------------------------------------------------------------------
+Efeitos sonoros em domínio público
+  (kit/efeitos-gravados/pop-hand.wav, mouse-click-2.wav, fast-whoosh.wav)
+  Woven SFX, github.com/woven-video/woven-sfx, commit 521b446db682a3cae9ae1647e94bbdc312cd9a3a.
+  License: CC0 1.0 Universal (public domain). Full text: kit/efeitos-gravados/SOUNDS_LICENSE
 
 --------------------------------------------------------------------------------
 GSAP 3.12.5   (runtime/vendor/gsap.min.js)
@@ -71,15 +84,3 @@ Inter   (runtime/fonts/InterVariable.woff2, runtime/hero3d/fonts/Inter-Bold-Lati
   runtime/hero3d/fonts/OFL.txt
   The fonts may be used, embedded and redistributed under the OFL, but not sold
   on their own, and derivative fonts may not use the reserved font name.
-
---------------------------------------------------------------------------------
-Showcase brands
-  Cluely, Spotify and Wispr Flow (docs/media/*comparison*, *-poster.jpg) belong to their
-  owners. They appear only in the before/after demonstrations, are unofficial,
-  and are not affiliated with or endorsed by those companies. The Apache License
-  2.0 grants no trademark rights in them.
-
---------------------------------------------------------------------------------
-Hero banner (docs/hero/, docs/media/hero.*)
-  Purely typographic and vector, made with this repository's own runtime and the
-  Inter font above. No photograph and no third-party image is used.

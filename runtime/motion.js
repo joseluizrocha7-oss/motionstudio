@@ -108,7 +108,7 @@ function film(cfg) {
   Object.defineProperty(clock, 't', { get: () => curT, set: renderAt });
   tl.fromTo(clock, { t: 0 }, { t: duration, duration, ease: 'none', immediateRender: false, lazy: false }, 0);
 
-  /* seek contract + HyperFrames attributes */
+  /* seek contract + attributes for external frame-seeking renderers */
   const seek = t => {
     t = Math.max(0, Math.min(duration, t));
     if (twosClock) { let fr = frameOf(t); fr -= fr % 2; t = fr / fps; }

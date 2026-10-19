@@ -6,7 +6,7 @@
 // Gasta o saldo pré-pago da API Gemini (o mesmo dos sistemas em produção).
 // Tomada que já existe não é gerada de novo.
 //
-//   node --env-file=../../../.env gerar-tomadas.mjs [--tomadas 3] [--blocos entrar,protheus] [--modelo-whisper small]
+//   node --env-file=../../../.env gerar-tomadas.mjs [--tomadas 3] [--blocos entrar,instalar] [--modelo-whisper small]
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";

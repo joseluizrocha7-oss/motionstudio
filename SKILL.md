@@ -1,28 +1,32 @@
 ---
 name: motionstudio
-description: Faz vídeo por código, com qualidade de motion designer e conferência automática. Tutorial de app com as telas de verdade (toques, gestos, simulação de iPhone, voz explicando passo a passo), comercial, promo, anúncio para rede social, vinheta de marca e vídeo de lançamento. Roteiro e voz em pt-BR (Gemini TTS escolhido frase a frase), filme em HTML com animação presa a cada palavra, uma fonte para várias versões (longo e curto, modo escuro e claro, 9:16 e 16:9), trilha e efeitos por código e portões de imagem, texto, câmera, som e tela vazia no arquivo entregue. Usar para qualquer pedido de fazer, planejar, roteirizar, corrigir ou criticar vídeo, motion graphics, tutorial em vídeo, reels, vídeo de onboarding ou de treinamento. Evolução da motionmaxxing nesta máquina: preferir esta.
+description: Faz vídeo por código, com qualidade de motion designer e conferência automática. Tutorial de app com as telas de verdade (toques, gestos, simulação de iPhone, voz explicando passo a passo), comercial, promo, anúncio para rede social, vinheta de marca e vídeo de lançamento. Roteiro e voz em pt-BR (Gemini TTS 3.8 Flash, escolhido frase a frase), filme em HTML com animação presa a cada palavra, uma fonte para várias versões (longo e curto, modo escuro e claro, 9:16 e 16:9), trilha e efeitos por código e portões de imagem, texto, câmera, som e tela vazia no arquivo entregue. Usar para qualquer pedido de fazer, planejar, roteirizar, corrigir ou criticar vídeo, motion graphics, tutorial em vídeo, reels, vídeo de onboarding ou de treinamento.
 ---
 
 # motionstudio
 
-Skill de vídeo do Jose, nascida em 16/10/2026 da junção de três coisas:
+Skill de vídeo do Jose, criada em 16/10/2026. Tem três partes:
 
-1. **A motionmaxxing** (github.com/Tejashmakwana/motionmaxxing, Apache-2.0): a direção do
-   filme (ideia, mundo, cortes), as curvas de movimento medidas em 53 filmes profissionais,
-   o motor de animação que volta a qualquer quadro (`runtime/`) e os portões G0 a G5.
-2. **O que foi aprendido aqui, filme a filme** (13 a 16/10/2026): voz Gemini escolhida frase
-   a frase, portões de câmera, som e tela vazia, captura do app de verdade com API simulada,
-   uma fonte para vários filmes, troca de trecho sem desencontrar voz e tela. O porquê de
-   cada regra, com caso e data: `historico/nota-local-motionmaxxing.md`.
-3. **O HyperFrames** (github.com/heygen-com/hyperframes, Apache-2.0), EM AVALIAÇÃO como motor
-   de render: captura por `beginFrame`, trechos em paralelo, GPU. Só entra depois de provar,
-   num trecho de filme real, a mesma imagem (com o desfoque de 8 fotos por quadro) em menos
-   tempo. Até lá o render é o `scripts/render_partes.sh`. Para a avaliação, comece pela versão
-   0.8.171: é a que o editonny (github.com/soumatheusgomes/editonny) fixa, com
-   `npx --yes hyperframes@0.8.171 lint`, `check` e `render`.
+1. **A direção do filme** (ideia, mundo, cortes), as curvas de movimento medidas em 53
+   filmes profissionais, o motor de animação que volta a qualquer quadro (`runtime/`) e os
+   portões G0 a G5. O método completo: `references/metodo.md`.
+2. **O que foi aprendido filme a filme** (13 a 19/10/2026): voz Gemini escolhida frase a
+   frase, portões de câmera, som, texto e tela vazia, captura do app de verdade com API
+   simulada, uma fonte para vários filmes, troca de trecho sem desencontrar voz e tela.
+3. **Um motor de render mais rápido, EM AVALIAÇÃO**: captura por `beginFrame`, trechos em
+   paralelo, GPU. Só entra depois de provar, num trecho de filme real, a mesma imagem (com o
+   desfoque de 8 fotos por quadro) em menos tempo. Até lá o render é o
+   `scripts/render_partes.sh`. O candidato e a versão para testar: `LOCAL.md`.
 
 `SKILL` = a pasta deste arquivo (`~/.claude/skills/motionstudio`). Comandos no Git Bash.
 No Windows desta máquina, `python3` não existe: usar `py -3`.
+
+**Arquivos só desta máquina (fora do git, têm nome de cliente):** `LOCAL.md` (casos de
+cliente, caminhos e candidatos em avaliação), `historico/` (o porquê de cada regra, com caso
+e data), `taste/verdicts.md` e `taste/edits.md` (o que o Jose aprovou e reprovou) e
+`ORIGEM.md` (de onde veio cada parte e o que falta). Ler quando existirem. Nome de cliente,
+de pessoa ou de projeto de terceiro vai para esses arquivos, nunca para os arquivos do git:
+o repositório é público.
 
 ## Regras do Jose (valem por cima de tudo o que vier depois)
 
@@ -43,12 +47,14 @@ No Windows desta máquina, `python3` não existe: usar `py -3`.
   LUFS, com a trilha descendo nos últimos 1,6 s.
 - **Fala e tela juntas.** Texto na tela diz o que a voz diz, na mesma hora; cada um leva
   `M.mark(quadro, 'fala', '<palavras>')` e o `ouvir.py` confere (S3).
-- **Voz em pt-BR nativa.** Gemini TTS. Para o Jose, desde 17/10, a voz é a `pt-br-podcaster-6`
-  também no tutorial ("Usa a mesma voz do comercial swipes"; ele a escolheu de ouvido entre três
+- **Voz em pt-BR nativa.** Gemini TTS 3.8 Flash (`gemini-3.8-flash-tts`, pelo
+  `kit/vozes/tts.mjs` e pelo `kit/vozes/gerar-tomadas.mjs`) em todo filme com voz, tutorial
+  ou comercial. Para o Jose, desde 17/10, a voz é a `pt-br-podcaster-6`
+  também no tutorial ("Usa a mesma voz do comercial"; ele a escolheu de ouvido entre três
   amostras para o comercial). Ela tende a terminar frase subindo: 8 tomadas nos blocos grandes,
   estilo pedindo fim descendo, pausa entre frases do roteiro. A `pt-br-training-1` foi a do
-  tutorial até a rodada 4. Tomadas de cada voz numa pasta própria (`roteiro.voz.pasta`). (A
-  ElevenLabs "Raquel" foi reprovada por sotaque.) Frase que termina em nome de botão sobe
+  tutorial até a rodada 4. Tomadas de cada voz numa pasta própria (`roteiro.voz.pasta`). (A voz de
+  outro serviço foi reprovada por sotaque em 15/10: a voz é sempre a do Gemini.) Frase que termina em nome de botão sobe
   no fim: na `fala`, o nome vai em minúsculas, ou a frase é reescrita para terminar em verbo
   ("Toque em Reconectar quando a senha mudar."). Sigla e nome próprio na grafia de fala
   ("T.I." vira "tê í", "90" vira "noventa"). O saldo do Gemini é o mesmo dos sistemas em
@@ -56,9 +62,9 @@ No Windows desta máquina, `python3` não existe: usar `py -3`.
 - **pt-BR com acento em tudo e nunca travessão** (voz, tela, NOTE.md, LEIA-ME).
 - **Ninguém ouviu.** Toda entrega diz que a fala foi conferida por transcrição e medida, e
   que pronúncia de nome próprio e tom só o ouvido do Jose valida.
-- **Abertura, partes e fecho em vídeo para usuário novo** (Wellington, 16 e 17/10): abrir
-  dando boas-vindas a quem acabou de receber o acesso ("Olá! Seja bem-vindo ao novo
-  Aprovador."), dizer as partes do vídeo e separar a configuração inicial (feita uma vez) do
+- **Abertura, partes e fecho em vídeo para usuário novo** (gestor do cliente, 16 e 17/10):
+  abrir dando boas-vindas a quem acabou de receber o acesso ("Olá! Seja bem-vindo ao novo
+  [nome do aplicativo]."), dizer as partes do vídeo e separar a configuração inicial (feita uma vez) do
   uso no dia a dia ("O início está muito acelerado, sem uma segregação clara de setup inicial e
   funcionalidades de uso"). A parte se anuncia pela voz, com o app em cena e uma pílula escura
   pequena no alto ("Parte 1 de 3 · Configuração inicial"); enquanto a voz nomeia os passos, a
@@ -71,12 +77,12 @@ No Windows desta máquina, `python3` não existe: usar `py -3`.
   a pedido dele ("retirar esse trecho", 17/10).
 - **Narrador em primeira pessoa e sem "app".** "Vamos configurar seu acesso", "vamos
   conectar"; nas ações, "toque em...". "Aplicativo", nunca "app" na voz ("Ele tá falando app
-  ao pé da letra. Mudar para aplicativo, irá soar melhor."). Wellington, 17/10.
+  ao pé da letra. Mudar para aplicativo, irá soar melhor."). Gestor do cliente, 17/10.
 - **Em pé do começo ao fim.** Tutorial de app em 9:16 não pede para o usuário virar o
   celular (cada reprodutor gira o vídeo de um jeito); trecho de computador entra com o
   monitor na largura do quadro e a câmera chegando no que importa (a tabela, a tela).
 - **Um tema só quando pedirem.** O Jose escolheu só o modo claro para o tutorial do
-  Aprovador (16/10); a troca de tema aparece no passeio por Ajustes (o toque em Escuro deixa
+  caso de referência (16/10); a troca de tema aparece no passeio por Ajustes (o toque em Escuro deixa
   o app escuro por um instante e o toque em Claro volta).
 - **Telas da versão que está em produção.** Fotografar do código da tag de produção; vídeo
   com versão antiga no topo do app foi refeito a pedido do Jose (16/10, 1.30.112 para 1.30.115).
@@ -86,13 +92,14 @@ No Windows desta máquina, `python3` não existe: usar `py -3`.
 | pedido | caminho |
 |---|---|
 | tutorial de app, onboarding, treinamento de sistema | o kit (`kit/`), passo a passo abaixo |
-| comercial, promo, anúncio, vinheta, lançamento | o método original: `references/metodo-motionmaxxing.md` e `references/` |
-| sem tela para mostrar (produto físico, foto) | trechos gerados (Veo 3.1) e trilha (Lyria 3) pela chave do Gemini: `historico/`, item "Sem ElevenLabs e sem Higgsfield" |
+| comercial, promo, anúncio, vinheta, lançamento | o método de direção: `references/metodo.md` e `references/` |
+| sem tela para mostrar (produto físico, foto) | trechos gerados (Veo 3.1) e trilha (Lyria 3) pela chave do Gemini (a nota está em `historico/`, quando existir) |
 
 ## Passo a passo: tutorial de app (o caso mais comum)
 
 **0. Caixa de ferramentas e gosto.** `bash "$SKILL/scripts/providers.sh"`; ler
-`taste/verdicts.md` e `taste/edits.md` (o que o Jose aprovou e reprovou).
+`taste/verdicts.md`, `taste/edits.md` (o que o Jose aprovou e reprovou) e `LOCAL.md`,
+quando existirem.
 
 **1. Projeto.** `node "$SKILL/kit/novo-projeto.mjs" <pasta>` (em `conteudo/<tema>-<data>/`
 do repositório do cliente). O kit e os comandos: `kit/LEIA-ME.md`.
@@ -102,7 +109,8 @@ quando precisa, `fala` (só voz). Na ordem de quem acabou de receber o acesso: b
 entrar, conectar o que precisa, instalar, a tela principal, as ações, os detalhes, as
 configurações, o fecho. Mostrar ao Jose um roteiro resumido antes de gastar com voz.
 
-**3. Voz.** `vozes/gerar-tomadas.mjs --tomadas 6` (por bloco: a voz precisa saber de onde
+**3. Voz.** Gemini TTS 3.8 Flash (`roteiro.voz.modelo`: `gemini-3.8-flash-tts`; chave em
+`GEMINI_API_KEY`, num `.env` passado com `node --env-file`). `vozes/gerar-tomadas.mjs --tomadas 6` (por bloco: a voz precisa saber de onde
 vem e para onde vai) e `vozes/montar.mjs` (escolhe frase a frase pela medida, guarda a
 respiração, nivela). Frase reescrita: mais tomadas com `--inicio 7`; das antigas valem as
 frases que não mudaram. Versão curta com pouco tempo: `respiracao` e `cauda` menores no
@@ -196,22 +204,23 @@ NOTE.md com a medida.
   Intel (36 s para 60 quadros de 8 fotos) e deu a mesma imagem (47,9 dB). O gargalo é a
   captura, uma foto por vez (processador a 27%).
 - Ganho de verdade: capturar em paralelo (esbarra na RAM: 16 GB, 1,3 GB livres durante um
-  render; memória de 32 GB prevista para 20/10/2026) ou pelo `beginFrame` (HyperFrames).
+  render; memória de 32 GB prevista para 20/10/2026) ou pelo `beginFrame` (o motor em avaliação, ver `LOCAL.md`).
 - Regra global do Jose: usar a GPU sempre que der, medindo (`~/.claude/CLAUDE.md`, seção GPU).
 
-## Comercial, promo, anúncio: o método original
+## Comercial, promo, anúncio: o método de direção
 
-Ler `references/metodo-motionmaxxing.md` antes da primeira ideia: os 8 julgamentos do que é
+Ler `references/metodo.md` antes da primeira ideia: os 8 julgamentos do que é
 bom, a lista do que nunca entregar (cromo de página, layout de slide, cartão genérico,
 número inventado, slogan, fim de rodapé de site, filme que ninguém olhou), as 12 leis de
 ofício medidas e o passo a passo (marca, ideia, mundo, roteiro, o momento mais difícil
 primeiro, olhar com honestidade, som, entrega). Entrega de rede social: 9:16 e 16:9, o
-mesmo filme recomposto para cada quadro (o 16:9 não é o vertical com barras).
+mesmo filme recomposto para cada quadro (o 16:9 não é o vertical com barras). A voz do
+comercial é a mesma do tutorial, Gemini TTS 3.8 Flash: o passo 5 do método diz como.
 
 ## Caso de referência
 
-Tutorial "Primeiros passos no Aprovador" (16/10/2026), no repositório do Swipes:
-`conteudo/tutorial-primeiros-passos-2026-10-16/` (`LEIA-ME.md`, `film/NOTE.md`). Captura do
+Tutorial de primeiros passos de um app de aprovação (16/10/2026), no repositório do
+cliente (caminho em `LOCAL.md`; `LEIA-ME.md` e `film/NOTE.md` do projeto). Captura do
 app com API simulada (`capturar.mjs`, `app/dados.mjs`), longo de 3 min 50 s e curto de
 59,5 s em 9:16 nos dois temas, passeio por Ajustes, simulação do iPhone, fecho com a marca
 chegando no nome.
@@ -221,9 +230,10 @@ chegando no nome.
 | arquivo | para |
 |---|---|
 | `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`); `kit/efeitos-gravados/`: 3 sons CC0 em teste |
-| `scripts/` | `render.mjs`, `render_partes.sh`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `voice.py` (ElevenLabs), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
+| `scripts/` | `render.mjs`, `render_partes.sh`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
 | `runtime/` | o motor de animação (`motion.js`, API em `runtime/README.md`) |
-| `references/` | o método original (`metodo-motionmaxxing.md`) e os guias de direção, em inglês |
-| `taste/` | os vereditos do Jose e os antes e depois |
-| `historico/` | o porquê de cada regra local, com data e caso |
-| `ORIGEM.md`, `LICENSE`, `NOTICE` | de onde veio cada parte, como trazer novidades das originais, licenças |
+| `references/` | o método de direção (`metodo.md`) e os guias de ofício, em inglês |
+| `taste/` | os vereditos do Jose e os antes e depois (fora do git) |
+| `historico/` | o porquê de cada regra local, com data e caso (fora do git) |
+| `LOCAL.md`, `ORIGEM.md` | casos de cliente, caminhos, candidatos em avaliação, de onde veio cada parte e o que falta (fora do git) |
+| `LICENSE`, `NOTICE` | a licença e o único lugar com as atribuições de terceiros |

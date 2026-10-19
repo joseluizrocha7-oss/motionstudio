@@ -1,6 +1,6 @@
 # Tools: every script in `scripts/`
 
-`SKILL` = the skill folder. All scripts print `--help`. Zero dependencies unless noted (Node 22+, Chrome, ffmpeg, Python 3.9+). Nothing here calls a paid API except `voice.py` (ElevenLabs) and, only when asked, `imagegen.py` (Codex login, no key). Scratch to delete after tests: frame sequences, drafts, `look/` dirs.
+`SKILL` = the skill folder. All scripts print `--help`. Zero dependencies unless noted (Node 22+, Chrome, ffmpeg, Python 3.9+). Nothing here calls a paid API except the voice (`kit/vozes/tts.mjs` and `gerar-tomadas.mjs`: Gemini TTS 3.8 Flash, `GEMINI_API_KEY`), the optional ElevenLabs commands of `voice.py` (not used for the voice) and, only when asked, `imagegen.py` (Codex login, no key). Scratch to delete after tests: frame sequences, drafts, `look/` dirs.
 
 | step | script | one line |
 |---|---|---|
@@ -8,7 +8,7 @@
 | 1 | `brand.mjs`, `fetch_logo.mjs` | capture a site's brand; fetch an official third-party mark |
 | 3 | `precedent.py` | rule-only precedent per beat |
 | 4 | `imagegen.py` | generated SURFACE plates (never text/logo/UI/people) |
-| 5, 8 | `voice.py`, `sync.mjs`, `mix.py` | voice, word timings to frames (5); SFX, music, final mix (8) |
+| 5, 8 | `kit/vozes/tts.mjs`, `kit/vozes/alinhar.py`, `sync.mjs`, `voice.py`, `mix.py` | voice by Gemini TTS 3.8 Flash, word timings to frames (5); line clips, music fit, final mix (8) |
 | 6-7, 9 | `render.mjs`, `look.py`, `lint.mjs` | render, inspect (G0 G2 G3 + audio), page-chrome lint (G5); final render with sound (9) |
 | 9 | `blind_review.py` | blind A/B page for the user |
 
@@ -62,6 +62,6 @@ Same definitions as SKILL.md and `slop.md` Part 2.
 Written after this user's rejections, all of which had passed G0-G5. Messages are in Portuguese; each script's header says which film set each limit. An `ALERTA` is fixed like a FAIL.
 - `node camera.mjs film/index-vertical.html --el "<filmed object>" [--max 1.5] [--corte 0.5] [--json]` -> base framing (median scale of the object through its whole transform chain), closest framing, push-ins, share of the object inside the frame; gates **Z1** camera contained and **Z2** subject in frame; exit 1 on ALERTA. No render needed (about 8 s). `--el` is the thing being filmed (device, screen, piece), not the stage; default `[data-camera]`, then `#cam`.
 - `node entonacao.mjs film/audio/vo.mp3` -> per line: pitch range, how the line ends, syllables per second, pauses between lines and after each punctuation mark; `ALERTAS`. `node pausas.mjs film/audio/vo.mp3` lengthens the silence after punctuation in the audio already paid for and writes `vo-ritmo.*`.
-- `python3 ouvir.py film/final-9x16.mp4 --roteiro film/vo.txt [--eventos film/final-9x16.mp4.events.json] [--sfx film/events.json] [--motor scribe|whisper] [--igual conplan=complan]` -> transcribes the delivered file and prints gates **S1** speech complete, **S2** pauses in place, **S3** voice and screen together (film marks `M.mark(frame, 'fala', '<first words of the line>')`), **S4** lean mix (line levels, music under voice, SFX per 10 s); writes `film/ouvir/ouvir.json` and caches the transcript by audio fingerprint; exit 1 on ALERTA. Scribe needs the ElevenLabs key (a fraction of a cent per film); `--motor whisper` is local and free, with wider limits. Numbers in the script go spelled out, as spoken.
+- `python3 ouvir.py film/final-9x16.mp4 --roteiro film/vo.txt [--eventos film/final-9x16.mp4.events.json] [--sfx film/events.json] [--motor scribe|whisper] [--igual lumina=lumena]` -> transcribes the delivered file and prints gates **S1** speech complete, **S2** pauses in place, **S3** voice and screen together (film marks `M.mark(frame, 'fala', '<first words of the line>')`), **S4** lean mix (line levels, music under voice, SFX per 10 s); writes `film/ouvir/ouvir.json` and caches the transcript by audio fingerprint; exit 1 on ALERTA. Scribe needs the ElevenLabs key (a fraction of a cent per film); `--motor whisper` is local and free, with wider limits. Numbers in the script go spelled out, as spoken.
 - `bash render_partes.sh film/index-vertical.html film/final-9x16.mp4 --dur <s> [--parte 5] [--audio mix.wav] [-- <render.mjs options>]` -> the full render in chunks, one at a time: frame count checked per chunk, a failed chunk redone (4 tries), finished chunks skipped on a re-run, joined without re-encoding, the chunks' `events.json` merged beside the film.
 - `voice.py split` now levels every line clip to the median line's loudness (`--no-level` to keep them as generated). `voice.py` and `providers.sh` find the ElevenLabs key in a `.env` of any parent folder (only a line that names ElevenLabs); `_cdp.mjs` and `providers.sh` find Chrome on Windows; `providers.sh` reports `python_cmd`.

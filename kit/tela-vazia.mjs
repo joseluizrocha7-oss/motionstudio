@@ -1,6 +1,6 @@
 // Procura instantes em que a tela do celular fica sem nenhuma foto inteira do app (fica o
 // fundo preto do #tela). O G2 do look.py não vê: o chão em volta conta como imagem.
-// No tutorial do Aprovador (16/10/2026) a folha de contato mostrou 1,2 s de celular preto
+// No tutorial do caso de referência (16/10/2026) a folha de contato mostrou 1,2 s de celular preto
 // antes da busca; esta sonda achou mais um, de 0,2 s. Rodar em todo filme de tela de app.
 //   node tela-vazia.mjs film/index-vertical.html [--de 2.5] [--ate <s>]
 // Usa o Chrome pelo conector da própria skill (scripts/_cdp.mjs): não precisa de Playwright.

@@ -7,8 +7,6 @@
 // na tela, tira do MP4 entregue o quadro do meio do trecho mais longo em que ele fica parado, passa o OCR do
 // Windows (pt-BR, embutido, sem instalar nada: ocr-windows.ps1) e procura o texto ali. Pega texto coberto
 // por outra peça, cortado pela borda, miúdo ou apagado demais para ler, e acento trocado por quadradinho.
-// Ideia trazida do editonny (github.com/soumatheusgomes/editonny, MIT), que confere legendas por OCR; o
-// código é daqui.
 //
 // Uso:
 //   node ler.mjs <film/index-vertical.html> <film/final-9x16.mp4> [--passo 0.2] [--de s] [--ate s]

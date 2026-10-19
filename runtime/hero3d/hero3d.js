@@ -1,6 +1,6 @@
-// hero3d.js: one seek-safe hero 3D object for a motionmaxxing film (ported from motion-unslop v2 + the gen-1 SVG-logo extrusion).
+// hero3d.js: one seek-safe hero 3D object for a motionstudio film (with the gen-1 SVG-logo extrusion).
 //
-// Runs INSIDE the renderer (plain HTML + Motion runtime, or HyperFrames) on Three.js r186. No Blender, no DCC, no network at render time.
+// Runs INSIDE the renderer (plain HTML + Motion runtime, or a parallel frame-seeking renderer) on Three.js r186. No Blender, no DCC, no network at render time.
 // Normal use is through the Motion runtime: M.hero3d(canvas, { objects | build, state }) loads this module for you (see runtime/README.md "3D").
 // Direct use:
 //   const hero = await createHero3D(canvas, { objects: [{ id: 'mark', kind: 'logo', svg: 'M0 0 ...' }], state: (t, objs, ctx) => ({ ... }) });
@@ -9,7 +9,7 @@
 // Seek-safety contract (why this file looks the way it does):
 //   * renderAt() RESETS every transform, light and uniform from options + state on every call.
 //     Nothing accumulates between frames, so frame 75 is identical whether you jumped to it or
-//     played through 0..74 (HyperFrames renders in parallel workers that seek out of order).
+//     played through 0..74 (a parallel renderer seeks out of order).
 //   * No clocks, no requestAnimationFrame, no Math.random(). Use rng(seed) for scatter.
 //   * All assets (font, env image, glTF, screen image) load inside createHero3D(); await it
 //     before the first render. No fetch happens in renderAt().
@@ -43,7 +43,7 @@ export const ease = {
   linear: (x) => x,
   smooth: (x) => x * x * (3 - 2 * x),
   cubicOut: (x) => 1 - (1 - x) ** 3,
-  quartOut: (x) => 1 - (1 - x) ** 4, // motion-unslop default arrival
+  quartOut: (x) => 1 - (1 - x) ** 4, // default arrival
   expoOut: (x) => (x >= 1 ? 1 : 1 - 2 ** (-10 * x)),
   expoInOut: (x) =>
     x <= 0 ? 0 : x >= 1 ? 1 : x < 0.5 ? 2 ** (20 * x - 10) / 2 : (2 - 2 ** (-20 * x + 10)) / 2,

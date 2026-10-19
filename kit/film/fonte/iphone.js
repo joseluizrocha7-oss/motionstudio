@@ -102,11 +102,11 @@ function simularIphone(o) {
     <img class="pg" src="${PASTA}/iphone-ajustes.png" alt="">
     ${status(cor)}
     <div class="barra">
-      <div class="end"><span>aA</span><span class="url">${SVG.cadeado(cor)}aprovador.unimetalgroup.com</span>${SVG.recarregar(cor)}</div>
+      <div class="end"><span>aA</span><span class="url">${SVG.cadeado(cor)}${URL_APP}</span>${SVG.recarregar(cor)}</div>
       <div class="ferr">${SVG.voltar(azul)}${SVG.avancar(azul)}<span id="sf-comp">${SVG.compartilhar(azul)}</span>${SVG.livro(azul)}${SVG.abas(azul)}</div>
     </div>
     <div class="folha" id="sf-folha">
-      <div class="cab">${icone}<div class="t"><b>Aprovador</b><span>aprovador.unimetalgroup.com</span></div></div>
+      <div class="cab">${icone}<div class="t"><b>${NOME}</b><span>${URL_APP}</span></div></div>
       <div class="x">✕</div>
       <div class="alvos"><div><i style="background:linear-gradient(160deg,#60a5fa,#2563eb)"></i>AirDrop</div><div><i style="background:linear-gradient(160deg,#4ade80,#16a34a)"></i>Mensagens</div><div><i style="background:linear-gradient(160deg,#7dd3fc,#0284c7)"></i>Mail</div><div><i style="background:linear-gradient(160deg,#fde68a,#f59e0b)"></i>Notas</div></div>
       <div class="grupo" style="top:200px"><div>Copiar${SVG.copiar(cor)}</div><div>Adicionar à Lista de Leitura${SVG.oculos(cor)}</div><div>Adicionar aos Favoritos${SVG.estrela(cor)}</div><div id="sf-linha-inicio">Adicionar à Tela de Início${SVG.mais(cor)}</div><div>Buscar na Página${SVG.lupa(cor)}</div></div>
@@ -114,13 +114,13 @@ function simularIphone(o) {
     <div class="adic" id="sf-adic">
       ${status(cor)}
       <div class="nav"><span>Cancelar</span><b>Adicionar à Tela de Início</b><span class="ok" id="sf-ok">Adicionar</span></div>
-      <div class="card">${icone}<div class="n"><b>Aprovador</b><span>aprovador.unimetalgroup.com</span></div></div>
+      <div class="card">${icone}<div class="n"><b>${NOME}</b><span>${URL_APP}</span></div></div>
       <p>Um ícone será adicionado à Tela de Início para que você possa acessar rapidamente este site.</p>
     </div>
     <div class="inicio" id="sf-inicio">
       ${status('#fff')}
       ${apps}
-      <div class="app" id="sf-novo" style="left:${col(NOVO)}px;top:${lin(NOVO)}px">${icone}<span>Aprovador</span></div>
+      <div class="app" id="sf-novo" style="left:${col(NOVO)}px;top:${lin(NOVO)}px">${icone}<span>${NOME}</span></div>
       <div class="dock"></div>${dock}
     </div>
     <img class="abre" id="sf-abre" src="${PASTA}/iphone-fila.png" alt="">
@@ -159,6 +159,6 @@ function simularIphone(o) {
   toque(195, 675, o.telaInicio, { pai: s, rotulo: 'Adicionar à Tela de Início' });
   anel({ x: 300, y: 64, width: 78, height: 28 }, o.adicionar - 14, o.adicionar, { pai: s, pad: 4, raio: 10, rotulo: 'Adicionar' });
   toque(339, 78, o.adicionar, { pai: s, rotulo: 'Adicionar' });
-  anel({ x: col(NOVO) + 7, y: lin(NOVO), width: 62, height: 62 }, o.icone + 10, o.abrir, { pai: s, pad: 4, raio: 18, rotulo: 'ícone do Aprovador' });
-  toque(cx, cy, o.abrir, { pai: s, rotulo: 'abre o Aprovador' });
+  anel({ x: col(NOVO) + 7, y: lin(NOVO), width: 62, height: 62 }, o.icone + 10, o.abrir, { pai: s, pad: 4, raio: 18, rotulo: `ícone do ${NOME}` });
+  toque(cx, cy, o.abrir, { pai: s, rotulo: `abre o ${NOME}` });
 }

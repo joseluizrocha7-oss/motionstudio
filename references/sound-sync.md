@@ -1,5 +1,7 @@
 # Sound and sync: script, voice, music, SFX
 
+**The voice in this skill is Gemini TTS 3.8 Flash** (`gemini-3.8-flash-tts`, key in `GEMINI_API_KEY`): `kit/vozes/tts.mjs` for one take, or `kit/vozes/gerar-tomadas.mjs` + `montar.mjs` for several takes chosen line by line. Word timings come from `kit/vozes/alinhar.py` (local Whisper), in the same `vo.words.json` / `vo.lines.json` format this file uses. The ElevenLabs commands of `voice.py` below (`vo`, `sfx`, `music`) are not used for the voice; its local tools (`refine`, `split`, `music-check`, `music-fit`) work on any audio file.
+
 See also: director.md (film header, storyboard frames, world per act), judgment.md (sound with an arc), type.md (word cadence; section 0.3 copy voice and tells), transitions.md (cut cadence, wipes that lead the voice), close.md (name on the voice), slop.md (sound patterns, Part 2 audio gate), tools.md (`look.py` audio audit, `voice.py`, `mix.py`).
 
 Order of work: write the script, generate the voice, read the word timings, derive beat frames from them, build the picture to those frames, add SFX on picture events, then music, then mix. Picture follows voice; it does not chase it afterwards. This file covers how the reference films sync, how to write a VO script that fits beats, text lead, when not to use voice, SFX choices, and fallbacks when no ElevenLabs key exists.

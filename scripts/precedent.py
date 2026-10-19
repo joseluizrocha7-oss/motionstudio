@@ -11,7 +11,7 @@ Usage:
 
 Library: ../library/moments.jsonl (override with --lib FILE). 716 rows of three kinds, all our own words, none carrying third-party
 copy, frames or brand names:
-  PR-Xnn   156 designer rules (WHEN / DO / BECAUSE, with frame and pixel numbers) distilled from the 53 measured HyperFrames recreations;
+  PR-Xnn   156 designer rules (WHEN / DO / BECAUSE, with frame and pixel numbers) distilled from the 53 measured frame-accurate recreations;
            the evidence moments (M913..M974) are listed: the same ids as in references/*.md.
   PM###    the 53 study moments themselves: role, mechanic, and why it works (what the viewer is bought).
   PL####   507 rules decoded from 39 human-made reference films; "film" is an opaque id f-xxxxxxxx = sha1(original name)[:8].

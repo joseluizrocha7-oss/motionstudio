@@ -3,9 +3,9 @@
 //
 // Mede quanto a câmera chega perto ao longo do filme e quanto do objeto filmado
 // cabe no quadro. Existe porque o usuário reprovou dois filmes por isso e os
-// dois tinham passado em todos os portões: "o zoom ficou muito forte" (Reels da
-// Conplan, macro de 4x e de 1,6x) e "parece que ficou o zoom do modo vertical
-// dentro do modo wide" (Swipes em 16:9, a câmera morando dentro da tela do app).
+// dois tinham passado em todos os portões: "o zoom ficou muito forte" (Reels
+// 9:16, macro de 4x e de 1,6x) e "parece que ficou o zoom do modo vertical
+// dentro do modo wide" (16:9, a câmera morando dentro da tela do app).
 // A versão que ele aceitou tem plano-base de 0,90 e chega no máximo a 1,20 (1,34x).
 //
 // Uso:

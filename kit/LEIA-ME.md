@@ -11,7 +11,7 @@ node ~/.claude/skills/motionstudio/kit/novo-projeto.mjs conteudo/<tema>-<data>
 ```bash
 P=conteudo/<tema>-<data>; SKILL=~/.claude/skills/motionstudio
 # 1. Roteiro: editar $P/roteiro.json (blocos, linhas, texto/fala, pausas).
-# 2. Telas do app: script de captura do projeto (modelo: capturar.mjs do caso do Aprovador),
+# 2. Telas do app: script de captura do projeto (modelo: capturar.mjs do caso de referência),
 #    gravando $P/film/telas/*.png e medidas.js. Símbolo da marca em $P/film/assets/simbolo.png.
 # 3. Voz (gasta o saldo do Gemini; a chave vem do .env indicado):
 cd $P/vozes && node --env-file=<.env com GEMINI_API_KEY> gerar-tomadas.mjs --tomadas 6 && node montar.mjs && cd -
@@ -39,7 +39,7 @@ node $SKILL/scripts/ler.mjs $P/film/index-vertical.html $P/film/final-9x16.mp4
 | forçar uma tomada numa frase | `node vozes/montar.mjs --forcar <bloco>:<frase>=<tomada>` |
 | pausas e respiração (versão curta) | `pausas`, `respiracao`, `cauda` no roteiro |
 | o que acontece na tela e quando | `film/fonte/<linha>.js` (exemplo: `longo.js`) |
-| nome, versões, temas, formatos, folga do fim | o topo de `film/montar-filmes.mjs` |
+| nome, endereço do app no Safari, versões, temas, formatos, folga do fim | o topo de `film/montar-filmes.mjs` |
 | estilo, câmera, toque, contorno, marca do fim | `film/fonte/base.html` (no 9:16: `K` e `CEL`) |
 | o que muda de tamanho no 9:16 | `CSS_VERTICAL` em `film/montar-filmes.mjs` |
 | volume da trilha e dos efeitos | `gerar-som.mjs` (trilha -31,5 LUFS, voz -16) |
@@ -48,7 +48,7 @@ node $SKILL/scripts/ler.mjs $P/film/index-vertical.html $P/film/final-9x16.mp4
 
 ## O que cada peça faz
 
-- `vozes/tts.mjs`: um pedido ao Gemini TTS (Interactions API, `gemini-3.8-flash-tts`).
+- `vozes/tts.mjs`: um pedido ao Gemini TTS 3.8 Flash (Interactions API, `gemini-3.8-flash-tts`).
 - `vozes/gerar-tomadas.mjs`: N tomadas por bloco, alinha pelo Whisper (`alinhar.py`) e mede a entonação.
 - `vozes/montar.mjs`: escolhe frase a frase (termina no ar, monótona, corrida, vírgula sem pausa, palavra não reconhecida), corta guardando a respiração, nivela em -20 LUFS e emenda com as pausas do roteiro.
 - `film/gerar-fala.mjs`: `assets/fala.js` (frases e palavras em segundos do filme) e a duração sugerida.

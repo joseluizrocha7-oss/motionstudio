@@ -9,13 +9,14 @@
 //
 // Uma fonte, vários filmes: versão (linha do tempo), tema (pasta de telas) e formato
 // (9:16 ou 16:9) são só configuração. Não editar os index-*.html à mão.
-// Kit da skill motionstudio; o caso completo é o tutorial do Aprovador (ver SKILL.md).
+// Kit da skill motionstudio; o caso completo está em SKILL.md, "Caso de referência".
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // ---------- Configuração do filme ----------
 const NOME = "Produto";             // o nome que aparece na marca (abertura e fim)
+const URL_APP = "app.exemplo.com.br"; // o endereço que a simulação do Safari mostra (fonte/iphone.js)
 const SUB = "Boas-vindas!";         // a linha embaixo da marca na abertura
 const LINHAS = ["longo"];           // fonte/<nome>.js de cada versão
 const FILMES = [
@@ -63,7 +64,7 @@ for (const f of FILMES) {
   if (pedidos.length && !pedidos.includes(f.arq)) continue;
   const dur = f.dur ?? durDe(f.fala);
   const troca = {
-    TITULO: f.titulo, TELAS: f.telas, FALA: f.fala, DUR: String(dur), SUB: f.sub ?? SUB, NOME,
+    TITULO: f.titulo, TELAS: f.telas, FALA: f.fala, DUR: String(dur), SUB: f.sub ?? SUB, NOME, URL_APP,
     W: f.vert ? "1080" : "1920", H: f.vert ? "1920" : "1080", VERT: String(!!f.vert), CSS_FORMATO: f.vert ? CSS_VERTICAL : "",
   };
   let html = base.replace(/\{\{(\w+)\}\}/g, (_, k) => { if (!(k in troca)) throw new Error(`marcador {{${k}}} sem valor`); return troca[k]; });

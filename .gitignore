@@ -1,2 +1,11 @@
 __pycache__/
 *.pyc
+
+# Só desta máquina: citam clientes, pessoas e projetos de terceiros (o repositório é público).
+LOCAL.md
+ORIGEM.md
+historico/
+taste/*
+!taste/LEIA-ME.md
+docs/
+*.bak-*

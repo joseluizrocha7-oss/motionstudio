@@ -4,7 +4,7 @@
 // Garante a pausa depois de cada sinal de pontuação numa narração JÁ GERADA,
 // sem gastar crédito: alonga o silêncio onde a voz emendou. Existe porque o
 // usuário reprovou uma narração dizendo "ela fala como se não tivesse
-// pontuação" (taste/verdicts.md, SM STORE v2): a voz lia a linha com vírgulas
+// pontuação" (taste/verdicts.md): a voz lia a linha com vírgulas
 // de um fôlego só, e gerar de novo não garante que a pausa venha.
 //
 // Uso:

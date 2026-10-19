@@ -1,10 +1,8 @@
-# O método original da motionmaxxing (em inglês)
+# O método de direção (em inglês)
 
-O corpo da SKILL.md da motionmaxxing (github.com/Tejashmakwana/motionmaxxing, Apache-2.0),
-como estava em 16/10/2026, com as LOCAL CHANGE desta máquina. É a referência de direção
-para comercial, promo, anúncio e vinheta: o que é bom, o que nunca entregar, as leis de
-ofício medidas e o passo a passo original. A SKILL.md da motionstudio resume e aponta
-para cá.
+A referência de direção para comercial, promo, anúncio e vinheta: o que é bom, o que nunca
+entregar, as leis de ofício medidas e o passo a passo. Fica em inglês, com as LOCAL CHANGE
+marcadas no texto. A SKILL.md resume e aponta para cá.
 
 You are a motion director, designer and critic in one. Before you animate anything you decide **what idea only this brand could film**, **what world it happens in**, **what each beat makes the viewer believe**, and **how each shot becomes the next**. Then you build it with timing that comes from measurement, and you look at the render as a stranger would.
 
@@ -83,9 +81,9 @@ Scripts print the numbers; you quote them in `NOTE.md`. Three gates are computed
 
 ### 0. Toolbox and taste (a few seconds)
 ```bash
-bash "$SKILL/scripts/providers.sh"      # Chrome, ffmpeg, HyperFrames, ElevenLabs, Codex image gen, disk
+bash "$SKILL/scripts/providers.sh"      # Chrome, ffmpeg, Python, Codex image gen, disk; never installs
 ```
-Read `taste/verdicts.md` and `taste/edits.md` (what this user rejected and the before/after fixes) and skim `references/judgment.md`. `references/tools.md` lists every script and flag. No ElevenLabs means no voice or music: say so in a line and continue (`sound-sync.md` section 9).
+Read `taste/verdicts.md` and `taste/edits.md` (what this user rejected and the before/after fixes) and skim `references/judgment.md`. `references/tools.md` lists every script and flag. No `GEMINI_API_KEY` means no voice: say so in a line and continue (`sound-sync.md` section 9). Music and SFX come from code (`kit/trilha.mjs`, `kit/gerar-som.mjs`) or, for music, from Lyria 3 with the same Gemini key.
 
 ### 1. Know the brand (`references/brand.md`)
 ```bash
@@ -105,9 +103,11 @@ Write `film/STORYBOARD.md`: PAGE, inventory, the chosen idea and why, the film s
 
 ### 5. Script and voice (if VO fits; `references/sound-sync.md`)
 ```bash
-python3 "$SKILL/scripts/voice.py" vo --script film/vo.txt --out film/audio/vo.mp3
+node --env-file=<.env with GEMINI_API_KEY> "$SKILL/kit/vozes/tts.mjs" --arquivo film/vo.txt --saida film/audio/vo.wav --voz pt-br-podcaster-6 --estilo "<how to read it>"   # Gemini TTS 3.8 Flash
+py -3 "$SKILL/kit/vozes/alinhar.py" film/audio/vo.wav film/vo.txt      # word timings by local Whisper: vo.words.json, vo.lines.json
 node "$SKILL/scripts/sync.mjs" film/audio/vo.words.json --fps 30 --lead 2 --out film/beats.json
 ```
+The voice is always Gemini TTS 3.8 Flash (`gemini-3.8-flash-tts`). For several takes per line, chosen by measurement, use the kit's `vozes/gerar-tomadas.mjs` and `vozes/montar.mjs` (SKILL.md, step 3).
 Write VO in the brand's voice (real phrasing, then cut half) at ~2.5-3 words/s, one short line per beat; on-screen words land 0-2 f before they are heard. Without VO, the picture runs on a fixed cadence and the music grid.
 
 LOCAL CHANGE (2026-10-13): with VO, the voice is recorded and measured first (`node "$SKILL/scripts/entonacao.mjs" film/audio/vo.mp3`, local note item "Voz") and the film's frames come from it (`beats.js`), never the other way round. In `STORYBOARD.md` the beat table gets two columns side by side, "the voice says" and "the screen shows at that instant": a text on screen while the voice speaks carries the same words or the same idea as that line. Each such text gets `M.mark(<its entry frame>, 'fala', '<first two words of the spoken line>')` in the film.
@@ -129,12 +129,11 @@ node "$SKILL/scripts/lint.mjs" film/index-vertical.html
 The render also writes `final-9x16.mp4.events.json`, which `look.py` picks up (cuts are exact) and `ouvir.py` reads in step 9. Stills and short checks still use `render.mjs` directly. A failed gate is fixed and rendered again over the same file. Open `look/sheet.jpg`, `mid.jpg`, `strips.jpg`; read the report. **Describe every sheet frame in one sentence** (what is on screen, what is the hero, would it pass as a slide) before you judge. Run G0-G5 (`look/gates.json` and the printed GATES block, `GATE G5`; G1 and G4 by eye), then the thumbnail test, cover test, mid-change frames and real-speed reading. Fix in this order: broken or untrue; the idea; connections between beats; hierarchy and scale; timing; surface and finish; sound polish. Two or three honest passes.
 
 ### 8. Sound to picture (`references/sound-sync.md`)
-From `final-9x16.mp4.events.json` (the two formats share cut times, so one list serves both) pick the few events that deserve sound; write `film/sfx.json` (the `voice.py sfx --batch` list) and `film/events.json` (`mix.py --events` SFX placements `[{"t","sfx","gain"}]`; not render.mjs's `.events.json`).
+From `final-9x16.mp4.events.json` (the two formats share cut times, so one list serves both) pick the few events that deserve sound; make the SFX and the music by code (`kit/trilha.mjs`) or the music by Lyria 3, and write `film/events.json` (`mix.py --events` SFX placements `[{"t","sfx","gain"}]`; not render.mjs's `.events.json`).
 ```bash
-python3 "$SKILL/scripts/voice.py" split --vo film/audio/vo.mp3 --lines film/audio/vo.lines.json --out film/audio/vo
-python3 "$SKILL/scripts/voice.py" sfx --batch film/sfx.json --out film/audio/sfx
-python3 "$SKILL/scripts/voice.py" music --prompt "<style, bpm>" --ms <film ms> --out film/audio/music.mp3
-python3 "$SKILL/scripts/voice.py" music-fit --in film/audio/music.mp3 --out film/audio/music-fit.wav --duration <s>   # if it reported a late start or short span
+python3 "$SKILL/scripts/voice.py" split --vo film/audio/vo.wav --lines film/audio/vo.lines.json --out film/audio/vo
+python3 "$SKILL/scripts/voice.py" music-check --in film/audio/music.wav --ms <film ms>
+python3 "$SKILL/scripts/voice.py" music-fit --in film/audio/music.wav --out film/audio/music-fit.wav --duration <s>   # if it reported a late start or short span
 python3 "$SKILL/scripts/mix.py" --duration <s> --vo film/audio/vo/line01.wav@<t - lead> --music film/audio/music-fit.wav --events film/events.json --out film/audio/mix.wav
 ```
 Silence before the hit; 1-3 hand-placed hero hits. `look.py` audits the mix (LUFS, true peak, silent tail, hits against picture).
@@ -172,7 +171,7 @@ python3 "$SKILL/scripts/ouvir.py" film/final-9x16.mp4 --roteiro film/vo.txt --ev
 | `references/type.md` | kinetic type, meaning on the word, counters, reading time |
 | `references/ui-demo.md` | cursor, click, typing, toggles, agent work, phones; recipes are mechanics, not a default film |
 | `references/close.md` | CTA and logo endings, picked by brand personality |
-| `references/sound-sync.md` | script, ElevenLabs VO/SFX/music, cutting to the voice, mixing, fallbacks |
+| `references/sound-sync.md` | script, voice (Gemini TTS 3.8 Flash), SFX and music, cutting to the voice, mixing, fallbacks |
 | `references/slop.md` | AI default vs pro decision table and the render review checklist |
 | `references/tools.md` | one page on every script and its flags |
 | `taste/verdicts.md`, `taste/edits.md` | this user's reactions; before/after lessons |
@@ -184,4 +183,4 @@ python3 "$SKILL/scripts/ouvir.py" film/final-9x16.mp4 --roteiro film/vo.txt --ev
 | `scripts/` | `providers.sh`, `brand.mjs`, `fetch_logo.mjs`, `voice.py`, `sync.mjs`, `render.mjs`, `look.py`, `lint.mjs`, `mix.py`, `imagegen.py`, `blind_review.py`, `precedent.py`; local additions (each prints `--help`, `tools.md` last section): `camera.mjs`, `entonacao.mjs`, `pausas.mjs`, `ouvir.py`, `render_partes.sh` |
 
 ## Source and ethics
-The study corpus (other companies' published films, kept outside this skill) is private study material and is not part of it: learn mechanics and timing, never ship their brand assets, copy, layouts or frames as the user's. Principles here are in our own words; the strips are original images of invented brands. Generated images are for a missing surface only, never text, logos, UI or people shown as real, and are declared in `NOTE.md`. 3D is built in the film's own renderer (hero3d), not exported from other tools. When this skill and a HyperFrames house style disagree (decoratives, ghost text, hairlines, eyebrow or progress patterns, bold headings), this skill wins.
+The study corpus (other companies' published films, kept outside this skill) is private study material and is not part of it: learn mechanics and timing, never ship their brand assets, copy, layouts or frames as the user's. Principles here are in our own words; the strips are original images of invented brands. Generated images are for a missing surface only, never text, logos, UI or people shown as real, and are declared in `NOTE.md`. 3D is built in the film's own renderer (hero3d), not exported from other tools. When this skill and another skill's house style disagree (decoratives, ghost text, hairlines, eyebrow or progress patterns, bold headings), this skill wins.

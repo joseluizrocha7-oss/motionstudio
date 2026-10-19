@@ -17,9 +17,9 @@ comparação é de timbre, não de volume.
 
 ## A/B de 19/10/2026 (esperando o ouvido do Jose)
 
-Os três vídeos têm a mesma imagem do tutorial "Primeiros passos no Aprovador" (longo, claro) e
-três trechos com toque e sopro (10 a 16 s, 68 a 90 s, 165 a 178 s). Estão no repositório do
-Swipes, em `conteudo/tutorial-primeiros-passos-2026-10-16/film/conferir/ab-efeitos-2026-10-19/`:
+Os três vídeos têm a mesma imagem do tutorial do caso de referência (longo, claro) e três
+trechos com toque e sopro (10 a 16 s, 68 a 90 s, 165 a 178 s). Estão no repositório do
+cliente (caminho em `LOCAL.md`), em `film/conferir/ab-efeitos-2026-10-19/`:
 
 1. `ab-1-atual-sintetizado.mp4`: o som entregue, igual byte a byte ao `mix.wav` do projeto.
 2. `ab-2-gravado-pop-hand.mp4`: `--toque pop-hand --ar fast-whoosh`.
@@ -30,10 +30,8 @@ para `taste/verdicts.md`.
 
 ## Origem
 
-- Woven SFX, <https://github.com/woven-video/woven-sfx>, pasta `sounds/`, commit
-  `521b446db682a3cae9ae1647e94bbdc312cd9a3a`. Baixados da origem em 19/10/2026, sem mudança.
-- Achados pelo editonny (<https://github.com/soumatheusgomes/editonny>), que traz 35 sons da
-  mesma origem. Os três daqui foram conferidos contra a origem pelo SHA-256:
+A origem e o commit estão no `NOTICE` da raiz. Os três foram baixados da origem em 19/10/2026,
+sem mudança, e conferidos pelo SHA-256:
 
 ```
 02fed9196bc33a569ab3ddbdcc5d8b3c323346df6fb32e24b23930f990fc1cd5  pop-hand.wav
@@ -44,5 +42,4 @@ para `taste/verdicts.md`.
 ## Licença
 
 CC0 1.0 Universal (domínio público). O texto da origem está em `SOUNDS_LICENSE`. Pode usar em
-filme de cliente, comercial ou não, sem pedir licença e sem crédito. O crédito é opcional:
-"Efeitos sonoros: Woven SFX (CC0)".
+filme de cliente, comercial ou não, sem pedir licença e sem crédito.

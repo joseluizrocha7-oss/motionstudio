@@ -2,7 +2,7 @@
 # trocar-trecho.sh: troca trechos de um filme já renderizado por trechos renderizados de
 # novo (correção de um momento, fim novo), sem renderizar o filme inteiro.
 #
-# Por que existe (16/10/2026, tutorial do Aprovador): emendar sem recodificar (concat do
+# Por que existe (16/10/2026, tutorial do caso de referência): emendar sem recodificar (concat do
 # ffmpeg com inpoint/outpoint nos quadros-chave) duplicou 2 quadros em cada emenda e perdeu
 # outros no fim (6.914 e 6.910 quadros onde deviam ser 6.912). Este script renderiza cada
 # trecho com render.mjs, junta DECODIFICANDO (trim por número de quadro + concat) e

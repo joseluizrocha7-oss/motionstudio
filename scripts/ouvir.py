@@ -4,7 +4,7 @@
 
 Quem monta o filme não ouve o resultado. Dos seis filmes que o usuário reprovou
 até 13/10/2026, quatro foram por som, e todos tinham passado nos portões G0-G5:
-narração mal cortada (o "Na" de "Na Conplan" grudado na frase anterior), frases
+narração mal cortada (o "Na" de "Na empresa" grudado na frase anterior), frases
 em volumes diferentes, 114 efeitos em 22 s, trilha subindo e descendo a cada
 fala, e o balão entrando em outro instante que a fala dele. Este script roda no
 arquivo que vai ser entregue (o mp4 com som, ou a mixagem) e transforma essas
@@ -13,7 +13,7 @@ correções em portões.
 Uso:
   py -3 ouvir.py film/final-9x16.mp4 --roteiro film/vo.txt
         [--eventos film/final-9x16.mp4.events.json] [--sfx film/events.json]
-        [--motor scribe|whisper] [--modelo medium] [--lingua pt] [--igual conplan=complan]
+        [--motor scribe|whisper] [--modelo medium] [--lingua pt] [--igual lumina=lumena]
         [--out film/ouvir] [--json] [--refazer]
 
   --roteiro  o texto da narração como foi mandado para a voz. Marcas de pausa
@@ -98,7 +98,7 @@ def scribe(wav, lingua, chave):
     corpo += ("--%s\r\nContent-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\nContent-Type: audio/wav\r\n\r\n" % lim).encode()
     corpo += open(wav, "rb").read() + ("\r\n--%s--\r\n" % lim).encode()
     req = urllib.request.Request("https://api.elevenlabs.io/v1/speech-to-text", data=corpo, method="POST",
-                                 headers={"xi-api-key": chave, "Content-Type": "multipart/form-data; boundary=" + lim, "User-Agent": "motionmaxxing/1.0"})
+                                 headers={"xi-api-key": chave, "Content-Type": "multipart/form-data; boundary=" + lim, "User-Agent": "motionstudio/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=300) as r:
             d = json.loads(r.read().decode("utf-8"))
@@ -214,7 +214,7 @@ def main():
     iguais = {}
     for par in o.igual:
         if "=" not in par:
-            falha("--igual é no formato roteiro=transcrito, ex.: conplan=complan")
+            falha("--igual é no formato roteiro=transcrito, ex.: lumina=lumena")
         x, y = (norm(p) for p in par.split("=", 1))
         iguais[y] = x
 

@@ -9,8 +9,8 @@
 //   passo('Título', f)           pílula do passo no alto; peca(html, x, y, a, b, opt) peça ao lado
 //   marcaFinal('<linha>', {...}) a marca do fim presa à última frase
 // Fotos e caixas: film/<telas>/medidas.js (T.fotos[foto].alvos[alvo] = {x, y, width, height}
-// na tela de 390x844), gravado pela captura do app. Caso completo: tutorial do Aprovador
-// (SKILL.md, "Caso de referência").
+// na tela de 390x844), gravado pela captura do app. Caso completo: SKILL.md,
+// "Caso de referência".
 // ====================================================================
 
 // ABERTURA: a marca enquanto a voz dá boas-vindas; o celular entra com a frase seguinte.

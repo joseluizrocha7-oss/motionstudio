@@ -77,7 +77,7 @@ Before building: name the one frame someone would screenshot and send to a frien
 |---|---|
 | A flat swatch per scene | A surface from the capture or a real material; flat only for a flood under ~1 s |
 | Radial glow, vignette, orbs around the logo | Light with a source and a direction, at an event |
-| Ghost text at 5-8% opacity, hairline rules, grid patterns, "grain overlay" as decoration (house-style defaults of the HyperFrames skills) | Texture as a surface that belongs to the world; this skill wins where they disagree |
+| Ghost text at 5-8% opacity, hairline rules, grid patterns, "grain overlay" as decoration (house-style defaults of other motion skills) | Texture as a surface that belongs to the world; this skill wins where they disagree |
 | 3D tilt or 3D bar charts around a flat card | A cropped, held-pose device and a camera move, or a real 3D object with an environment |
 | A small card floating on a void | The fragment magnified by the camera in a lit world |
 | Glass cards stacked over a gradient | One material, one light logic |

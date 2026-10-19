@@ -9,8 +9,15 @@
 //
 // Uma faixa licenciada substitui a trilha sem mexer aqui: basta salvar em
 // audio/trilha.mp3. Os efeitos continuam sendo os sintetizados.
+//
+// Opção desde 19/10/2026: trocar o toque (pop) e o sopro (ar) por um som gravado de
+// efeitos-gravados/ (domínio público, CC0; origem e licença no LEIA-ME de lá). O padrão
+// continua sintetizado até o Jose aprovar o gravado de ouvido.
 
-import { writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const SR = 48000;
 const hz = (midi) => 440 * 2 ** ((midi - 69) / 12);
@@ -217,14 +224,87 @@ const EFEITO = {
   },
 };
 
-export function gerarAudio({ total, tempos, efeitos, arquivoTrilha, arquivoEfeitos }) {
+// ---------- Efeitos gravados (opção) ----------
+
+const GRAVADOS = join(dirname(fileURLToPath(import.meta.url)), "efeitos-gravados");
+const lidos = new Map();
+
+// Lê o som em estéreo a 48 kHz e corta o silêncio do começo.
+function gravado(nome) {
+  if (lidos.has(nome)) return lidos.get(nome);
+  const arq = join(GRAVADOS, `${nome}.wav`);
+  if (!existsSync(arq)) throw new Error(`Efeito gravado não encontrado: ${arq}`);
+  const bruto = execFileSync("ffmpeg", ["-v", "error", "-i", arq, "-ac", "2", "-ar", String(SR), "-f", "f32le", "-"], { maxBuffer: 64 << 20 });
+  const n = bruto.length / 8;
+  let pico = 0;
+  for (let k = 0; k < n * 2; k++) pico = Math.max(pico, Math.abs(bruto.readFloatLE(k * 4)));
+  let ini = 0;
+  while (ini < n && Math.max(Math.abs(bruto.readFloatLE(ini * 8)), Math.abs(bruto.readFloatLE(ini * 8 + 4))) < pico * 0.1) ini++;
+  ini = Math.max(0, ini - Math.round(0.004 * SR));                 // 4 ms antes do ataque, como o sintetizado
+  const som = { n: n - ini, e: new Float32Array(n - ini), d: new Float32Array(n - ini) };
+  for (let k = 0; k < som.n; k++) { som.e[k] = bruto.readFloatLE((ini + k) * 8); som.d[k] = bruto.readFloatLE((ini + k) * 8 + 4); }
+  lidos.set(nome, som);
+  return som;
+}
+
+// Energia nos primeiros 0,4 s a partir do ataque, nos dois canais: a janela da sonoridade
+// momentânea (EBU R128), que é como o ouvido compara dois sons curtos.
+const JANELA = Math.round(0.4 * SR);
+function energia(e, d, ini) {
+  let soma = 0;
+  for (let k = ini; k < Math.min(e.length, ini + JANELA); k++) soma += e[k] * e[k] + d[k] * d[k];
+  return Math.sqrt(soma / (2 * JANELA));
+}
+
+// Instante (s) do pico de energia, em janelas de 10 ms, a partir de ini.
+function pico(e, d, ini) {
+  const w = Math.round(0.01 * SR);
+  let melhor = 0, quando = 0;
+  for (let k = ini; k + w <= e.length; k += w) {
+    let soma = 0;
+    for (let j = k; j < k + w; j++) soma += e[j] * e[j] + d[j] * d[j];
+    if (soma > melhor) { melhor = soma; quando = (k - ini) / SR; }
+  }
+  return quando;
+}
+
+// Como trocar o sintetizado pelo gravado: mesma energia na janela de 0,4 s e mesmo pico. O
+// sopro sintetizado cresce devagar (pico a 0,3 s do evento); o gravado começa de uma vez.
+// Alinhar pelo começo adiantaria o sopro.
+function trocaDe(nome, tipo) {
+  const ref = novaFaixa(3), t0 = 0.5, i0 = Math.round(t0 * SR);
+  EFEITO[tipo](ref, t0, 0);
+  const som = gravado(nome);
+  const atraso = pico(ref.e, ref.d, i0) - pico(som.e, som.d, 0);
+  const ini = Math.max(0, i0 + Math.round(atraso * SR));
+  return { som, atraso, ganho: energia(ref.e, ref.d, ini) / energia(som.e, som.d, 0) };
+}
+
+function colar(faixa, t0, som, ganho) {
+  const i0 = Math.floor(t0 * SR);
+  for (let k = 0; k < som.n; k++) {
+    const i = i0 + k;
+    if (i < 0 || i >= faixa.n) continue;
+    faixa.e[i] += som.e[k] * ganho;
+    faixa.d[i] += som.d[k] * ganho;
+  }
+}
+
+// troca: { pop: "pop-hand", ar: "fast-whoosh" } usa o som gravado no lugar do sintetizado daquele tipo.
+export function gerarAudio({ total, tempos, efeitos, arquivoTrilha, arquivoEfeitos, troca = {} }) {
   const assinatura = efeitos.find((e) => e.tipo === "assinatura")?.t ?? total - 8;
   gravarWav(arquivoTrilha, trilha({ total, inicioDoRitmo: tempos.cenas.marca.inicio, inicioDaAssinatura: assinatura }));
 
+  const trocas = {};
+  for (const [tipo, nome] of Object.entries(troca)) {
+    if (!EFEITO[tipo]) throw new Error(`Troca para um efeito que não existe: ${tipo}`);
+    trocas[tipo] = trocaDe(nome, tipo);
+  }
   const fx = novaFaixa(total);
   efeitos.forEach((e, i) => {
     if (!EFEITO[e.tipo]) throw new Error(`Efeito sem som definido: ${e.tipo}`);
-    EFEITO[e.tipo](fx, e.t, i);
+    if (trocas[e.tipo]) colar(fx, e.t + trocas[e.tipo].atraso, trocas[e.tipo].som, trocas[e.tipo].ganho);
+    else EFEITO[e.tipo](fx, e.t, i);
   });
   gravarWav(arquivoEfeitos, fx);
 }

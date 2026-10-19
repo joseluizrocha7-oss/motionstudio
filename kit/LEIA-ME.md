@@ -28,6 +28,7 @@ node $P/gerar-som.mjs $P/film/stills/events.json --total <duração do montar-fi
 bash $SKILL/scripts/render_partes.sh $P/film/index-vertical.html $P/film/final-9x16.mp4 --dur <s> --audio $P/film/audio/mix.wav -- --shutter 180 --subframes 8
 py -3 $SKILL/scripts/look.py $P/film/final-9x16.mp4 --out $P/film/look-9x16 --expect <s> --expect-audio
 py -3 $SKILL/scripts/ouvir.py $P/film/final-9x16.mp4 --roteiro $P/film/audio/vo.txt --eventos $P/film/final-9x16.mp4.events.json --sfx $P/film/audio/sfx-eventos.json --motor whisper --modelo medium
+node $SKILL/scripts/ler.mjs $P/film/index-vertical.html $P/film/final-9x16.mp4
 ```
 
 ## Onde mexer
@@ -42,6 +43,8 @@ py -3 $SKILL/scripts/ouvir.py $P/film/final-9x16.mp4 --roteiro $P/film/audio/vo.
 | estilo, câmera, toque, contorno, marca do fim | `film/fonte/base.html` (no 9:16: `K` e `CEL`) |
 | o que muda de tamanho no 9:16 | `CSS_VERTICAL` em `film/montar-filmes.mjs` |
 | volume da trilha e dos efeitos | `gerar-som.mjs` (trilha -31,5 LUFS, voz -16) |
+| toque e sopro gravados no lugar dos sintetizados (em teste) | `gerar-som.mjs --toque pop-hand --ar fast-whoosh`; ver `efeitos-gravados/LEIA-ME.md` |
+| um texto que não precisa ser lido no T1 (ilustrativo) | `data-ler="ignorar"` no elemento; dizer no NOTE.md |
 
 ## O que cada peça faz
 
@@ -51,5 +54,6 @@ py -3 $SKILL/scripts/ouvir.py $P/film/final-9x16.mp4 --roteiro $P/film/audio/vo.
 - `film/gerar-fala.mjs`: `assets/fala.js` (frases e palavras em segundos do filme) e a duração sugerida.
 - `film/fonte/base.html`: `pal()`, `mostra()`, `anel()`, `toque()`, `gesto()`, `peca()`, `cam()`, `passo()`, `marcaFinal()`; 9:16 e 16:9 pela mesma fonte.
 - `film/fonte/iphone.js`: Safari, folha de Compartilhar, "Adicionar à Tela de Início" e Tela de Início desenhados (ilustrativo; dizer no NOTE.md).
-- `gerar-som.mjs` e `trilha.mjs`: trilha e efeitos sintetizados, mixagem com a voz.
+- `gerar-som.mjs` e `trilha.mjs`: trilha e efeitos sintetizados, mixagem com a voz, trilha descendo nos últimos 1,6 s.
+- `efeitos-gravados/`: 3 sons em domínio público (CC0) para o A/B do toque e do sopro; origem e licença no LEIA-ME de lá.
 - `autoteste.mjs` e `tela-vazia.mjs`: as duas conferências que o `look.py` não faz.

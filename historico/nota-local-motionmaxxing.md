@@ -82,3 +82,37 @@ de cada uma, com o caso e a data.
 - Contorno só nas palavras "Conectado como" cortava a frase no meio e ficava por baixo da pílula do passo seguinte: o Jose achou "bugado". Alvo de frase = o parágrafo inteiro; contorno sai antes da pílula seguinte.
 - O Jose propôs girar a tela para o usuário virar o celular no trecho do computador; a recomendação foi não fazer (cada reprodutor gira o vídeo de um jeito) e ampliar o monitor na largura do quadro com a câmera na tabela. Ele seguiu a recomendação por omissão (foi dormir com a meta de entregar os dois vídeos).
 - Só o modo claro, e telas da versão em produção (1.30.115): o curto feito com telas da 1.30.112 foi refeito.
+
+
+## 19/10/2026: o que veio do editonny
+
+O Jose pediu para comparar a motionstudio com o editonny (github.com/soumatheusgomes/editonny) e
+trazer só o que fosse relevante. Entraram 3 coisas. O porquê do que ficou de fora está em `ORIGEM.md`.
+
+- **Portão de texto (`scripts/ler.mjs`, T1 e T2).** O G1 era só por olho. O portão lê o texto do
+  HTML a cada 0,2 s e confere cada texto no MP4 entregue com o OCR do Windows (pt-BR já vem
+  instalado). O que a calibração ensinou:
+  - O OCR do Windows não lê texto de menos de 3 letras que não forma palavra (o "1" da bolinha do
+    passo, o "aA" do Safari), nem recortado e ampliado. Esse texto sai como não conferido.
+  - No quadro inteiro, o OCR pulou a segunda fileira de rótulos da Tela de Início, que estava
+    nítida. No recorte ampliado 3x ele leu. Daí a segunda leitura antes de alertar.
+  - Três barras de status empilhadas tinham o mesmo "9:45". A palavra lida conta para todos os
+    textos do mesmo lugar.
+  - "Configuracao" no lugar de "Configuração" passou com 90% (mínimo 85%). O acento agora é
+    conferido palavra por palavra.
+  - O texto que outra peça cobre (o Safari debaixo da folha "Adicionar à Tela de Início") é
+    conferido num instante em que está à vista. O teste é pelo HTML (`elementsFromPoint`).
+  - Medido no tutorial longo claro entregue (264 s): 67 de 67 textos lidos, 18 curtos não
+    conferidos, 61 s de máquina. Num filme de teste com 4 defeitos (acento perdido, texto quase
+    da cor do fundo, tarja por cima, nome saindo pelo quadro), o portão acusou os 4.
+  - No 16:9 longo claro (nunca entregue), o portão achou o logo e o "Aprovador" por cima do
+    celular e do monitor aos 29,8 s.
+- **Efeitos gravados em teste (`kit/efeitos-gravados/`).** São 3 sons CC0 da Woven SFX, achados
+  pelo editonny e conferidos contra a origem pelo SHA-256. Eles entram por `--toque` e `--ar` no
+  `gerar-som.mjs`, com o pico e a energia do sintetizado que trocam. O padrão continua
+  sintetizado: o caminho padrão refez o `mix.wav` entregue igual byte a byte. O A/B espera o ouvido
+  do Jose.
+- **HyperFrames 0.8.171.** É a versão que o editonny fixa. É o ponto de partida da avaliação que já
+  estava pendente.
+- **O kit estava atrás do caso de referência.** O `gerar-som.mjs` do kit não tinha a trilha
+  descendo nos últimos 1,6 s (pedido do Jose em 17/10, "cortou seco"). Agora tem.

@@ -6,6 +6,14 @@ alterações marcadas como LOCAL CHANGE e listadas em ORIGEM.md. As mudanças se
 sob a mesma Apache License 2.0. Ideias de motor de render (captura por beginFrame,
 trechos em paralelo, GPU) avaliadas a partir do HyperFrames, da HeyGen
 (github.com/heygen-com/hyperframes, Apache-2.0); nenhum arquivo dele foi copiado até agora.
+A conferência de texto por OCR (scripts/ler.mjs, 19/10/2026) parte de uma ideia do editonny
+(github.com/soumatheusgomes/editonny, MIT); nenhum arquivo dele foi copiado.
+
+--------------------------------------------------------------------------------
+Woven SFX   (kit/efeitos-gravados/pop-hand.wav, mouse-click-2.wav, fast-whoosh.wav)
+  github.com/woven-video/woven-sfx, commit 521b446db682a3cae9ae1647e94bbdc312cd9a3a.
+  License: CC0 1.0 Universal (public domain). Full text: kit/efeitos-gravados/SOUNDS_LICENSE
+  Attribution is optional: "Efeitos sonoros: Woven SFX (CC0)".
 
 --------------------------------------------------------------------------------
 motionmaxxing: looksmaxxing for motion graphics

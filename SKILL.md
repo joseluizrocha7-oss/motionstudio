@@ -1,6 +1,6 @@
 ---
 name: motionstudio
-description: Faz vídeo por código, com qualidade de motion designer e conferência automática. Tutorial de app com as telas de verdade (toques, gestos, simulação de iPhone, voz explicando passo a passo), comercial, promo, anúncio para rede social, vinheta de marca e vídeo de lançamento. Roteiro e voz em pt-BR (Gemini TTS escolhido frase a frase), filme em HTML com animação presa a cada palavra, uma fonte para várias versões (longo e curto, modo escuro e claro, 9:16 e 16:9), trilha e efeitos por código e portões de imagem, câmera, som e tela vazia no arquivo entregue. Usar para qualquer pedido de fazer, planejar, roteirizar, corrigir ou criticar vídeo, motion graphics, tutorial em vídeo, reels, vídeo de onboarding ou de treinamento. Evolução da motionmaxxing nesta máquina: preferir esta.
+description: Faz vídeo por código, com qualidade de motion designer e conferência automática. Tutorial de app com as telas de verdade (toques, gestos, simulação de iPhone, voz explicando passo a passo), comercial, promo, anúncio para rede social, vinheta de marca e vídeo de lançamento. Roteiro e voz em pt-BR (Gemini TTS escolhido frase a frase), filme em HTML com animação presa a cada palavra, uma fonte para várias versões (longo e curto, modo escuro e claro, 9:16 e 16:9), trilha e efeitos por código e portões de imagem, texto, câmera, som e tela vazia no arquivo entregue. Usar para qualquer pedido de fazer, planejar, roteirizar, corrigir ou criticar vídeo, motion graphics, tutorial em vídeo, reels, vídeo de onboarding ou de treinamento. Evolução da motionmaxxing nesta máquina: preferir esta.
 ---
 
 # motionstudio
@@ -17,7 +17,9 @@ Skill de vídeo do Jose, nascida em 16/10/2026 da junção de três coisas:
 3. **O HyperFrames** (github.com/heygen-com/hyperframes, Apache-2.0), EM AVALIAÇÃO como motor
    de render: captura por `beginFrame`, trechos em paralelo, GPU. Só entra depois de provar,
    num trecho de filme real, a mesma imagem (com o desfoque de 8 fotos por quadro) em menos
-   tempo. Até lá o render é o `scripts/render_partes.sh`.
+   tempo. Até lá o render é o `scripts/render_partes.sh`. Para a avaliação, comece pela versão
+   0.8.171: é a que o editonny (github.com/soumatheusgomes/editonny) fixa, com
+   `npx --yes hyperframes@0.8.171 lint`, `check` e `render`.
 
 `SKILL` = a pasta deste arquivo (`~/.claude/skills/motionstudio`). Comandos no Git Bash.
 No Windows desta máquina, `python3` não existe: usar `py -3`.
@@ -130,7 +132,9 @@ node "$SKILL/scripts/render.mjs" film/index-vertical.html --still 2,40,93 film/s
 ```
 
 **7. Som.** `node gerar-som.mjs <events.json de um --still> --total <duração>`: trilha e
-efeitos por código (nada de terceiros), mistura com a voz.
+efeitos por código (nada de terceiros), mistura com a voz. O toque e o sopro gravados
+(`--toque`, `--ar`, sons CC0 em `kit/efeitos-gravados/`) estão em teste. Não use sem o Jose
+aprovar o A/B de 19/10/2026 (`kit/efeitos-gravados/LEIA-ME.md`).
 
 **8. Render**, um formato de cada vez (dois Chromes juntos derrubam a máquina de 16 GB):
 ```bash
@@ -143,10 +147,22 @@ quadro a quadro). Nunca emendar sem recodificar.
 ```bash
 py -3 "$SKILL/scripts/look.py" film/final-9x16.mp4 --out film/look-9x16 --expect <s> --expect-audio
 py -3 "$SKILL/scripts/ouvir.py" film/final-9x16.mp4 --roteiro film/audio/vo.txt --eventos film/final-9x16.mp4.events.json --sfx film/audio/sfx-eventos.json --motor whisper --modelo medium
+node "$SKILL/scripts/ler.mjs" film/index-vertical.html film/final-9x16.mp4    # T1, T2 (1 min para 4 min de filme)
 ```
 Olhar a folha de contato (`look-*/sheet.jpg`) quadro por quadro. Alerta do Whisper ("frases
 emendadas", palavra não ouvida) se confere medindo antes de mexer: transcrever só o trecho
-e medir o silêncio na narração.
+e medir o silêncio na narração. Para cada alerta do `ler.mjs`, abra o recorte que ele grava
+(`ler-final-9x16/alerta-*.png`):
+- Se o recorte mostra o defeito (texto coberto, cortado, apagado ou sem acento), corrija o
+  filme e renderize o trecho de novo (`scripts/trocar-trecho.sh`).
+- Se o texto está legível no recorte, o erro é do OCR. Escreva o alerta no NOTE.md, com o recorte.
+- Se o texto é ilustrativo e não precisa ser lido (rótulo da Tela de Início desenhada), marque o
+  elemento com `data-ler="ignorar"` na fonte (`film/fonte/`, não no `index-*.html` gerado).
+  Rode o `montar-filmes.mjs` e o `ler.mjs` de novo. Não precisa renderizar: o atributo não muda a
+  imagem. Diga no NOTE.md o que foi ignorado.
+
+Rode o `ler.mjs` no filme inteiro: com `--de`/`--ate`, uma camada que apareceu antes do trecho
+acusa como coberta.
 
 **10. Entrega.** `film/NOTE.md` com os números de cada portão (e o que é real e o que é
 ilustrativo), `LEIA-ME.md` do projeto (o que sai, como refazer, onde mexer), entrada em
@@ -157,11 +173,13 @@ ilustrativo), `LEIA-ME.md` do projeto (o que sai, como refazer, onde mexer), ent
 | portão | passa | quem mede |
 |---|---|---|
 | G0 o render existe | duração e som batem com o planejado | `look.py --expect --expect-audio` |
-| G1 texto legível | por olho; app em tamanho de celular fica abaixo dos 4% da altura: escolha, dizer no NOTE.md | folha de contato |
+| G1 texto legível | por olho; app em tamanho de celular fica abaixo dos 4% da altura: escolha, dizer no NOTE.md | folha de contato; o T1 mede o que o OCR lê |
 | G2 sem quadro vazio | nenhuma sequência de mais de 3 quadros chapados | `look.py` |
 | G3 fim curto | final parado de 0,6 a 1,4 s (a marca do fim chegando com o próprio nome na última frase resolve; pulso pequeno não conta como movimento). No tutorial do Jose o fim fica com 1,8 s de marca depois da última palavra e a trilha descendo, a pedido dele ("cortou seco"): o G3 acusa e o NOTE.md diz que é escolha | `look.py` |
 | G4 um herói por quadro | por olho | folha de contato |
 | G5 sem cromo de página | sem rótulo de canto, contador, barra de progresso | `lint.mjs` |
+| T1 texto lido | todo texto do HTML que fica parado na tela é lido pelo OCR no MP4 entregue, acento inclusive; nenhum texto passa a vida inteira debaixo de outra peça | `ler.mjs` |
+| T2 texto inteiro | nenhum texto fica com pedaço fora do quadro o tempo todo | `ler.mjs` |
 | Z1 câmera contida | aproximação máxima até 1,5x o plano-base | `camera.mjs` |
 | Z2 objeto no quadro | metade ou mais do aparelho à vista na mediana | `camera.mjs` |
 | autoteste | 0 divergências entre tocar e saltar | `kit/autoteste.mjs` |
@@ -202,8 +220,8 @@ chegando no nome.
 
 | arquivo | para |
 |---|---|
-| `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`) |
-| `scripts/` | `render.mjs`, `render_partes.sh`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `entonacao.mjs`, `pausas.mjs`, `mix.py`, `voice.py` (ElevenLabs), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
+| `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`); `kit/efeitos-gravados/`: 3 sons CC0 em teste |
+| `scripts/` | `render.mjs`, `render_partes.sh`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `voice.py` (ElevenLabs), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
 | `runtime/` | o motor de animação (`motion.js`, API em `runtime/README.md`) |
 | `references/` | o método original (`metodo-motionmaxxing.md`) e os guias de direção, em inglês |
 | `taste/` | os vereditos do Jose e os antes e depois |

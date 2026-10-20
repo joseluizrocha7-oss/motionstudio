@@ -13,10 +13,10 @@ Skill de vídeo do Jose, criada em 16/10/2026. Tem três partes:
 2. **O que foi aprendido filme a filme** (13 a 19/10/2026): voz Gemini escolhida frase a
    frase, portões de câmera, som, texto e tela vazia, captura do app de verdade com API
    simulada, uma fonte para vários filmes, troca de trecho sem desencontrar voz e tela.
-3. **Um motor de render mais rápido, EM AVALIAÇÃO**: captura por `beginFrame`, trechos em
-   paralelo, GPU. Só entra depois de provar, num trecho de filme real, a mesma imagem (com o
-   desfoque de 8 fotos por quadro) em menos tempo. Até lá o render é o
-   `scripts/render_partes.sh`. O candidato e a versão para testar: `LOCAL.md`.
+3. **Um motor de render mais rápido**: `scripts/render-trechos.mjs`, trechos em paralelo com a
+   mesma imagem do render antigo (prova de 20/10/2026 na seção "Render"). O padrão continua o
+   `scripts/render_partes.sh` até o motor novo rodar um filme inteiro com som. O `beginFrame`
+   (outro motor, em avaliação) está em `LOCAL.md`.
 
 `SKILL` = a pasta deste arquivo (`~/.claude/skills/motionstudio`). Comandos no Git Bash.
 No Windows desta máquina, `python3` não existe: usar `py -3`.
@@ -144,12 +144,18 @@ efeitos por código (nada de terceiros), mistura com a voz. O toque e o sopro gr
 (`--toque`, `--ar`, sons CC0 em `kit/efeitos-gravados/`) estão em teste. Não use sem o Jose
 aprovar o A/B de 19/10/2026 (`kit/efeitos-gravados/LEIA-ME.md`).
 
-**8. Render**, um formato de cada vez (dois Chromes juntos derrubam a máquina de 16 GB):
+**8. Render**, um formato de cada vez:
 ```bash
 bash "$SKILL/scripts/render_partes.sh" film/index-vertical.html film/final-9x16.mp4 --dur <s> --audio film/audio/mix.wav -- --shutter 180 --subframes 8
 ```
-Correção depois do render pronto: `scripts/trocar-trecho.sh` (renderiza só os trechos e junta
-quadro a quadro). Nunca emendar sem recodificar.
+Mais rápido, com a mesma imagem (2 Chromes em paralelo, GPU fixa, trava de memória):
+```bash
+node "$SKILL/scripts/render-trechos.mjs" film/index-vertical.html film/final-9x16.mp4 --audio film/audio/mix.wav --shutter 180 --subframes 8
+```
+Ele guarda cada trecho em `film/cache-render/`. Se o filme mudar sem mudar de duração, rode o
+mesmo comando: os trechos sem mudança saem do cache. Apague a pasta depois da entrega.
+Correção depois do render pronto, pelo caminho antigo: `scripts/trocar-trecho.sh` (renderiza só os
+trechos e junta quadro a quadro). Nunca emendar sem recodificar.
 
 **9. Portões no arquivo que vai ser entregue:**
 ```bash
@@ -200,11 +206,46 @@ NOTE.md com a medida.
 
 ## Render: o que acelera e o que não
 
-- Medido em 16/10/2026: o Chrome do render na NVIDIA (RTX 4050) levou o mesmo tempo que na
-  Intel (36 s para 60 quadros de 8 fotos) e deu a mesma imagem (47,9 dB). O gargalo é a
-  captura, uma foto por vez (processador a 27%).
-- Ganho de verdade: capturar em paralelo (esbarra na RAM: 16 GB, 1,3 GB livres durante um
-  render; memória de 32 GB prevista para 20/10/2026) ou pelo `beginFrame` (o motor em avaliação, ver `LOCAL.md`).
+Medido em 20/10/2026 num tutorial de 4 min 37 s em 9:16, com 8 fotos por quadro (o caso está em
+`LOCAL.md`):
+
+- **Onde vai o tempo.** Foto: 67 ms. Pintar sem foto: 14 ms. Ler o estado do DOM: 1,5 ms. Um
+  trecho de 5 s leva de 94 a 136 s, conforme a carga da máquina.
+- **A GPU muda a imagem.** Sem preferência, o Chrome sem janela usa a GPU que o Windows lista
+  primeiro, e isso muda quando se liga um monitor. Intel e NVIDIA dão pixels diferentes. O
+  `render-trechos.mjs` fixa a Intel (`--gpu baixo`, a dos renders até 20/10). O `render.mjs` não fixa:
+  com outro monitor ligado, ele sai diferente do render anterior.
+- **A foto depende do que foi pintado antes.** Uma camada que desliza fração de pixel (a grade de
+  fundo, por exemplo) só é redesenhada quando andou o bastante. Pular uma subamostra, começar o trecho
+  em outro ponto ou ler o estado no mesmo Chrome muda a foto (até 25 níveis, nos pontos da grade).
+  Por isso o motor novo usa um Chrome limpo por trecho, os mesmos cortes de 5 s e lê o estado num
+  Chrome à parte.
+- **O render antigo varia sozinho em alguns quadros.** No trecho de 45 a 50 s do caso, 3 rodadas do
+  `render.mjs` deram 2 resultados, com até 5 níveis de diferença na borda de um elemento animado.
+  Igualdade se mede contra o mesmo render repetido, não só contra um arquivo antigo.
+- **Memória.** Abaixo de 1 GB livre, o Chrome do Windows descarta cache e a foto muda (46 a 54 dB).
+  Foi a causa do paralelo diferente em 20/10. O motor novo abre um Chrome por vez, só com 3 GB livres
+  (`--memoria`), e refaz o trecho em que a memória livre cai abaixo de 1,5 GB.
+- **Prova do `render-trechos.mjs`** (30 a 60 s do caso, 6 trechos, contra o arquivo entregue):
+  - Em fila: 5 trechos idênticos quadro a quadro. No trecho de 45 a 50 s, o resultado do novo é igual,
+    quadro a quadro, ao de uma das rodadas do `render.mjs`.
+  - Com 2 Chromes: o mesmo. O trecho de 45 a 50 s saiu igual à outra rodada do `render.mjs`.
+  - Do cache: os 6 trechos em 10 s, arquivo idêntico byte a byte.
+  - O fim do filme (270 a 276,7 s, com o trecho curto de 51 quadros e o som): idêntico, com áudio.
+  - Falta: um filme inteiro com som pelo motor novo. Até lá, o padrão é o `render_partes.sh`.
+  - Tempo com 2 Chromes: 532 s para 30 s de filme, com 2 trechos refeitos por falta de memória. Sem
+    os refeitos, uns 410 s. O antigo, na mesma carga: uns 780 s.
+- **Não adotado, e por quê:**
+  - Quadro parado (pular as fotos do meio, `render-rapido.mjs`): com algo deslizando fração de pixel,
+    a foto muda conforme o que foi pintado antes. Num filme com a grade de fundo deslizando o tempo
+    todo, nenhum quadro fica parado. O `--atalho` (1 foto quando as 8 subamostras têm o mesmo estado)
+    fica em teste: o filme da prova não tinha nenhum quadro assim.
+  - Cache que sobrevive a inserção (`--cenas`): da rodada 5 para a 6 do caso, 0 cenas reaproveitáveis.
+    Motivos: as telas foram fotografadas de novo, a grade desliza em função da duração do filme
+    inteiro, e 51 de 503 palavras andaram 381 quadros em vez de 382. Só rende em filme sem deriva de
+    fundo, com inserção em quadros inteiros. Em teste.
+  - Mais de 2 Chromes: com 3, a memória livre foi a 0,01 GB e um Chrome caiu. A GPU Intel usa a
+    memória do sistema.
 - Regra global do Jose: usar a GPU sempre que der, medindo (`~/.claude/CLAUDE.md`, seção GPU).
 
 ## Comercial, promo, anúncio: o método de direção
@@ -230,7 +271,7 @@ chegando no nome.
 | arquivo | para |
 |---|---|
 | `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`); `kit/efeitos-gravados/`: 3 sons CC0 em teste |
-| `scripts/` | `render.mjs`, `render_partes.sh`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
+| `scripts/` | `render.mjs`, `render_partes.sh`, `render-trechos.mjs` (o render_partes em paralelo, com cache; usa `_pagina.mjs`), `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
 | `runtime/` | o motor de animação (`motion.js`, API em `runtime/README.md`) |
 | `references/` | o método de direção (`metodo.md`) e os guias de ofício, em inglês |
 | `taste/` | os vereditos do Jose e os antes e depois (fora do git) |

@@ -226,12 +226,26 @@ function digitar(seq, recorte, a, passo, ate, z = 6) {
 
 // ---------- Contorno e toque ----------
 let nAnel = 0, nToque = 0;
+// Nenhum contorno passa da barra de navegação do app (20/10/2026: um contorno descia por cima da
+// barra de abas porque a caixa medida incluía a parte do bloco escondida atrás dela). `limite` é o
+// topo da barra na foto: alvo() o traz quando a captura mediu a barra à vista (`barra` de cada foto
+// em medidas.js; ver LEIA-ME, passo 2). A sombra do contorno (4 px) fica acima dela. Contorno
+// cortado cresce a partir da borda de baixo na entrada (escala 1,12 para 1).
+const SOMBRA_ANEL = 6;
 function anel(caixa, a, b, opt = {}) {
   const pad = opt.pad ?? 6;
   const el = document.createElement('div');
   el.className = 'anel';
   el.id = 'anel-' + (++nAnel);
-  Object.assign(el.style, { left: (caixa.x - pad) + 'px', top: (caixa.y - pad) + 'px', width: (caixa.width + 2 * pad) + 'px', height: (caixa.height + 2 * pad) + 'px', zIndex: 40 });
+  const topo = caixa.y - pad;
+  let alt = caixa.height + 2 * pad;
+  const limite = opt.limite ?? caixa.limite;
+  if (limite != null && topo + alt + SOMBRA_ANEL > limite) {
+    alt = Math.max(12, limite - SOMBRA_ANEL - topo);
+    el.style.transformOrigin = '50% 100%';
+    el.dataset.cortado = String(limite);
+  }
+  Object.assign(el.style, { left: (caixa.x - pad) + 'px', top: topo + 'px', width: (caixa.width + 2 * pad) + 'px', height: alt + 'px', zIndex: 40 });
   if (opt.raio) el.style.borderRadius = opt.raio + 'px';
   (opt.pai || tela).appendChild(el);
   M.kf(el, 'autoAlpha', [[0, 0], [a, 0], [a + 5, 1], [b, 1], [b + 6, 0], [FIM, 0]]);
@@ -257,7 +271,12 @@ function toque(x, y, f, opt = {}) {
   M.mark(f, 'press', opt.rotulo || 'toque');
 }
 const centro = (c) => ({ x: c.x + c.width / 2, y: c.y + c.height / 2 });
-const alvo = (foto, nome) => { const c = T.fotos[foto].alvos[nome]; if (!c) throw new Error(`alvo ${nome} de ${foto}`); return c; };
+// A caixa de um alvo na foto; com a barra de navegação à vista, ela leva o limite do contorno.
+const alvo = (foto, nome) => {
+  const f = T.fotos[foto], c = f.alvos[nome];
+  if (!c) throw new Error(`alvo ${nome} de ${foto}`);
+  return f.barra ? { ...c, limite: f.barra.y } : c;
+};
 const tocarEm = (foto, nome, f, rot) => { const c = centro(alvo(foto, nome)); toque(c.x, c.y, f, { rotulo: rot }); };
 // As abas do rodapé (cinco, com a mesma largura).
 const aba = (i) => ({ x: T.tabbar.x + T.tabbar.width * (i + .5) / 5, y: T.tabbar.y + 22 });

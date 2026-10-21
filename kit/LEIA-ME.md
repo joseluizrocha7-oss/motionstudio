@@ -13,6 +13,10 @@ P=conteudo/<tema>-<data>; SKILL=~/.claude/skills/motionstudio
 # 1. Roteiro: editar $P/roteiro.json (blocos, linhas, texto/fala, pausas).
 # 2. Telas do app: script de captura do projeto (modelo: capturar.mjs do caso de referência),
 #    gravando $P/film/telas/*.png e medidas.js. Símbolo da marca em $P/film/assets/simbolo.png.
+#    Cada foto grava `barra`, o retângulo da barra de navegação do app quando ela está à vista e por
+#    cima de tudo (conferir com document.elementFromPoint; janela por cima dela ou barra escondida:
+#    sem `barra`). O alvo() leva esse limite e o anel() corta o contorno no topo da barra. Alvo de
+#    bloco que continua atrás da barra: medir só a parte à vista (até o último elemento visível).
 # 3. Voz (gasta o saldo do Gemini; a chave vem do .env indicado):
 cd $P/vozes && node --env-file=<.env com GEMINI_API_KEY> gerar-tomadas.mjs --tomadas 6 && node montar.mjs && cd -
 # 4. Tempos da voz para o filme e os filmes:

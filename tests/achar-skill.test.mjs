@@ -73,3 +73,9 @@ test("novo-projeto grava o motionstudio.json e não sobrescreve o que já existe
   execFileSync(process.execPath, [join(RAIZ, "kit", "novo-projeto.mjs"), projeto]);
   assert.equal(JSON.parse(readFileSync(arq, "utf8")).skill, "/outra");
 });
+
+test("acharSkill lê o motionstudio.json gravado com BOM (PowerShell 5.1)", () => {
+  const raiz = mkdtempSync(join(tmpdir(), "proj-"));
+  writeFileSync(join(raiz, "motionstudio.json"), "\uFEFF" + JSON.stringify({ skill: "/com/bom" }), "utf8");
+  assert.equal(acharSkill(raiz, {}), "/com/bom");
+});

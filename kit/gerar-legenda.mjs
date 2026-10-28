@@ -201,7 +201,7 @@ export function paraAss(blocos, estilo) {
   if (!(opacidadeCaixa >= 0 && opacidadeCaixa <= 1)) throw new Error(`opacidadeCaixa fora de 0 a 1: ${opacidadeCaixa}`);
   const caixa = corAss(corCaixa, opacidadeCaixa);
   // BorderStyle 3 desenha a caixa com OutlineColour; Outline 14 é a folga dela em volta do texto.
-  const estiloLegenda = ["Legenda", "Inter", f.fonte, corAss(corTexto), corAss(corTexto), caixa, caixa,
+  const estiloLegenda = ["Legenda", "Inter Variable", f.fonte, corAss(corTexto), corAss(corTexto), caixa, caixa,
     -1, 0, 0, 0, 100, 100, 0, 0, 3, 14, 0, 2, margemEsq, margemDir, f.margemV, 1].join(",");
   const falas = blocos.map((b) =>
     `Dialogue: 0,${tempoAss(b.a)},${tempoAss(b.b)},Legenda,,0,0,0,,${b.texto.replace(/\n/g, "\\N")}`);

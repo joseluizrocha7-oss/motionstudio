@@ -53,7 +53,8 @@ node $SKILL/scripts/legendar.mjs $P/film/final-9x16.mp4 $P/film/legenda.srt $P/f
 | a música | `gerar-trilha.mjs` (pedido e modelo) e `--musica` no `gerar-som.mjs` |
 | volume da música e dos efeitos | `gerar-som.mjs --abaixo 20` (a música 20 dB sob a voz, que fica em -16 LUFS) |
 | o texto da legenda | `texto` no `roteiro.json` (a legenda mostra o `texto`, nunca a `fala`); depois `gerar-legenda.mjs` e `legendar.mjs` |
-| o tamanho da linha, a fonte e a margem da legenda | `LIMITES` e `FORMATOS_ASS` no `gerar-legenda.mjs`: 16x9 = 42 caracteres por linha, 9x16 = 32 |
+| o tamanho da linha da legenda | `LIMITES` no `gerar-legenda.mjs` do projeto (16x9 = 42 caracteres por linha, 9x16 = 32); depois gerar o `.srt` de novo |
+| a fonte e a margem de baixo da legenda no MP4 | `FORMATOS_ASS` no `kit/gerar-legenda.mjs` da skill, não na cópia do projeto: o `legendar.mjs` lê o da skill, e a mudança vale para todos os projetos |
 | a cor da caixa e a posição da legenda no MP4 | `legendar.mjs --cor-caixa #RRGGBB --margem-esq N --margem-dir N` (app que ocupa só parte do quadro) |
 | o estilo da voz | `estilo` no `roteiro.json` (o dinâmico é o padrão desde 28/10/2026) |
 | toque e sopro gravados no lugar dos sintetizados (em teste) | `gerar-som.mjs --toque pop-hand --ar fast-whoosh`; ver `efeitos-gravados/LEIA-ME.md` |

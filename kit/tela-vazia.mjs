@@ -4,10 +4,10 @@
 // antes da busca; esta sonda achou mais um, de 0,2 s. Rodar em todo filme de tela de app.
 //   node tela-vazia.mjs film/index-vertical.html [--de 2.5] [--ate <s>]
 // Usa o Chrome pelo conector da própria skill (scripts/_cdp.mjs): não precisa de Playwright.
-import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-const SKILL = process.env.SKILL || path.join(os.homedir(), ".claude", "skills", "motionstudio");
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { acharSkill } from "./_skill.mjs";
+const SKILL = acharSkill(path.dirname(fileURLToPath(import.meta.url)));
 const { launchChrome } = await import(pathToFileURL(path.join(SKILL, "scripts", "_cdp.mjs")).href);
 const arq = process.argv[2];
 if (!arq) { console.error("uso: node tela-vazia.mjs <film/index.html> [--de s] [--ate s]"); process.exit(2); }

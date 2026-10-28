@@ -3,10 +3,10 @@
 // antes de qualquer render.
 //   node autoteste.mjs film/index-vertical.html
 // Usa o Chrome pelo conector da própria skill (scripts/_cdp.mjs): não precisa de Playwright.
-import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-const SKILL = process.env.SKILL || path.join(os.homedir(), ".claude", "skills", "motionstudio");
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { acharSkill } from "./_skill.mjs";
+const SKILL = acharSkill(path.dirname(fileURLToPath(import.meta.url)));
 const { launchChrome } = await import(pathToFileURL(path.join(SKILL, "scripts", "_cdp.mjs")).href);
 const arq = process.argv[2];
 if (!arq) { console.error("uso: node autoteste.mjs <film/index.html>"); process.exit(2); }

@@ -4,6 +4,13 @@
 // O texto vem do roteiro (o que aparece na tela), não da fala transcrita. Os tempos vêm
 // de FALA (film/assets/fala.js), que já inclui o atraso de entrada da voz (offset):
 // não some o offset de novo. Todos os tempos saem em segundos do filme, em milissegundos.
+//
+// Comando (a partir da pasta do projeto):
+//   node gerar-legenda.mjs [--roteiro roteiro.json] [--fala film/assets/fala.js] [--saida film/legenda.srt]
+
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const MAX_LINHA = 42;            // caracteres por linha da legenda
 const MAX_PEDACO = 76;           // caracteres por pedaço (2 linhas de 42, menos a folga da quebra)
@@ -120,4 +127,122 @@ export function legendasDoFilme(roteiro, fala) {
     }
   }
   return ajustarDuracoes(blocos);
+}
+
+// ---------- .srt ----------
+
+const dois = (n) => String(n).padStart(2, "0");
+
+// Segundos em "HH:MM:SS,mmm".
+function tempoSrt(s) {
+  const t = Math.round(s * 1000);
+  return `${dois(Math.floor(t / 3600000))}:${dois(Math.floor(t / 60000) % 60)}:${dois(Math.floor(t / 1000) % 60)},${String(t % 1000).padStart(3, "0")}`;
+}
+
+export function paraSrt(blocos) {
+  return blocos.map((b, i) => `${i + 1}\n${tempoSrt(b.a)} --> ${tempoSrt(b.b)}\n${b.texto}\n\n`).join("");
+}
+
+// O inverso de paraSrt. Aceita \r\n e BOM; o número do bloco é ignorado.
+export function lerSrt(texto) {
+  const segundos = (t) => {
+    const m = /^(\d+):(\d{2}):(\d{2})[,.](\d{3})$/.exec(t.trim());
+    if (!m) throw new Error(`tempo de legenda inválido: "${t.trim()}"`);
+    return ms(Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) + Number(m[4]) / 1000);
+  };
+  return texto.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").trim().split(/\n{2,}/).filter(Boolean).map((bloco) => {
+    const linhas = bloco.split("\n");
+    const i = linhas.findIndex((l) => l.includes("-->"));
+    if (i < 0) throw new Error(`bloco de legenda sem tempo: "${linhas[0]}"`);
+    const [a, b] = linhas[i].split("-->");
+    return { a: segundos(a), b: segundos(b), texto: linhas.slice(i + 1).join("\n") };
+  });
+}
+
+// ---------- .ass ----------
+
+// Por formato: resolução do vídeo, tamanho da fonte e margem de baixo (em pixels da resolução).
+const FORMATOS_ASS = {
+  "16x9": { largura: 1920, altura: 1080, fonte: 40, margemV: 30 },
+  "9x16": { largura: 1080, altura: 1920, fonte: 54, margemV: 260 },
+};
+const MARGEM_LATERAL = 80;
+
+// Segundos em "H:MM:SS.cc" (centésimos).
+function tempoAss(s) {
+  const c = Math.round(s * 100);
+  return `${Math.floor(c / 360000)}:${dois(Math.floor(c / 6000) % 60)}:${dois(Math.floor(c / 100) % 60)}.${dois(c % 100)}`;
+}
+
+// "#RRGGBB" em "BBGGRR" (a ordem do ASS).
+function bgr(cor) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(cor));
+  if (!m) throw new Error(`cor inválida: "${cor}" (use #RRGGBB)`);
+  return `${m[3]}${m[2]}${m[1]}`.toUpperCase();
+}
+
+// Cor do ASS: &HAABBGGRR. AA = 00 é opaco; FF é transparente.
+const corAss = (cor, opacidade = 1) =>
+  `&H${Math.round((1 - opacidade) * 255).toString(16).toUpperCase().padStart(2, "0")}${bgr(cor)}`;
+
+export function paraAss(blocos, estilo) {
+  const f = FORMATOS_ASS[estilo?.formato];
+  if (!f) throw new Error(`formato inválido: "${estilo?.formato}" (use 16x9 ou 9x16)`);
+  const { corTexto = "#FFFFFF", corCaixa = "#111111", opacidadeCaixa = 0.85, margemEsq = MARGEM_LATERAL, margemDir = MARGEM_LATERAL } = estilo;
+  if (!(opacidadeCaixa >= 0 && opacidadeCaixa <= 1)) throw new Error(`opacidadeCaixa fora de 0 a 1: ${opacidadeCaixa}`);
+  const caixa = corAss(corCaixa, opacidadeCaixa);
+  // BorderStyle 3 desenha a caixa com OutlineColour; Outline 14 é a folga dela em volta do texto.
+  const estiloLegenda = ["Legenda", "Inter", f.fonte, corAss(corTexto), corAss(corTexto), caixa, caixa,
+    -1, 0, 0, 0, 100, 100, 0, 0, 3, 14, 0, 2, margemEsq, margemDir, f.margemV, 1].join(",");
+  const falas = blocos.map((b) =>
+    `Dialogue: 0,${tempoAss(b.a)},${tempoAss(b.b)},Legenda,,0,0,0,,${b.texto.replace(/\n/g, "\\N")}`);
+  return [
+    "[Script Info]", "ScriptType: v4.00+", `PlayResX: ${f.largura}`, `PlayResY: ${f.altura}`, "ScaledBorderAndShadow: yes", "",
+    "[V4+ Styles]",
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+    `Style: ${estiloLegenda}`, "",
+    "[Events]",
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ...falas, "",
+  ].join("\n");
+}
+
+// ---------- fala.js e comando ----------
+
+// Lê o `window.FALA = {...}` do fala.js (o mesmo recorte do gerar-som.mjs).
+export function lerFala(arquivo) {
+  const t = readFileSync(arquivo, "utf8");
+  const i = t.indexOf("{"), j = t.lastIndexOf("}");
+  if (i < 0 || j < i) throw new Error(`${arquivo}: não achei o objeto FALA`);
+  return JSON.parse(t.slice(i, j + 1));
+}
+
+function comando(argv) {
+  const opcao = (nome, padrao) => {
+    const i = argv.indexOf(`--${nome}`);
+    if (i < 0) return padrao;
+    if (argv[i + 1] === undefined || argv[i + 1].startsWith("--")) throw new Error(`falta o valor de --${nome}`);
+    return argv[i + 1];
+  };
+  const [arqRoteiro, arqFala, saida] = [opcao("roteiro", "roteiro.json"), opcao("fala", "film/assets/fala.js"), opcao("saida", "film/legenda.srt")];
+  const roteiro = JSON.parse(readFileSync(arqRoteiro, "utf8").replace(/^\uFEFF/, ""));
+  const fala = lerFala(arqFala);
+  const blocos = legendasDoFilme(roteiro, fala);
+  mkdirSync(dirname(saida), { recursive: true });
+  writeFileSync(saida, paraSrt(blocos), "utf8");
+  console.log(`legenda: ${blocos.length} blocos em ${saida}`);
+}
+
+// Só roda como comando. O Node resolve atalhos (junction) no arquivo principal; o realpath faz o mesmo no argv.
+function executadoComoComando() {
+  try {
+    return !!process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+}
+
+if (executadoComoComando()) {
+  try { comando(process.argv.slice(2)); }
+  catch (e) { console.error(`legenda: ${e.message}`); process.exit(1); }
 }

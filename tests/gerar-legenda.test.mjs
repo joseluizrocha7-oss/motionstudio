@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { quebrarTexto, temposDosPedacos, ajustarDuracoes, legendasDoFilme } from "../kit/gerar-legenda.mjs";
+import { quebrarTexto, temposDosPedacos, ajustarDuracoes, legendasDoFilme, paraSrt, lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
 
 test("quebrarTexto equilibra 2 linhas", () => {
   assert.deepEqual(quebrarTexto("Boas-vindas ao fluxo completo do sistema da empresa!"),
@@ -60,4 +60,22 @@ test("quebrarTexto não perde palavra quando nenhuma quebra cabe em 42", () => {
   const t = `${"a".repeat(10)} ${"b".repeat(42)} ${"c".repeat(22)}`;
   const saida = quebrarTexto(t).join("\n").split(/\s+/);
   assert.deepEqual(saida, t.split(" "));
+});
+
+test("paraSrt numera e formata o tempo", () => {
+  assert.equal(paraSrt([{ a: 1.5, b: 3.25, texto: "Olá\nmundo" }]), "1\n00:00:01,500 --> 00:00:03,250\nOlá\nmundo\n\n");
+});
+test("lerSrt desfaz paraSrt, também com CRLF", () => {
+  const b = [{ a: 61.5, b: 62.25, texto: "R$ 600,00 menos\nR$ 500,00" }];
+  assert.deepEqual(lerSrt(paraSrt(b).replace(/\n/g, "\r\n")), b);
+});
+test("paraAss no 16x9 usa 1920x1080 e a cor da caixa", () => {
+  const s = paraAss([{ a: 0, b: 1, texto: "a\nb" }], { formato: "16x9", corCaixa: "#032B6B" });
+  assert.match(s, /PlayResX: 1920/); assert.match(s, /PlayResY: 1080/);
+  assert.match(s, /&H266B2B03/);                       // #032B6B com 85% de opacidade
+  assert.match(s, /Dialogue: 0,0:00:00\.00,0:00:01\.00,Legenda,,0,0,0,,a\\Nb/);
+});
+test("paraAss no 9x16 usa 1080x1920 e margem de 260", () => {
+  const s = paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16" });
+  assert.match(s, /PlayResX: 1080/); assert.match(s, /PlayResY: 1920/); assert.match(s, /,260,/);
 });

@@ -111,11 +111,11 @@ test("paraAss contorno: corTexto e corContorno entram na ordem BGR do ASS; a cai
   assert.equal(c.BorderStyle, "1");
   assert.ok(!s.includes("&H266B2B03"), "não sobra cor de caixa");
 });
-test("paraAss contorno: espessura e sombra por formato (16x9 = 3 e 1; 9x16 = 4 e 1,5); a margem e a fonte seguem iguais", () => {
+test("paraAss contorno: espessura e sombra por formato (16x9 = 2,5 e 1; 9x16 = 3,4 e 1,5); a margem e a fonte seguem iguais", () => {
   const c16 = campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9" }));
-  assert.equal(c16.Outline, "3"); assert.equal(c16.Shadow, "1"); assert.equal(c16.Fontsize, "40"); assert.equal(c16.MarginV, "30");
+  assert.equal(c16.Outline, "2.5"); assert.equal(c16.Shadow, "1"); assert.equal(c16.Fontsize, "40"); assert.equal(c16.MarginV, "30");
   const c9 = campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16" }));
-  assert.equal(c9.Outline, "4"); assert.equal(c9.Shadow, "1.5"); assert.equal(c9.Fontsize, "54"); assert.equal(c9.MarginV, "260");
+  assert.equal(c9.Outline, "3.4"); assert.equal(c9.Shadow, "1.5"); assert.equal(c9.Fontsize, "54"); assert.equal(c9.MarginV, "260");
 });
 test("paraAss recusa tipo desconhecido e cor inválida do contorno", () => {
   assert.throws(() => paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9", tipo: "borda" }), /tipo.*"borda".*contorno.*caixa/);

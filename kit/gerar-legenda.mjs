@@ -201,8 +201,8 @@ export function lerSrt(texto) {
 // Por formato: resolução do vídeo, tamanho da fonte, margem de baixo, espessura do contorno e distância da
 // sombra (tudo em pixels da resolução). Contorno e sombra valem para o tipo "contorno"; a caixa tem folga fixa.
 const FORMATOS_ASS = {
-  "16x9": { largura: 1920, altura: 1080, fonte: 40, margemV: 30, contorno: 3, sombra: 1 },
-  "9x16": { largura: 1080, altura: 1920, fonte: 54, margemV: 260, contorno: 4, sombra: 1.5 },
+  "16x9": { largura: 1920, altura: 1080, fonte: 40, margemV: 30, contorno: 2.5, sombra: 1 },
+  "9x16": { largura: 1080, altura: 1920, fonte: 54, margemV: 260, contorno: 3.4, sombra: 1.5 },
 };
 const TIPOS_ASS = ["contorno", "caixa"];   // contorno (padrão): letra com borda e sombra suave; caixa: faixa atrás do texto
 const OPACIDADE_SOMBRA = 0.5;               // sombra do contorno: preto a 50%

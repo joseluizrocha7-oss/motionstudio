@@ -9,12 +9,13 @@ import { fileURLToPath } from "node:url";
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LEGENDAR = join(RAIZ, "scripts", "legendar.mjs");
 
-// Média e máximo dos bytes da faixa de baixo (1920x200, em cinza cru) do quadro no instante t.
+// Média, máximo e quantidade de pixels escuros (< 90) da faixa de baixo (1920x200, em cinza cru) do quadro no instante t.
 function lerFaixa(video, t) {
   const bytes = execFileSync("ffmpeg", ["-v", "error", "-ss", String(t), "-i", video, "-frames:v", "1",
     "-vf", "crop=1920:200:0:860", "-f", "rawvideo", "-pix_fmt", "gray", "-"], { maxBuffer: 1 << 26 });
   assert.equal(bytes.length, 1920 * 200, "o quadro tem que ter 1920x200 bytes em cinza");
-  return { media: bytes.reduce((s, b) => s + b, 0) / bytes.length, maximo: bytes.reduce((m, b) => (b > m ? b : m), 0) };
+  return { media: bytes.reduce((s, b) => s + b, 0) / bytes.length, maximo: bytes.reduce((m, b) => (b > m ? b : m), 0),
+    escuros: bytes.reduce((n, b) => n + (b < 90 ? 1 : 0), 0) };
 }
 
 test("legendar grava a legenda num caminho com espaço e acento", () => {
@@ -34,8 +35,9 @@ test("legendar grava a legenda num caminho com espaço e acento", () => {
     assert.match(r, /legendado: /);
 
     // Medido em 28/10/2026 (fonte 40 em 1920x1080, faixa 1920x200): sem legenda a média é 0,0000 (o preto
-    // sai 0 no cinza cru, não 16); com legenda a média é 2,45 e o máximo é 255 (texto branco). A média é
-    // baixa porque o texto ocupa pouco da faixa; o "> 10" do plano não vale para este estilo.
+    // sai 0 no cinza cru, não 16); com legenda (contorno, o padrão) a média é 1,84 e o máximo é 255 (texto branco);
+    // com --estilo caixa a média é 2,45. A média é baixa porque o texto ocupa pouco da faixa; o "> 10" do plano
+    // não vale para este estilo.
     // Por isso: sem legenda < 0,5 (preto medido + 0,5) e com legenda >= 3 x o sem + 1.
     const com = lerFaixa(saida, 1.5);
     const sem = lerFaixa(saida, 2.9);
@@ -121,6 +123,61 @@ test("legendar recusa vídeo quadrado: nenhum formato serve", () => {
   const r = legendarCom(videoPreto("1080x1080"), srtDe("Teste curto"));
   assert.equal(r.status, 1);
   assert.match(r.stderr, /quadrado/);
+});
+
+// ---------- --estilo, --cor-contorno e --cor-caixa: os pares errados saem antes do ffmpeg ----------
+
+test("legendar recusa --estilo desconhecido", () => {
+  const r = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--estilo", "borda"]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /^legendar: /);
+  assert.match(r.stderr, /estilo inválido: "borda"/);
+  assert.match(r.stderr, /contorno/); assert.match(r.stderr, /caixa/);
+  assert.ok(!existsSync(r.saida), "não pode gravar a saída");
+});
+test("legendar recusa --cor-caixa sem --estilo caixa (o padrão é contorno)", () => {
+  for (const extras of [["--cor-caixa", "#032B6B"], ["--estilo", "contorno", "--cor-caixa", "#032B6B"]]) {
+    const r = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), extras);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stderr, /--cor-caixa só vale com --estilo caixa/);
+    assert.match(r.stderr, /--cor-contorno/);
+    assert.ok(!existsSync(r.saida), "não pode gravar a saída");
+  }
+});
+test("legendar recusa --cor-contorno com --estilo caixa", () => {
+  const r = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--estilo", "caixa", "--cor-contorno", "#032B6B"]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /--cor-contorno só vale com --estilo contorno/);
+  assert.match(r.stderr, /--cor-caixa/);
+  assert.ok(!existsSync(r.saida), "não pode gravar a saída");
+});
+test("legendar recusa cor inválida no --cor-contorno e no --cor-caixa", () => {
+  let r = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--cor-contorno", "azul"]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /cor inválida: "azul"/);
+  r = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--estilo", "caixa", "--cor-caixa", "#12345"]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /cor inválida: "#12345"/);
+});
+
+// ---------- o estilo no quadro: contorno (padrão) não escurece o fundo, caixa escurece ----------
+
+// Fundo cinza 1920x1080 de 1 s: a faixa de baixo mostra se há caixa (escurece em volta do texto) ou só contorno.
+test("legendar: o padrão (contorno) deixa o fundo cinza como está; --estilo caixa escurece a faixa", () => {
+  const cinza = join(OFICINA, "cinza-1920x1080.mp4");
+  execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=0x808080:s=1920x1080:d=1:r=10",
+    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", cinza]);
+  const srt = srtDe("Teste de legenda sem caixa");
+  const semCaixa = legendarCom(cinza, srt);
+  const comCaixa = legendarCom(cinza, srt, ["--estilo", "caixa"]);
+  assert.equal(semCaixa.status, 0, semCaixa.stdout + semCaixa.stderr);
+  assert.equal(comCaixa.status, 0, comCaixa.stdout + comCaixa.stderr);
+  const a = lerFaixa(semCaixa.saida, 0.4), b = lerFaixa(comCaixa.saida, 0.4);
+  // Medido em 28/10/2026 (cinza 128, fonte 40, faixa 1920x200, pixels abaixo de 90): contorno = 6085 pixels (só a
+  // borda e a sombra das letras), média 127,4; caixa = 25715 pixels (a faixa inteira), média 123,0.
+  assert.ok(a.media > 120, `contorno: a média da faixa devia ficar perto do cinza 128 do fundo: ${a.media}`);
+  assert.ok(a.escuros > 0, "contorno: a borda preta das letras tem que aparecer");
+  assert.ok(b.escuros > 2 * a.escuros, `caixa: devia ter mais de 2 x os pixels escuros do contorno (${a.escuros}): ${b.escuros}`);
 });
 
 // ---------- a legenda num vídeo retrato (única codificação nova: 1 s, 1080x1920) ----------

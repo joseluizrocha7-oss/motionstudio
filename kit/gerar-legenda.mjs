@@ -198,11 +198,14 @@ export function lerSrt(texto) {
 
 // ---------- .ass ----------
 
-// Por formato: resolução do vídeo, tamanho da fonte e margem de baixo (em pixels da resolução).
+// Por formato: resolução do vídeo, tamanho da fonte, margem de baixo, espessura do contorno e distância da
+// sombra (tudo em pixels da resolução). Contorno e sombra valem para o tipo "contorno"; a caixa tem folga fixa.
 const FORMATOS_ASS = {
-  "16x9": { largura: 1920, altura: 1080, fonte: 40, margemV: 30 },
-  "9x16": { largura: 1080, altura: 1920, fonte: 54, margemV: 260 },
+  "16x9": { largura: 1920, altura: 1080, fonte: 40, margemV: 30, contorno: 3, sombra: 1 },
+  "9x16": { largura: 1080, altura: 1920, fonte: 54, margemV: 260, contorno: 4, sombra: 1.5 },
 };
+const TIPOS_ASS = ["contorno", "caixa"];   // contorno (padrão): letra com borda e sombra suave; caixa: faixa atrás do texto
+const OPACIDADE_SOMBRA = 0.5;               // sombra do contorno: preto a 50%
 const MARGEM_LATERAL = 80;
 
 // Segundos em "H:MM:SS.cc" (centésimos).
@@ -222,15 +225,21 @@ function bgr(cor) {
 const corAss = (cor, opacidade = 1) =>
   `&H${Math.round((1 - opacidade) * 255).toString(16).toUpperCase().padStart(2, "0")}${bgr(cor)}`;
 
+// estilo.tipo: "contorno" (padrão) ou "caixa". Só vale a cor do tipo escolhido (corContorno ou corCaixa).
 export function paraAss(blocos, estilo) {
   const f = FORMATOS_ASS[estilo?.formato];
   if (!f) throw new Error(`formato inválido: "${estilo?.formato}" (use 16x9 ou 9x16)`);
-  const { corTexto = "#FFFFFF", corCaixa = "#111111", opacidadeCaixa = 0.85, margemEsq = MARGEM_LATERAL, margemDir = MARGEM_LATERAL } = estilo;
+  const { tipo = "contorno", corTexto = "#FFFFFF", corContorno = "#000000", corCaixa = "#111111", opacidadeCaixa = 0.85,
+    margemEsq = MARGEM_LATERAL, margemDir = MARGEM_LATERAL } = estilo;
+  if (!TIPOS_ASS.includes(tipo)) throw new Error(`tipo de legenda inválido: "${tipo}" (use ${TIPOS_ASS.join(" ou ")})`);
   if (!(opacidadeCaixa >= 0 && opacidadeCaixa <= 1)) throw new Error(`opacidadeCaixa fora de 0 a 1: ${opacidadeCaixa}`);
-  const caixa = corAss(corCaixa, opacidadeCaixa);
-  // BorderStyle 3 desenha a caixa com OutlineColour; Outline 14 é a folga dela em volta do texto.
-  const estiloLegenda = ["Legenda", "Inter Variable", f.fonte, corAss(corTexto), corAss(corTexto), caixa, caixa,
-    -1, 0, 0, 0, 100, 100, 0, 0, 3, 14, 0, 2, margemEsq, margemDir, f.margemV, 1].join(",");
+  // caixa: BorderStyle 3 desenha a caixa com OutlineColour; Outline 14 é a folga dela em volta do texto.
+  // contorno: BorderStyle 1 desenha a borda com OutlineColour (opaca) e a sombra com BackColour.
+  const [corBorda, corFundo, borda, espessura, sombra] = tipo === "caixa"
+    ? [corAss(corCaixa, opacidadeCaixa), corAss(corCaixa, opacidadeCaixa), 3, 14, 0]
+    : [corAss(corContorno), corAss("#000000", OPACIDADE_SOMBRA), 1, f.contorno, f.sombra];
+  const estiloLegenda = ["Legenda", "Inter Variable", f.fonte, corAss(corTexto), corAss(corTexto), corBorda, corFundo,
+    -1, 0, 0, 0, 100, 100, 0, 0, borda, espessura, sombra, 2, margemEsq, margemDir, f.margemV, 1].join(",");
   const falas = blocos.map((b) =>
     `Dialogue: 0,${tempoAss(b.a)},${tempoAss(b.b)},Legenda,,0,0,0,,${b.texto.replace(/\n/g, "\\N")}`);
   return [

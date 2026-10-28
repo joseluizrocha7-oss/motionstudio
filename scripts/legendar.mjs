@@ -2,7 +2,12 @@
 // O vídeo é recodificado (libx264, como no render); o áudio é copiado.
 //
 // Comando:
-//   node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--cor-caixa #RRGGBB] [--margem-esq N] [--margem-dir N]
+//   node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--estilo contorno|caixa]
+//                     [--cor-contorno #RRGGBB] [--cor-caixa #RRGGBB] [--margem-esq N] [--margem-dir N]
+//
+// O estilo padrão é "contorno": letra branca com borda preta e sombra suave, sem caixa. "caixa" põe uma faixa
+// atrás do texto (para filmagem de câmera ou fundo cheio de detalhe). --cor-contorno só vale com contorno e
+// --cor-caixa só vale com caixa; o par errado sai com código 1.
 //
 // O formato sai do tamanho do vídeo (ffprobe): paisagem = 16x9, retrato = 9x16. O --formato é opcional; se vier
 // e não bater com o vídeo, o comando para. O .srt precisa ter sido gerado para o mesmo formato: o limite de
@@ -22,8 +27,9 @@ import { LIMITES, lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const FONTE = join(AQUI, "..", "runtime", "hero3d", "fonts", "Inter-Bold-Latin.ttf");
-const USO = "uso: node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--cor-caixa #RRGGBB] [--margem-esq N] [--margem-dir N]";
-const OPCOES = ["formato", "cor-caixa", "margem-esq", "margem-dir"];
+const USO = "uso: node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--estilo contorno|caixa] [--cor-contorno #RRGGBB] [--cor-caixa #RRGGBB] [--margem-esq N] [--margem-dir N]";
+const OPCOES = ["formato", "estilo", "cor-contorno", "cor-caixa", "margem-esq", "margem-dir"];
+const ESTILOS = ["contorno", "caixa"];
 
 // Separa os 3 caminhos (sem --) das opções (--nome valor).
 function lerArgumentos(argv) {
@@ -69,6 +75,14 @@ function legendar(argv) {
   if (opcoes.formato !== undefined && !LIMITES[opcoes.formato]) {
     throw new Error(`formato inválido: "${opcoes.formato}" (use ${Object.keys(LIMITES).join(" ou ")})`);
   }
+  const tipo = opcoes.estilo ?? "contorno";
+  if (!ESTILOS.includes(tipo)) throw new Error(`estilo inválido: "${tipo}" (use ${ESTILOS.join(" ou ")})`);
+  if (opcoes["cor-caixa"] !== undefined && tipo !== "caixa") {
+    throw new Error("--cor-caixa só vale com --estilo caixa. No estilo contorno (o padrão) a cor da borda é a --cor-contorno.");
+  }
+  if (opcoes["cor-contorno"] !== undefined && tipo !== "contorno") {
+    throw new Error("--cor-contorno só vale com --estilo contorno. No estilo caixa a cor da faixa é a --cor-caixa.");
+  }
   const blocos = lerSrt(readFileSync(srt, "utf8"));
   if (!blocos.length) throw new Error(`${srt} não tem nenhuma legenda (0 blocos)`);
 
@@ -86,7 +100,8 @@ function legendar(argv) {
     }
   });
 
-  const estilo = { formato };
+  const estilo = { formato, tipo };
+  if (opcoes["cor-contorno"] !== undefined) estilo.corContorno = opcoes["cor-contorno"];
   if (opcoes["cor-caixa"] !== undefined) estilo.corCaixa = opcoes["cor-caixa"];
   if (opcoes["margem-esq"] !== undefined) estilo.margemEsq = margem("margem-esq", opcoes["margem-esq"]);
   if (opcoes["margem-dir"] !== undefined) estilo.margemDir = margem("margem-dir", opcoes["margem-dir"]);

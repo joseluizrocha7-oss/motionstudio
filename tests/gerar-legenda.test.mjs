@@ -74,11 +74,52 @@ test("lerSrt desfaz paraSrt, também com CRLF", () => {
   const b = [{ a: 61.5, b: 62.25, texto: "R$ 600,00 menos\nR$ 500,00" }];
   assert.deepEqual(lerSrt(paraSrt(b).replace(/\n/g, "\r\n")), b);
 });
-test("paraAss no 16x9 usa 1920x1080 e a cor da caixa", () => {
-  const s = paraAss([{ a: 0, b: 1, texto: "a\nb" }], { formato: "16x9", corCaixa: "#032B6B" });
+// Campos da linha "Style:" por nome (a ordem é a do "Format:" do próprio .ass).
+function campos(ass) {
+  const nomes = /^Format: (Name, Fontname.*)$/m.exec(ass)[1].split(", ");
+  const valores = /^Style: (.*)$/m.exec(ass)[1].split(",");
+  assert.equal(valores.length, nomes.length, "a linha Style tem que ter um valor por campo do Format");
+  return Object.fromEntries(nomes.map((n, i) => [n, valores[i]]));
+}
+
+test("paraAss no 16x9 usa 1920x1080 e a cor da caixa (tipo caixa)", () => {
+  const s = paraAss([{ a: 0, b: 1, texto: "a\nb" }], { formato: "16x9", tipo: "caixa", corCaixa: "#032B6B" });
   assert.match(s, /PlayResX: 1920/); assert.match(s, /PlayResY: 1080/);
   assert.match(s, /&H266B2B03/);                       // #032B6B com 85% de opacidade
   assert.match(s, /Dialogue: 0,0:00:00\.00,0:00:01\.00,Legenda,,0,0,0,,a\\Nb/);
+});
+test("paraAss tipo caixa: BorderStyle 3, Outline 14, Shadow 0 e a caixa na OutlineColour e na BackColour", () => {
+  const c = campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9", tipo: "caixa" }));
+  assert.equal(c.BorderStyle, "3"); assert.equal(c.Outline, "14"); assert.equal(c.Shadow, "0");
+  assert.equal(c.PrimaryColour, "&H00FFFFFF");
+  assert.equal(c.OutlineColour, "&H26111111");         // #111111 com 85% de opacidade
+  assert.equal(c.BackColour, "&H26111111");
+});
+test("paraAss sem tipo é contorno: BorderStyle 1, texto branco, contorno preto opaco e sombra suave", () => {
+  const c = campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9" }));
+  assert.equal(c.BorderStyle, "1");
+  assert.equal(c.PrimaryColour, "&H00FFFFFF");
+  assert.equal(c.OutlineColour, "&H00000000");         // preto, opaco
+  assert.equal(c.BackColour, "&H80000000");            // sombra: preto a cerca de 50%
+  assert.deepEqual(campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9", tipo: "contorno" })), c);
+});
+test("paraAss contorno: corTexto e corContorno entram na ordem BGR do ASS; a caixa não aparece", () => {
+  const s = paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9", tipo: "contorno", corTexto: "#FFEE00", corContorno: "#032B6B" });
+  const c = campos(s);
+  assert.equal(c.PrimaryColour, "&H0000EEFF");
+  assert.equal(c.OutlineColour, "&H006B2B03");         // #032B6B opaco
+  assert.equal(c.BorderStyle, "1");
+  assert.ok(!s.includes("&H266B2B03"), "não sobra cor de caixa");
+});
+test("paraAss contorno: espessura e sombra por formato (16x9 = 3 e 1; 9x16 = 4 e 1,5); a margem e a fonte seguem iguais", () => {
+  const c16 = campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9" }));
+  assert.equal(c16.Outline, "3"); assert.equal(c16.Shadow, "1"); assert.equal(c16.Fontsize, "40"); assert.equal(c16.MarginV, "30");
+  const c9 = campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16" }));
+  assert.equal(c9.Outline, "4"); assert.equal(c9.Shadow, "1.5"); assert.equal(c9.Fontsize, "54"); assert.equal(c9.MarginV, "260");
+});
+test("paraAss recusa tipo desconhecido e cor inválida do contorno", () => {
+  assert.throws(() => paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9", tipo: "borda" }), /tipo.*"borda".*contorno.*caixa/);
+  assert.throws(() => paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9", corContorno: "azul" }), /cor inválida: "azul"/);
 });
 test("paraAss no 9x16 usa 1080x1920 e margem de 260", () => {
   const s = paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16" });

@@ -6,7 +6,11 @@
 // não some o offset de novo. Todos os tempos saem em segundos do filme, em milissegundos.
 //
 // Comando (a partir da pasta do projeto):
-//   node gerar-legenda.mjs [--roteiro roteiro.json] [--fala film/assets/fala.js] [--saida film/legenda.srt] [--formato 16x9|9x16]
+//   node gerar-legenda.mjs [--roteiro roteiro.json] [--fala film/assets/fala.js] [--saida film/legenda-<formato>.srt] [--formato 16x9|9x16]
+//
+// A saída padrão leva o formato no nome (film/legenda-16x9.srt, film/legenda-9x16.srt): os 2 formatos
+// não se sobrescrevem. As opções vão com espaço (--formato 9x16), nunca com "=". Opção desconhecida,
+// opção sem valor e resultado com 0 blocos saem com código 1.
 
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -24,9 +28,21 @@ const CORTE_PONTUACAO = 30;      // só corta na pontuação se o texto até ela
 const DESCONTO_PONTUACAO = 6;    // abate do custo da quebra que termina a linha 1 em pontuação
 const PENALIDADE_CURTA = 8;      // soma ao custo da quebra que deixa palavra de até 2 letras no fim da linha 1
 const DIVISOR_SOBRA = 3;         // o último pedaço de uma frase longa tem ao menos maxPedaco / 3 caracteres (senão refaz o corte)
+const PREFIXOS_UNIDOS = ["R$", "US$", "€", "nº"];   // vão sempre na mesma linha do número que vem depois
+const NBSP = "\u00A0";           // espaço sem quebra: une o prefixo à palavra durante a quebra; sai como espaço comum
 
 const ms = (x) => Math.round(x * 1000) / 1000;
-const palavrasDe = (texto) => String(texto ?? "").split(/\s+/).filter(Boolean);
+// Palavras como vêm no texto (a fala também separa só por espaço).
+const palavrasSoltas = (texto) => String(texto ?? "").split(/\s+/).filter(Boolean);
+// Palavras para quebrar: o prefixo ("R$", "nº"...) já vem unido à palavra seguinte por um NBSP.
+function palavrasDe(texto) {
+  const soltas = palavrasSoltas(texto), unidas = [];
+  for (let i = 0; i < soltas.length; i++) {
+    const prefixo = PREFIXOS_UNIDOS.some((p) => p.toLowerCase() === soltas[i].toLowerCase());
+    unidas.push(prefixo && i + 1 < soltas.length ? `${soltas[i]}${NBSP}${soltas[++i]}` : soltas[i]);
+  }
+  return unidas;
+}
 const terminaEmPontuacao = (palavra) => /[,.;:!?]$/.test(palavra);
 const tamanho = (palavras) => palavras.join(" ").length;
 // Palavra sem acento, caixa nem pontuação: serve só para conferir se a fala é a mesma do texto.
@@ -95,13 +111,13 @@ export function quebrarTexto(texto, limites = LIMITES["16x9"]) {
     }
   }
   if (atual.length) pedacos.push(atual);
-  return pedacos.map((p) => emLinhas(p, maxLinha));
+  return pedacos.map((p) => emLinhas(p, maxLinha).replaceAll(NBSP, " "));
 }
 
 // Tempo de cada pedaço. Com as palavras da fala (mesmo texto, mesmo número de palavras), vai do início
 // da 1ª ao fim da última. Sem elas, reparte o tempo da frase pela quantidade de caracteres (sem o "\n").
 export function temposDosPedacos(pedacos, frase, palavras) {
-  const lista = pedacos.map(palavrasDe);
+  const lista = pedacos.map(palavrasSoltas);   // a fala separa só por espaço: "R$ 600,00" são 2 palavras
   const todas = lista.flat();
   if (palavras && todas.length > 0 && palavras.length === todas.length
       && todas.every((w, i) => chave(w) === chave(palavras[i].w))) {
@@ -238,18 +254,35 @@ export function lerFala(arquivo) {
   return JSON.parse(t.slice(i, j + 1));
 }
 
+const OPCOES = ["roteiro", "fala", "saida", "formato"];
+const USO = "uso: node gerar-legenda.mjs [--roteiro roteiro.json] [--fala film/assets/fala.js] [--saida film/legenda-<formato>.srt] [--formato 16x9|9x16]";
+
+// Só aceita `--nome valor` (com espaço). Opção desconhecida, `--nome=valor`, valor que falta e argumento solto dão erro.
+function lerArgumentos(argv) {
+  const opcoes = {};
+  for (let i = 0; i < argv.length; i++) {
+    if (!argv[i].startsWith("--")) throw new Error(`argumento inesperado: ${argv[i]}\n${USO}`);
+    const nome = argv[i].slice(2);
+    if (nome.includes("=")) throw new Error(`escreva ${argv[i].replace("=", " ")} (com espaço, sem "=")\n${USO}`);
+    if (!OPCOES.includes(nome)) throw new Error(`opção desconhecida: ${argv[i]}\n${USO}`);
+    if (argv[i + 1] === undefined || argv[i + 1].startsWith("--")) throw new Error(`falta o valor de ${argv[i]}`);
+    opcoes[nome] = argv[++i];
+  }
+  return opcoes;
+}
+
 function comando(argv) {
-  const opcao = (nome, padrao) => {
-    const i = argv.indexOf(`--${nome}`);
-    if (i < 0) return padrao;
-    if (argv[i + 1] === undefined || argv[i + 1].startsWith("--")) throw new Error(`falta o valor de --${nome}`);
-    return argv[i + 1];
-  };
-  const [arqRoteiro, arqFala, saida, formato] = [opcao("roteiro", "roteiro.json"), opcao("fala", "film/assets/fala.js"),
-    opcao("saida", "film/legenda.srt"), opcao("formato", "16x9")];
+  const opcoes = lerArgumentos(argv);
+  const formato = opcoes.formato ?? "16x9";
+  if (!LIMITES[formato]) throw new Error(`formato inválido: "${formato}" (use ${Object.keys(LIMITES).join(" ou ")})`);
+  const arqRoteiro = opcoes.roteiro ?? "roteiro.json", arqFala = opcoes.fala ?? "film/assets/fala.js";
+  const saida = opcoes.saida ?? `film/legenda-${formato}.srt`;
   const roteiro = JSON.parse(readFileSync(arqRoteiro, "utf8").replace(/^\uFEFF/, ""));
   const fala = lerFala(arqFala);
   const blocos = legendasDoFilme(roteiro, fala, { formato });
+  if (!blocos.length) {
+    throw new Error(`0 blocos: nenhuma linha de ${arqRoteiro} tem fala em ${arqFala}. Confira se o "l" da fala é o "id" da linha do roteiro. Nada foi gravado.`);
+  }
   mkdirSync(dirname(saida), { recursive: true });
   writeFileSync(saida, paraSrt(blocos), "utf8");
   console.log(`legenda: ${blocos.length} blocos em ${saida}`);

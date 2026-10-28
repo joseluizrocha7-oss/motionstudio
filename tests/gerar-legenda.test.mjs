@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { quebrarTexto, temposDosPedacos, ajustarDuracoes, legendasDoFilme, LIMITES, paraSrt, lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
 
 test("quebrarTexto equilibra 2 linhas", () => {
@@ -129,4 +134,124 @@ test("quebrarTexto refaz o corte também quando o corte era na pontuação", () 
   assert.equal(q.length, 2);
   for (const p of q) assert.ok(compridoDe(p) >= 25, `pedaço curto: "${p}"`);
   assert.deepEqual(palavrasDos(q), t.split(" "));
+});
+
+// "R$" fica na mesma linha do número, em pedaço e em linha; o tempo continua pelas palavras da fala.
+const semPrefixoNoFim = (pedacos) => pedacos.every((p) => p.split("\n").every((l) => !/(R\$|US\$|€|nº)$/.test(l)));
+test("quebrarTexto no 16x9 não separa R$ do valor (quebra de linha)", () => {
+  const t = "Feche o pedido e anote a dívida de R$ 600,00 em aberto no sistema da loja.";
+  const q = quebrarTexto(t);
+  assert.ok(semPrefixoNoFim(q), `R$ ficou no fim da linha: ${JSON.stringify(q)}`);
+  assert.ok(q.join(" ").includes("R$ 600,00"), "o texto sai com espaço comum, não com NBSP");
+  assert.ok(!q.join("").includes("\u00A0"), "nenhum NBSP no texto de saída");
+  assert.deepEqual(palavrasDos(q), t.split(" "));
+});
+test("quebrarTexto no 9x16 não separa R$ do valor (quebra de pedaço)", () => {
+  for (const t of ["Confira o extrato do mês e some o valor total de R$ 600,00 em aberto no sistema.",
+    "A loja recebe o pedido e cobra o valor total de R$ 600,00 em aberto agora."]) {
+    const q = quebrarTexto(t, LIMITES["9x16"]);
+    assert.ok(semPrefixoNoFim(q), `R$ ficou no fim: ${JSON.stringify(q)}`);
+    assert.ok(q.some((p) => p.includes("R$ 600,00")), `R$ e o valor na mesma linha: ${JSON.stringify(q)}`);
+    assert.ok(!q.join("").includes("\u00A0"));
+    assert.deepEqual(palavrasDos(q), t.split(" "));
+    for (const p of q) assert.ok(p.split("\n").every((l) => l.length <= LIMITES["9x16"].maxLinha));
+  }
+});
+test("quebrarTexto une US$, € e nº ao número; prefixo no fim do texto fica como está", () => {
+  const t = "Confira o extrato do mês e some o valor total de US$ 600,00 em aberto no sistema.";
+  assert.ok(semPrefixoNoFim(quebrarTexto(t, LIMITES["9x16"])));
+  assert.ok(quebrarTexto(t, LIMITES["9x16"]).some((p) => p.includes("US$ 600,00")));
+  const u = "Confira o extrato do mês e some o valor total de € 600,00 em aberto no sistema.";
+  assert.ok(quebrarTexto(u, LIMITES["9x16"]).some((p) => p.includes("€ 600,00")));
+  const n = "Abra o chamado do cliente da fila de espera e confira o pedido nº 1234 de ontem.";
+  assert.ok(semPrefixoNoFim(quebrarTexto(n, LIMITES["9x16"])));
+  assert.ok(quebrarTexto(n, LIMITES["9x16"]).some((p) => p.includes("nº 1234")));
+  assert.deepEqual(quebrarTexto("Total em R$"), ["Total em R$"]);
+});
+test("legendasDoFilme com R$ ainda usa o tempo das palavras, não o das letras", () => {
+  const texto = "Confira o extrato do mês e some o valor total de R$ 600,00 em aberto no sistema.";
+  const ws = texto.split(" ");
+  // 1 s por palavra, com um vão de 1 s antes de "em": reparto por letras não daria estes tempos.
+  const palavras = ws.map((w, i) => ({ l: "p1", w, a: 10 + i * 2, b: 11 + i * 2 }));
+  const r = { blocos: [{ linhas: [{ id: "p1", texto }] }] };
+  const fala = { offset: 0, linhas: [{ l: "p1", a: 10, b: 11 + (ws.length - 1) * 2, t: texto }], palavras };
+  for (const formato of ["16x9", "9x16"]) {
+    const blocos = legendasDoFilme(r, fala, { formato });
+    const ini = new Set(palavras.map((p) => p.a)), fim = new Set(palavras.map((p) => p.b));
+    for (const b of blocos) assert.ok(ini.has(b.a) && fim.has(b.b), `${formato}: tempo fora das palavras: ${JSON.stringify(b)}`);
+    assert.equal(blocos[0].a, 10);
+    assert.equal(blocos.at(-1).b, 11 + (ws.length - 1) * 2);
+    assert.ok(blocos.some((b) => b.texto.includes("R$ 600,00")));
+  }
+  // temposDosPedacos direto: os pedaços já saem com espaço comum, e "R$" e "600,00" contam 2 palavras da fala.
+  const p3 = [{ w: "Valor", a: 1, b: 2 }, { w: "R$", a: 2, b: 2.5 }, { w: "600,00", a: 2.6, b: 4 }];
+  assert.deepEqual(temposDosPedacos(["Valor R$ 600,00"], { a: 0, b: 9 }, p3), [{ a: 1, b: 4, texto: "Valor R$ 600,00" }]);
+});
+
+test("paraAss usa a fonte Inter Variable", () => {
+  for (const formato of ["16x9", "9x16"]) {
+    const s = paraAss([{ a: 0, b: 1, texto: "a" }], { formato });
+    assert.match(s, /^Style: Legenda,Inter Variable,/m);
+  }
+});
+
+// Comando: roda o gerar-legenda.mjs de verdade, numa pasta de projeto inventada.
+const GERAR = join(dirname(fileURLToPath(import.meta.url)), "..", "kit", "gerar-legenda.mjs");
+function projetoInventado({ falaIds = ["a1"] } = {}) {
+  const pasta = mkdtempSync(join(tmpdir(), "legenda-cli-"));
+  mkdirSync(join(pasta, "film", "assets"), { recursive: true });
+  writeFileSync(join(pasta, "roteiro.json"), JSON.stringify({ blocos: [{ linhas: [{ id: "a1", texto: "Olá, este é um teste de legenda." }] }] }));
+  const fala = { offset: 0, linhas: falaIds.map((l, i) => ({ l, a: 1 + i * 3, b: 3 + i * 3, t: "Olá." })), palavras: [] };
+  writeFileSync(join(pasta, "film", "assets", "fala.js"), `window.FALA = ${JSON.stringify(fala)};\n`);
+  return pasta;
+}
+const rodar = (pasta, args) => spawnSync(process.execPath, [GERAR, ...args], { cwd: pasta, encoding: "utf8" });
+
+test("gerar-legenda: a saída padrão leva o formato no nome", () => {
+  const pasta = projetoInventado();
+  try {
+    let r = rodar(pasta, []);
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(existsSync(join(pasta, "film", "legenda-16x9.srt")));
+    r = rodar(pasta, ["--formato", "9x16"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(existsSync(join(pasta, "film", "legenda-9x16.srt")));
+    assert.ok(!existsSync(join(pasta, "film", "legenda.srt")), "o nome antigo não existe mais");
+    assert.match(r.stdout, /legenda: 1 blocos em film\/legenda-9x16\.srt/);
+    // --saida explícito vale mais que o padrão.
+    r = rodar(pasta, ["--saida", "outra/pasta/x.srt"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(existsSync(join(pasta, "outra", "pasta", "x.srt")));
+  } finally { rmSync(pasta, { recursive: true, force: true }); }
+});
+test("gerar-legenda recusa opção desconhecida, --x=y, valor que falta e argumento solto (código 1, nada gravado)", () => {
+  const pasta = projetoInventado();
+  try {
+    const casos = [
+      [["--format", "9x16"], /opção desconhecida: --format/],
+      [["--formato=9x16"], /--formato 9x16/],
+      [["--formato"], /falta o valor de --formato/],
+      [["--formato", "--saida", "x.srt"], /falta o valor de --formato/],
+      [["9x16"], /argumento inesperado: 9x16/],
+      [["--formato", "4x3"], /formato inválido: "4x3"/],
+    ];
+    for (const [args, erro] of casos) {
+      const r = rodar(pasta, args);
+      assert.equal(r.status, 1, `${args.join(" ")}: saiu com ${r.status}`);
+      assert.match(r.stderr, erro, args.join(" "));
+      assert.match(r.stderr, /^legenda: /);
+    }
+    assert.ok(!existsSync(join(pasta, "film", "legenda-16x9.srt")), "nenhum .srt foi gravado");
+    assert.ok(!existsSync(join(pasta, "film", "legenda-9x16.srt")), "nenhum .srt foi gravado");
+  } finally { rmSync(pasta, { recursive: true, force: true }); }
+});
+test("gerar-legenda sai com código 1 e não grava nada quando a fala não casa com o roteiro (0 blocos)", () => {
+  const pasta = projetoInventado({ falaIds: ["outro-id"] });
+  try {
+    const r = rodar(pasta, []);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /0 blocos/);
+    assert.ok(!existsSync(join(pasta, "film", "legenda-16x9.srt")), "não pode gravar .srt vazio");
+    assert.doesNotMatch(r.stdout, /blocos em/);
+  } finally { rmSync(pasta, { recursive: true, force: true }); }
 });

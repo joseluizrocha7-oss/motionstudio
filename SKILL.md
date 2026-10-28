@@ -258,6 +258,44 @@ primeiro, olhar com honestidade, som, entrega). Entrega de rede social: 9:16 e 1
 mesmo filme recomposto para cada quadro (o 16:9 não é o vertical com barras). A voz do
 comercial é a mesma do tutorial, Gemini TTS 3.8 Flash: o passo 5 do método diz como.
 
+### Filme feito de filmagem, não de movimento sintético
+
+Vale quando a imagem é vídeo de verdade (gerado ou filmado) e o HTML carrega só texto,
+máscaras e marca. Aprendido em 20/10/2026, num comercial de fábrica de massas.
+
+- **Renderize na cadência da filmagem, não em 30.** Cena a 24 qps num filme a 30 faz cada
+  quinto quadro repetir, e isso aparece como tranco em movimento lento de câmera. Rodar o
+  filme a 24 qps dá um quadro de origem para cada quadro de saída: fluidez máxima, nada
+  inventado, e 20% menos quadro para renderizar. Reamostrar com `minterpolate` é pior —
+  inventa quadro e custa caro. Confira a cadência da origem
+  (`ffprobe -show_entries stream=r_frame_rate`) antes de escolher a do filme.
+  **Armadilha:** `render_partes.sh` tem `--fps` próprio, com 30 no padrão, e **ignora** o
+  `fps` declarado no `Motion.film()`. Sem passar `--fps 24` o filme sai a 30 e o tranco
+  volta inteiro. Confira no arquivo pronto (`ffprobe ... r_frame_rate`), não no código:
+  em 20/10/2026 isso custou um render inteiro.
+- **Sem obturador.** A regra das 8 fotos por quadro existe para movimento sintético. A
+  filmagem já traz o próprio borrão, e o método manda escolher **uma** gramática de borrão
+  por filme. Empilhar as duas borra duas vezes e ainda multiplica o render por 8 em cima
+  de busca de vídeo, que é o passo mais lento do renderizador.
+- **Gere a filmagem já na proporção de entrega.** Cena gerada em 16:9 e recortada para
+  9:16 deixa 405 px de largura num 1280x720: 2,67x de ampliação, visivelmente mole. Gerar
+  de novo em 9:16 custa o mesmo que a primeira vez. **Decida os formatos antes de gerar o
+  primeiro segundo de imagem**, não só antes do primeiro quadro do filme.
+- **Meça se a imagem cobre o filme antes de gravar a voz.** Some a duração das cenas e
+  compare com a narração planejada. Faltando imagem, as saídas são encurtar o roteiro,
+  gerar mais cena ou repetir plano com outro enquadramento. Descobrir isso depois da voz
+  pronta custa refazer roteiro.
+- O renderizador já segue `<video>` sozinho: põe `currentTime = t - data-start` e espera
+  o `seeked` a cada quadro. Não precisa de adaptador.
+
+### Voz num filme que não é tutorial
+
+`kit/vozes/gerar-tomadas.mjs` e `montar.mjs` leem o `roteiro.json` em `join(AQUI, "..")`,
+isto é, na pasta **acima da pasta `vozes`**. Para usá-los fora do kit, copie `kit/vozes/`
+para o projeto e ponha o `roteiro.json` ao lado dela. O caminho do método (passo 5,
+`tts.mjs` direto) gera uma tomada só; o do kit gera várias e escolhe por medida, que é o
+padrão de qualidade deste usuário.
+
 ## Caso de referência
 
 Tutorial de primeiros passos de um app de aprovação (16/10/2026), no repositório do

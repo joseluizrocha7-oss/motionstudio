@@ -101,3 +101,32 @@ test("legendasDoFilme no 9x16 não passa de 32 caracteres por linha e no 16x9 pa
 test("legendasDoFilme recusa formato desconhecido", () => {
   assert.throws(() => legendasDoFilme({ blocos: [] }, { linhas: [] }, { formato: "4x3" }), /formato inválido: "4x3"/);
 });
+
+// Sem palavra sozinha no fim da frase: o último pedaço não fica com menos de 1/3 do maxPedaco.
+const compridoDe = (pedaco) => pedaco.replace(/\n/g, " ").length;
+const palavrasDos = (pedacos) => pedacos.join(" ").split(/\s+/);
+test("quebrarTexto no 16x9 não deixa 1 palavra sozinha no fim da frase", () => {
+  const t = "O painel mostra cada pedido novo da loja e avisa o cliente quando a entrega chega.";
+  assert.equal(t.length, 82);                                                      // o corte guloso em 76 deixaria só "chega."
+  const q = quebrarTexto(t);
+  assert.equal(q.length, 2);
+  for (const p of q) assert.ok(compridoDe(p) >= 25, `pedaço curto: "${p}"`);
+  assert.deepEqual(palavrasDos(q), t.split(" "));                                  // nenhuma palavra se perdeu
+  for (const p of q) assert.ok(p.split("\n").every((l) => l.length <= LIMITES["16x9"].maxLinha));
+});
+test("quebrarTexto no 9x16 não deixa palavra sozinha no fim da frase", () => {
+  const t = "O aplicativo mostra cada pedido novo e avisa o cliente na entrega.";
+  assert.equal(t.length, 66);                                                      // o corte guloso em 56 deixaria só "na entrega."
+  const q = quebrarTexto(t, LIMITES["9x16"]);
+  assert.equal(q.length, 2);
+  for (const p of q) assert.ok(compridoDe(p) >= 18, `pedaço curto: "${p}"`);
+  assert.deepEqual(palavrasDos(q), t.split(" "));
+  for (const p of q) assert.ok(p.split("\n").every((l) => l.length <= LIMITES["9x16"].maxLinha));
+});
+test("quebrarTexto refaz o corte também quando o corte era na pontuação", () => {
+  const t = "Primeiro o sistema confere todos os lançamentos pendentes do mês anterior, depois fecha tudo agora.";
+  const q = quebrarTexto(t);                                                       // o corte na vírgula deixaria 24 caracteres
+  assert.equal(q.length, 2);
+  for (const p of q) assert.ok(compridoDe(p) >= 25, `pedaço curto: "${p}"`);
+  assert.deepEqual(palavrasDos(q), t.split(" "));
+});

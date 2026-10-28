@@ -23,6 +23,7 @@ export const LIMITES = {
 const CORTE_PONTUACAO = 30;      // só corta na pontuação se o texto até ela tem isto ou mais
 const DESCONTO_PONTUACAO = 6;    // abate do custo da quebra que termina a linha 1 em pontuação
 const PENALIDADE_CURTA = 8;      // soma ao custo da quebra que deixa palavra de até 2 letras no fim da linha 1
+const DIVISOR_SOBRA = 3;         // o último pedaço de uma frase longa tem ao menos maxPedaco / 3 caracteres (senão refaz o corte)
 
 const ms = (x) => Math.round(x * 1000) / 1000;
 const palavrasDe = (texto) => String(texto ?? "").split(/\s+/).filter(Boolean);
@@ -36,6 +37,15 @@ function menorPor(itens, valor) {
   return itens.reduce((m, x) => (valor(x) < valor(m) ? x : m));
 }
 
+// Custo de partir a lista de palavras em duas, com k palavras na 1ª parte: partes de tamanho parecido,
+// pontuação no fim da 1ª, sem palavra curta (até 2 letras) no fim dela. Menor é melhor.
+function custoDaQuebra(palavras, k) {
+  const ultima = palavras[k - 1];
+  return Math.abs(tamanho(palavras.slice(0, k)) - tamanho(palavras.slice(k)))
+    - (terminaEmPontuacao(ultima) ? DESCONTO_PONTUACAO : 0)
+    + (ultima.replace(/[,.;:!?]+$/, "").length <= 2 ? PENALIDADE_CURTA : 0);
+}
+
 // Um pedaço (lista de palavras) em 1 ou 2 linhas, em "\n".
 function emLinhas(palavras, maxLinha) {
   const inteiro = palavras.join(" ");
@@ -43,13 +53,7 @@ function emLinhas(palavras, maxLinha) {
   const opcoes = [];
   for (let k = 1; k < palavras.length; k++) {
     const l1 = palavras.slice(0, k).join(" "), l2 = palavras.slice(k).join(" ");
-    const ultima = palavras[k - 1].replace(/[,.;:!?]+$/, "");
-    opcoes.push({
-      l1, l2, maior: Math.max(l1.length, l2.length),
-      custo: Math.abs(l1.length - l2.length)
-        - (terminaEmPontuacao(palavras[k - 1]) ? DESCONTO_PONTUACAO : 0)
-        + (ultima.length <= 2 ? PENALIDADE_CURTA : 0),
-    });
+    opcoes.push({ l1, l2, maior: Math.max(l1.length, l2.length), custo: custoDaQuebra(palavras, k) });
   }
   const cabem = opcoes.filter((o) => o.maior <= maxLinha);
   // Sem quebra em que as 2 linhas caibam (palavra de 40 e tantas letras no meio): a que deixa a linha mais longa menor.
@@ -76,6 +80,14 @@ export function quebrarTexto(texto, limites = LIMITES["16x9"]) {
       let corte = atual.length;
       for (let k = atual.length - 1; k >= 0; k--) {
         if (terminaEmPontuacao(atual[k]) && tamanho(atual.slice(0, k + 1)) >= CORTE_PONTUACAO) { corte = k + 1; break; }
+      }
+      // Se o que sobra do texto é curto (1 ou 2 palavras sozinhas na tela), refaz o corte sobre o pedaço atual + a sobra:
+      // entre as quebras em que a 2ª parte cabe no maxPedaco, a de menor custo. (A 1ª parte sempre cabe: é parte do pedaço atual.)
+      if (tamanho([...atual.slice(corte), ...palavras.slice(i)]) < Math.floor(maxPedaco / DIVISOR_SOBRA)) {
+        const todo = [...atual, ...palavras.slice(i)];
+        const cortes = [];
+        for (let k = 1; k <= atual.length; k++) if (tamanho(todo.slice(k)) <= maxPedaco) cortes.push(k);
+        corte = menorPor(cortes, (k) => custoDaQuebra(todo, k));
       }
       pedacos.push(atual.slice(0, corte));
       i -= atual.length - corte + 1;                  // o resto do pedaço e p voltam para a fila

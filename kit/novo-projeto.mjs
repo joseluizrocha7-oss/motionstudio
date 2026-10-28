@@ -4,7 +4,8 @@
 // <pasta>/
 //   roteiro.json          o que a voz diz (texto = tela e voz; fala = só voz), por bloco
 //   vozes/                tomadas da voz (Gemini TTS), alinhamento (Whisper) e montagem frase a frase
-//   gerar-som.mjs         trilha e efeitos sintetizados por código (trilha.mjs) e a mixagem
+//   gerar-trilha.mjs      a música de fundo pela Lyria 3 Pro (film/assets/musica/)
+//   gerar-som.mjs         a música (--musica) ou a trilha de código, os efeitos e a mixagem
 //   autoteste.mjs         Motion.selfTest do filme (0 divergências antes de renderizar)
 //   tela-vazia.mjs        sonda de celular sem foto (o G2 não vê)
 //   film/fonte/           base.html, iphone.js, pe.html e a linha do tempo (longo.js)

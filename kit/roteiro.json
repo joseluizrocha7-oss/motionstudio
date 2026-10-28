@@ -1,17 +1,29 @@
 {
   "titulo": "Tutorial de exemplo",
   "voz": {
-    "id": "pt-br-training-1",
+    "id": "pt-br-podcaster-6",
     "modelo": "gemini-3.8-flash-tts"
   },
-  "estilo": "Instrutor brasileiro, calmo e claro, explicando passo a passo para um colega que nunca usou o app. Ritmo tranquilo, respeitando vírgulas e pontos.",
+  "estilo": "Energetic, engaging and confident Brazilian Portuguese presenter showing the app to the people who will use it, in first person, like a lively product demo that keeps attention. Brisk pace, varied and expressive intonation, a smile in the voice, emphasis on the key words, short pauses only where needed. Every sentence ends with a settled, clearly falling final tone, never rising.",
+  "pausas": {
+    "frase": 0.28,
+    "linha": 0.4,
+    "bloco": 0.8
+  },
+  "respiracao": 0.2,
   "blocos": [
     {
       "id": "boasvindas",
       "passo": null,
       "linhas": [
-        { "id": "w1", "texto": "Boas-vindas ao Produto!" },
-        { "id": "w2", "texto": "Você acabou de receber o seu acesso, e este vídeo vai guiar você pelos primeiros passos." }
+        {
+          "id": "w1",
+          "texto": "Boas-vindas ao Produto!"
+        },
+        {
+          "id": "w2",
+          "texto": "Você acabou de receber o seu acesso, e este vídeo vai guiar você pelos primeiros passos."
+        }
       ],
       "pausaDepois": 0.6,
       "pausaFrase": 0.3
@@ -20,18 +32,22 @@
       "id": "entrar",
       "passo": "Entrar",
       "linhas": [
-        { "id": "e1", "texto": "Toque em Entrar depois de digitar seu usuário e sua senha." }
+        {
+          "id": "e1",
+          "texto": "Toque em Entrar depois de digitar seu usuário e sua senha."
+        }
       ]
     },
     {
       "id": "fecho",
       "passo": null,
       "linhas": [
-        { "id": "z1", "texto": "Boas-vindas ao novo Produto!" }
+        {
+          "id": "z1",
+          "texto": "Boas-vindas ao novo Produto!"
+        }
       ]
     }
   ],
-  "pausas": { "frase": 0.42, "linha": 0.6, "bloco": 1.15 },
-  "respiracao": 0.32,
   "cauda": 0.12
 }

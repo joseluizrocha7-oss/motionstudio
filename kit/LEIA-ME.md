@@ -26,8 +26,9 @@ node $P/autoteste.mjs $P/film/index-vertical.html
 node $P/tela-vazia.mjs $P/film/index-vertical.html
 node $SKILL/scripts/camera.mjs $P/film/index-vertical.html --el "#celular"
 node $SKILL/scripts/render.mjs $P/film/index-vertical.html --still 2,40,93 $P/film/stills
-# 6. Som (a lista de eventos sai do --still acima):
-node $P/gerar-som.mjs $P/film/stills/events.json --total <duração do montar-filmes>
+# 6. Som (a lista de eventos sai do --still acima). A música: Lyria 3 Pro, o pedido aprovado em 28/10/2026.
+node --env-file=<.env com GEMINI_API_KEY> $P/gerar-trilha.mjs tech
+node $P/gerar-som.mjs $P/film/stills/events.json --total <duração do montar-filmes> --musica assets/musica/tech.mp3
 # 7. Render e portões (um formato de cada vez):
 bash $SKILL/scripts/render_partes.sh $P/film/index-vertical.html $P/film/final-9x16.mp4 --dur <s> --audio $P/film/audio/mix.wav -- --shutter 180 --subframes 8
 py -3 $SKILL/scripts/look.py $P/film/final-9x16.mp4 --out $P/film/look-9x16 --expect <s> --expect-audio
@@ -46,7 +47,9 @@ node $SKILL/scripts/ler.mjs $P/film/index-vertical.html $P/film/final-9x16.mp4
 | nome, endereço do app no Safari, versões, temas, formatos, folga do fim | o topo de `film/montar-filmes.mjs` |
 | estilo, câmera, toque, contorno, marca do fim | `film/fonte/base.html` (no 9:16: `K` e `CEL`) |
 | o que muda de tamanho no 9:16 | `CSS_VERTICAL` em `film/montar-filmes.mjs` |
-| volume da trilha e dos efeitos | `gerar-som.mjs` (trilha -31,5 LUFS, voz -16) |
+| a música | `gerar-trilha.mjs` (pedido e modelo) e `--musica` no `gerar-som.mjs` |
+| volume da música e dos efeitos | `gerar-som.mjs --abaixo 20` (a música 20 dB sob a voz, que fica em -16 LUFS) |
+| o estilo da voz | `estilo` no `roteiro.json` (o dinâmico é o padrão desde 28/10/2026) |
 | toque e sopro gravados no lugar dos sintetizados (em teste) | `gerar-som.mjs --toque pop-hand --ar fast-whoosh`; ver `efeitos-gravados/LEIA-ME.md` |
 | um texto que não precisa ser lido no T1 (ilustrativo) | `data-ler="ignorar"` no elemento; dizer no NOTE.md |
 
@@ -58,6 +61,7 @@ node $SKILL/scripts/ler.mjs $P/film/index-vertical.html $P/film/final-9x16.mp4
 - `film/gerar-fala.mjs`: `assets/fala.js` (frases e palavras em segundos do filme) e a duração sugerida.
 - `film/fonte/base.html`: `pal()`, `mostra()`, `anel()`, `toque()`, `gesto()`, `peca()`, `cam()`, `passo()`, `marcaFinal()`; 9:16 e 16:9 pela mesma fonte.
 - `film/fonte/iphone.js`: Safari, folha de Compartilhar, "Adicionar à Tela de Início" e Tela de Início desenhados (ilustrativo; dizer no NOTE.md).
-- `gerar-som.mjs` e `trilha.mjs`: trilha e efeitos sintetizados, mixagem com a voz, trilha descendo nos últimos 1,6 s.
+- `gerar-trilha.mjs`: a música de fundo pela Lyria (API do Gemini), em `film/assets/musica/`.
+- `gerar-som.mjs` e `trilha.mjs`: efeitos sintetizados, a música (`--musica`, repetida com transição) ou a trilha de código, mixagem com a voz, tudo descendo nos últimos 1,6 s.
 - `efeitos-gravados/`: 3 sons em domínio público (CC0) para o A/B do toque e do sopro; origem e licença no LEIA-ME de lá.
 - `autoteste.mjs` e `tela-vazia.mjs`: as duas conferências que o `look.py` não faz.

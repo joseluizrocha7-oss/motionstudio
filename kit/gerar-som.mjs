@@ -5,8 +5,14 @@
 // Lê os eventos que o render grava ao lado do vídeo (toques, gestos, a marca
 // final), sintetiza a trilha e os efeitos (trilha.mjs, sem amostra de
 // terceiros) e mistura com a narração (film/audio/vo.wav, que começa em
-// FALA.offset). Uma trilha num volume só do começo ao fim, uns 14 dB abaixo da
-// voz; poucos efeitos, baixos. A trilha desce nos últimos 1,6 s.
+// FALA.offset). Uma trilha num volume só do começo ao fim, 20 dB abaixo da
+// voz (--abaixo); poucos efeitos, baixos. A trilha desce nos últimos 1,6 s.
+//
+// Música pronta no lugar da sintetizada (o padrão desde 28/10/2026: o Jose achou "chata" a
+// trilha de código e escolheu de ouvido uma faixa tech da Lyria 3 Pro, gerada por
+// gerar-trilha.mjs, "uns 30% mais baixa" que a de 15,5 dB):
+//   --musica assets/musica/<faixa>.mp3 [--abaixo 20]
+// A faixa se repete com 4 s de transição até cobrir o filme.
 //
 // Efeito gravado no lugar do sintetizado (opção, em teste desde 19/10/2026):
 //   --toque pop-hand | mouse-click-2     o toque na tela
@@ -47,7 +53,7 @@ for (const e of eventos) {
   else if (e.type === "whip" && /reprovar$/.test(e.label) && /gesto/.test(e.label)) efeitos.push({ tipo: "reprovar", t: t + 0.12 });
   else if (e.type === "whip" && /pular$/.test(e.label)) efeitos.push({ tipo: "pular", t: t + 0.12 });
   else if (e.type === "whip" && /lista-arrasto/.test(e.label)) efeitos.push({ tipo: "ar", t });
-  else if (e.type === "enter" && e.label === "celular") efeitos.push({ tipo: "ar", t: t - 0.1 });
+  else if (e.type === "enter" && (e.label === "celular" || e.label === "janela")) efeitos.push({ tipo: "ar", t: t - 0.1 });   // celular no 9:16, janela do computador no 16:9
   else if (e.type === "enter" && e.label === "marca final") efeitos.push({ tipo: "assinatura", t: t + 0.25 });
 }
 efeitos.sort((a, b) => a.t - b.t);
@@ -56,8 +62,26 @@ for (const e of efeitos) contagem[e.tipo] = (contagem[e.tipo] || 0) + 1;
 console.log(`efeitos: ${efeitos.length}`, contagem);
 import("node:fs").then(({ writeFileSync }) => writeFileSync(join(AUDIO, "sfx-eventos.json"), JSON.stringify(efeitos.map((e) => ({ t: +e.t.toFixed(3), sfx: troca[e.tipo] || e.tipo, gain: 0 })), null, 1)));
 
-const trilha = join(AUDIO, "trilha.wav"), fx = join(AUDIO, "efeitos.wav");
+let trilha = join(AUDIO, "trilha.wav");
+const fx = join(AUDIO, "efeitos.wav");
 gerarAudio({ total: TOTAL, tempos: { cenas: { marca: { inicio: 1.2 } } }, efeitos, arquivoTrilha: trilha, arquivoEfeitos: fx, troca });
+const MUSICA = opcao("musica", null);
+const ABAIXO = Number(opcao("abaixo", "20"));
+if (MUSICA) {
+  const arq = join(AQUI, "film", MUSICA);
+  const dur = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", arq], { encoding: "utf8" }));
+  const X = 4;
+  const vezes = Math.max(1, Math.ceil((TOTAL - X) / (dur - X)));
+  const entradas = Array.from({ length: vezes }, () => ["-i", arq]).flat();
+  let filtro = Array.from({ length: vezes }, (_, i) => `[${i}]aresample=48000,aformat=channel_layouts=stereo[f${i}];`).join("");
+  let ultimo = "f0";
+  for (let i = 1; i < vezes; i++) { filtro += `[${ultimo}][f${i}]acrossfade=d=${X}:c1=tri:c2=tri[x${i}];`; ultimo = `x${i}`; }
+  filtro += `[${ultimo}]atrim=0:${TOTAL},asetpts=N/SR/TB,afade=t=in:d=1[o]`;
+  trilha = join(AUDIO, "musica.wav");
+  execFileSync("ffmpeg", ["-v", "error", "-y", ...entradas, "-filter_complex", filtro, "-map", "[o]", "-c:a", "pcm_s16le", trilha]);
+  console.log(`música: ${MUSICA}, ${dur.toFixed(1)} s, ${vezes} vez(es)`);
+}
+console.log(`trilha ${ABAIXO} dB sob a voz`);
 if (Object.keys(troca).length) console.log("efeitos gravados:", troca);
 
 // Mixagem: cada faixa nivelada antes (voz -16 LUFS, trilha -30, efeitos com
@@ -69,7 +93,7 @@ ff([
   "-i", VO, "-i", trilha, "-i", fx,
   "-filter_complex",
   `[0]aresample=48000,aformat=channel_layouts=stereo,volume=${(-16 - lufsDe(VO)).toFixed(2)}dB,adelay=${atraso}|${atraso},apad[v];` +
-  `[1]volume=${(-31.5 - lufsDe(trilha)).toFixed(2)}dB[m];` +
+  `[1]volume=${(-16 - ABAIXO - lufsDe(trilha)).toFixed(2)}dB[m];` +
   `[2]volume=0.9[e];` +
   `[v][m][e]amix=inputs=3:normalize=0:duration=longest,alimiter=limit=0.8:level=0,atrim=0:${TOTAL},afade=t=out:st=${(TOTAL - 1.6).toFixed(2)}:d=1.6[s]`,   // a trilha desce no fim, sem cortar seco (Jose, 17/10)
   "-map", "[s]", "-ar", "48000", "-c:a", "pcm_s16le", join(AUDIO, "mix.wav"),

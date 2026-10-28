@@ -27,7 +27,9 @@ const quantas = Number(arg("tomadas", "3"));
 const inicio = Number(arg("inicio", "1"));
 const filtro = arg("blocos") ? new Set(arg("blocos").split(",")) : null;
 const modeloWhisper = arg("modelo-whisper", "small");
-const estilo = arg("estilo", "Calm, clear and warm Brazilian Portuguese instructional narrator explaining an app step by step to a colleague. Unhurried, natural pauses at every comma and period, sentences end with a settled falling tone.");
+// O estilo: --estilo, senão o do roteiro, senão o dinâmico que o Jose aprovou em 28/10/2026
+// ("ficou muito boa essa dinamica"; o calmo de antes ficou lento para ele).
+const estilo = arg("estilo", ROTEIRO.estilo || "Energetic, engaging and confident Brazilian Portuguese presenter showing the app to the people who will use it, in first person, like a lively product demo that keeps attention. Brisk pace, varied and expressive intonation, a smile in the voice, emphasis on the key words, short pauses only where needed. Every sentence ends with a settled, clearly falling final tone, never rising.");
 
 const falaDoBloco = (b) => b.linhas.map((l) => l.fala || l.texto).join(" ");
 

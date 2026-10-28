@@ -39,12 +39,18 @@ o repositório é público.
   (`--shutter 180 --subframes 8`); o Jose recusou cair para 4. Para acelerar, ver "Render".
 - **Câmera contida.** No máximo 1,5x o plano-base; o aparelho aparece quase o tempo todo e
   a câmera chega perto só no momento-chave.
-- **Som enxuto.** Frases da voz niveladas uma a uma (-20 LUFS), trilha num volume só do
-  começo ao fim (uns 14 dB abaixo da voz), poucos efeitos e baixos, corte da voz só em
+- **Som enxuto.** Frases da voz niveladas uma a uma (-20 LUFS), música num volume só do
+  começo ao fim (**20 dB abaixo da voz**), poucos efeitos e baixos, corte da voz só em
   silêncio medido: cada frase termina onde a tomada fica 80 ms abaixo de -50 dB, não no fim
   que o Whisper marca (ele chega cedo; com 0,12 s de cauda o "-ção" da última palavra do
   tutorial saiu cortado, "cortou seco e acabou o vídeo", Jose, 17/10). Mistura final em -16
   LUFS, com a trilha descendo nos últimos 1,6 s.
+- **Música da Lyria, não de código** (desde 28/10/2026). A trilha sintetizada por código
+  (4 acordes, 15,5 dB sob a voz) o Jose achou "chata". Ouvindo 5 amostras na mesma abertura,
+  escolheu uma faixa tech animada da Lyria 3 Pro, "uns 30% mais baixa" (20 dB sob a voz).
+  Gerar com `kit/gerar-trilha.mjs` (o pedido aprovado é o padrão; faixa de uns 3 min, que
+  o `gerar-som.mjs --musica` repete com transição; a de 30 s repetida cansa). Música nova
+  ou outro gosto: amostras curtas misturadas com a voz, mandadas ao celular, antes do render.
 - **Fala e tela juntas.** Texto na tela diz o que a voz diz, na mesma hora; cada um leva
   `M.mark(quadro, 'fala', '<palavras>')` e o `ouvir.py` confere (S3).
 - **Voz em pt-BR nativa.** Gemini TTS 3.8 Flash (`gemini-3.8-flash-tts`, pelo
@@ -53,7 +59,13 @@ o repositório é público.
   também no tutorial ("Usa a mesma voz do comercial"; ele a escolheu de ouvido entre três
   amostras para o comercial). Ela tende a terminar frase subindo: 8 tomadas nos blocos grandes,
   estilo pedindo fim descendo, pausa entre frases do roteiro. A `pt-br-training-1` foi a do
-  tutorial até a rodada 4. Tomadas de cada voz numa pasta própria (`roteiro.voz.pasta`). (A voz de
+  tutorial até a rodada 4. **Estilo dinâmico** desde 28/10/2026: o calmo ficou lento para ele
+  ("pode deixar a narração mais dinamica e que prende a atenção"); de 3 estilos na mesma
+  abertura escolheu o dinâmico, e no filme pronto disse "ficou muito boa essa dinamica". O
+  estilo está em `kit/roteiro.json` (e é o padrão do `gerar-tomadas.mjs`), com pausas de
+  0,28 s entre frases, 0,4 s entre linhas, 0,8 s entre blocos e respiração de 0,2 s: a fala
+  fica uns 15% mais curta que a calma. Ele sobe mais no fim da frase: 6 tomadas por bloco e
+  mais 6 nos blocos com fim acima de +1 semitom. Tomadas de cada voz e estilo numa pasta própria (`roteiro.voz.pasta`). (A voz de
   outro serviço foi reprovada por sotaque em 15/10: a voz é sempre a do Gemini.) Frase que termina em nome de botão sobe
   no fim: na `fala`, o nome vai em minúsculas, ou a frase é reescrita para terminar em verbo
   ("Toque em Reconectar quando a senha mudar."). Sigla e nome próprio na grafia de fala
@@ -139,8 +151,11 @@ node "$SKILL/scripts/lint.mjs" film/index-vertical.html                     # G5
 node "$SKILL/scripts/render.mjs" film/index-vertical.html --still 2,40,93 film/stills   # e OLHAR
 ```
 
-**7. Som.** `node gerar-som.mjs <events.json de um --still> --total <duração>`: trilha e
-efeitos por código (nada de terceiros), mistura com a voz. O toque e o sopro gravados
+**7. Som.** Música: `node --env-file=<.env> gerar-trilha.mjs <nome>` (Lyria 3 Pro, o pedido
+aprovado; grava em `film/assets/musica/`). Depois
+`node gerar-som.mjs <events.json de um --still> --total <duração> --musica assets/musica/<nome>.mp3`:
+a música 20 dB sob a voz (`--abaixo`), efeitos por código e a mistura. Sem `--musica`, a
+trilha de código (só se não houver saldo no Gemini). O toque e o sopro gravados
 (`--toque`, `--ar`, sons CC0 em `kit/efeitos-gravados/`) estão em teste. Não use sem o Jose
 aprovar o A/B de 19/10/2026 (`kit/efeitos-gravados/LEIA-ME.md`).
 

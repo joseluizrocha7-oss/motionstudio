@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { quebrarTexto, temposDosPedacos, ajustarDuracoes, legendasDoFilme, paraSrt, lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
+import { quebrarTexto, temposDosPedacos, ajustarDuracoes, legendasDoFilme, LIMITES, paraSrt, lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
 
 test("quebrarTexto equilibra 2 linhas", () => {
   assert.deepEqual(quebrarTexto("Boas-vindas ao fluxo completo do sistema da empresa!"),
@@ -78,4 +78,26 @@ test("paraAss no 16x9 usa 1920x1080 e a cor da caixa", () => {
 test("paraAss no 9x16 usa 1080x1920 e margem de 260", () => {
   const s = paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16" });
   assert.match(s, /PlayResX: 1080/); assert.match(s, /PlayResY: 1920/); assert.match(s, /,260,/);
+});
+
+const maiorLinha = (blocos) => Math.max(...blocos.flatMap((b) => b.texto.split("\n").map((l) => l.length)));
+test("quebrarTexto com o limite do 9x16 quebra frase de 41 caracteres em linhas de até 32", () => {
+  const t = "O cliente recebe a proposta e assina hoje";
+  assert.equal(t.length, 41);
+  assert.deepEqual(quebrarTexto(t), [t]);                                         // 16x9: cabe em 1 linha
+  const q = quebrarTexto(t, LIMITES["9x16"]);
+  assert.equal(q.length, 1);
+  assert.ok(maiorLinha(q.map((texto) => ({ texto }))) <= LIMITES["9x16"].maxLinha);
+  assert.equal(q[0].replace("\n", " "), t);                                       // só trocou um espaço por quebra
+});
+test("legendasDoFilme no 9x16 não passa de 32 caracteres por linha e no 16x9 passa de 32", () => {
+  const texto = "Para a operadora que não manda arquivo, o Lançar em lote mostra as parcelas do mês e marcamos as que vieram no demonstrativo.";
+  const r = { blocos: [{ linhas: [{ id: "l1", texto }] }] };
+  const fala = { offset: 0, linhas: [{ l: "l1", a: 1, b: 9, t: texto }], palavras: [] };
+  assert.ok(maiorLinha(legendasDoFilme(r, fala, { formato: "9x16" })) <= LIMITES["9x16"].maxLinha);
+  assert.ok(maiorLinha(legendasDoFilme(r, fala, { formato: "16x9" })) > LIMITES["9x16"].maxLinha);
+  assert.deepEqual(legendasDoFilme(r, fala), legendasDoFilme(r, fala, { formato: "16x9" }));   // 16x9 é o padrão
+});
+test("legendasDoFilme recusa formato desconhecido", () => {
+  assert.throws(() => legendasDoFilme({ blocos: [] }, { linhas: [] }, { formato: "4x3" }), /formato inválido: "4x3"/);
 });

@@ -6,14 +6,20 @@
 // não some o offset de novo. Todos os tempos saem em segundos do filme, em milissegundos.
 //
 // Comando (a partir da pasta do projeto):
-//   node gerar-legenda.mjs [--roteiro roteiro.json] [--fala film/assets/fala.js] [--saida film/legenda.srt]
+//   node gerar-legenda.mjs [--roteiro roteiro.json] [--fala film/assets/fala.js] [--saida film/legenda.srt] [--formato 16x9|9x16]
 
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const MAX_LINHA = 42;            // caracteres por linha da legenda
-const MAX_PEDACO = 76;           // caracteres por pedaço (2 linhas de 42, menos a folga da quebra)
+// Limites por formato, em caracteres. maxPedaco = 2 linhas cheias menos 8 de folga da quebra.
+// 16x9: a linha de 42 ocupa cerca de metade dos 1920 px. 9x16: Inter Bold 54 em 1080 px com margens de 80
+// deixa 920 px de texto. Medido com libass (ffmpeg), texto pt-BR com muitos M, W, ç e ã: cabem até 36
+// caracteres numa linha; 32 é isso menos 10% de folga.
+export const LIMITES = {
+  "16x9": { maxLinha: 42, maxPedaco: 76 },
+  "9x16": { maxLinha: 32, maxPedaco: 56 },
+};
 const CORTE_PONTUACAO = 30;      // só corta na pontuação se o texto até ela tem isto ou mais
 const DESCONTO_PONTUACAO = 6;    // abate do custo da quebra que termina a linha 1 em pontuação
 const PENALIDADE_CURTA = 8;      // soma ao custo da quebra que deixa palavra de até 2 letras no fim da linha 1
@@ -31,9 +37,9 @@ function menorPor(itens, valor) {
 }
 
 // Um pedaço (lista de palavras) em 1 ou 2 linhas, em "\n".
-function emLinhas(palavras) {
+function emLinhas(palavras, maxLinha) {
   const inteiro = palavras.join(" ");
-  if (inteiro.length <= MAX_LINHA || palavras.length < 2) return inteiro;
+  if (inteiro.length <= maxLinha || palavras.length < 2) return inteiro;
   const opcoes = [];
   for (let k = 1; k < palavras.length; k++) {
     const l1 = palavras.slice(0, k).join(" "), l2 = palavras.slice(k).join(" ");
@@ -45,27 +51,28 @@ function emLinhas(palavras) {
         + (ultima.length <= 2 ? PENALIDADE_CURTA : 0),
     });
   }
-  const cabem = opcoes.filter((o) => o.maior <= MAX_LINHA);
+  const cabem = opcoes.filter((o) => o.maior <= maxLinha);
   // Sem quebra em que as 2 linhas caibam (palavra de 40 e tantas letras no meio): a que deixa a linha mais longa menor.
   const o = cabem.length ? menorPor(cabem, (x) => x.custo) : menorPor(opcoes, (x) => x.maior);
   return `${o.l1}\n${o.l2}`;
 }
 
-// Texto do roteiro em pedaços de 1 ou 2 linhas.
-export function quebrarTexto(texto) {
+// Texto do roteiro em pedaços de 1 ou 2 linhas, dentro dos limites do formato (padrão 16x9).
+export function quebrarTexto(texto, limites = LIMITES["16x9"]) {
+  const { maxLinha, maxPedaco } = limites;
   const palavras = palavrasDe(texto);
   const pedacos = [];
   let atual = [];
   for (let i = 0; i < palavras.length; i++) {
     const p = palavras[i];
-    if (p.length > MAX_LINHA) {                       // palavra longa (endereço): pedaço sozinho
+    if (p.length > maxLinha) {                       // palavra longa (endereço): pedaço sozinho
       if (atual.length) pedacos.push(atual);
       pedacos.push([p]);
       atual = [];
-    } else if (!atual.length || tamanho([...atual, p]) <= MAX_PEDACO) {
+    } else if (!atual.length || tamanho([...atual, p]) <= maxPedaco) {
       atual.push(p);
     } else {
-      // Passou de 76: corta depois da última palavra com pontuação (se o texto até ela tem 30 ou mais), senão antes de p.
+      // Passou do maxPedaco: corta depois da última palavra com pontuação (se o texto até ela tem 30 ou mais), senão antes de p.
       let corte = atual.length;
       for (let k = atual.length - 1; k >= 0; k--) {
         if (terminaEmPontuacao(atual[k]) && tamanho(atual.slice(0, k + 1)) >= CORTE_PONTUACAO) { corte = k + 1; break; }
@@ -76,7 +83,7 @@ export function quebrarTexto(texto) {
     }
   }
   if (atual.length) pedacos.push(atual);
-  return pedacos.map(emLinhas);
+  return pedacos.map((p) => emLinhas(p, maxLinha));
 }
 
 // Tempo de cada pedaço. Com as palavras da fala (mesmo texto, mesmo número de palavras), vai do início
@@ -114,8 +121,10 @@ export function ajustarDuracoes(blocos, { min = 1.0, folga = 0.05 } = {}) {
 
 // Legendas do filme inteiro: o texto do roteiro com o tempo da fala. A linha que o roteiro tem
 // e a fala não tem (voz não gerada) fica de fora. Palavras da fala só valem quando a linha não
-// tem `fala` (o texto da tela é o que a voz diz).
-export function legendasDoFilme(roteiro, fala) {
+// tem `fala` (o texto da tela é o que a voz diz). O formato define o tamanho máximo da linha.
+export function legendasDoFilme(roteiro, fala, { formato = "16x9" } = {}) {
+  const limites = LIMITES[formato];
+  if (!limites) throw new Error(`formato inválido: "${formato}" (use ${Object.keys(LIMITES).join(" ou ")})`);
   const blocos = [];
   for (const bloco of roteiro.blocos ?? []) {
     for (const linha of bloco.linhas ?? []) {
@@ -123,7 +132,7 @@ export function legendasDoFilme(roteiro, fala) {
       if (!frases.length) continue;
       const frase = { a: frases[0].a, b: frases[frases.length - 1].b };
       const palavras = linha.fala ? null : (fala.palavras ?? []).filter((p) => p.l === linha.id);
-      blocos.push(...temposDosPedacos(quebrarTexto(linha.texto), frase, palavras));
+      blocos.push(...temposDosPedacos(quebrarTexto(linha.texto, limites), frase, palavras));
     }
   }
   return ajustarDuracoes(blocos);
@@ -224,10 +233,11 @@ function comando(argv) {
     if (argv[i + 1] === undefined || argv[i + 1].startsWith("--")) throw new Error(`falta o valor de --${nome}`);
     return argv[i + 1];
   };
-  const [arqRoteiro, arqFala, saida] = [opcao("roteiro", "roteiro.json"), opcao("fala", "film/assets/fala.js"), opcao("saida", "film/legenda.srt")];
+  const [arqRoteiro, arqFala, saida, formato] = [opcao("roteiro", "roteiro.json"), opcao("fala", "film/assets/fala.js"),
+    opcao("saida", "film/legenda.srt"), opcao("formato", "16x9")];
   const roteiro = JSON.parse(readFileSync(arqRoteiro, "utf8").replace(/^\uFEFF/, ""));
   const fala = lerFala(arqFala);
-  const blocos = legendasDoFilme(roteiro, fala);
+  const blocos = legendasDoFilme(roteiro, fala, { formato });
   mkdirSync(dirname(saida), { recursive: true });
   writeFileSync(saida, paraSrt(blocos), "utf8");
   console.log(`legenda: ${blocos.length} blocos em ${saida}`);

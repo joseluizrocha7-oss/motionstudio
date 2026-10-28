@@ -34,6 +34,9 @@ bash $SKILL/scripts/render_partes.sh $P/film/index-vertical.html $P/film/final-9
 py -3 $SKILL/scripts/look.py $P/film/final-9x16.mp4 --out $P/film/look-9x16 --expect <s> --expect-audio
 py -3 $SKILL/scripts/ouvir.py $P/film/final-9x16.mp4 --roteiro $P/film/audio/vo.txt --eventos $P/film/final-9x16.mp4.events.json --sfx $P/film/audio/sfx-eventos.json --motor whisper --modelo medium
 node $SKILL/scripts/ler.mjs $P/film/index-vertical.html $P/film/final-9x16.mp4
+# 8. Legenda, em toda entrega. O mesmo --formato nos dois comandos: no 9x16 a linha é mais curta.
+cd $P && node gerar-legenda.mjs --formato 9x16 && cd -        # film/legenda.srt: texto do roteiro, tempo da fala
+node $SKILL/scripts/legendar.mjs $P/film/final-9x16.mp4 $P/film/legenda.srt $P/film/final-9x16-legendado.mp4 --formato 9x16   # 2º arquivo, para quem assiste sem som
 ```
 
 ## Onde mexer
@@ -49,6 +52,9 @@ node $SKILL/scripts/ler.mjs $P/film/index-vertical.html $P/film/final-9x16.mp4
 | o que muda de tamanho no 9:16 | `CSS_VERTICAL` em `film/montar-filmes.mjs` |
 | a música | `gerar-trilha.mjs` (pedido e modelo) e `--musica` no `gerar-som.mjs` |
 | volume da música e dos efeitos | `gerar-som.mjs --abaixo 20` (a música 20 dB sob a voz, que fica em -16 LUFS) |
+| o texto da legenda | `texto` no `roteiro.json` (a legenda mostra o `texto`, nunca a `fala`); depois `gerar-legenda.mjs` e `legendar.mjs` |
+| o tamanho da linha, a fonte e a margem da legenda | `LIMITES` e `FORMATOS_ASS` no `gerar-legenda.mjs`: 16x9 = 42 caracteres por linha, 9x16 = 32 |
+| a cor da caixa e a posição da legenda no MP4 | `legendar.mjs --cor-caixa #RRGGBB --margem-esq N --margem-dir N` (app que ocupa só parte do quadro) |
 | o estilo da voz | `estilo` no `roteiro.json` (o dinâmico é o padrão desde 28/10/2026) |
 | toque e sopro gravados no lugar dos sintetizados (em teste) | `gerar-som.mjs --toque pop-hand --ar fast-whoosh`; ver `efeitos-gravados/LEIA-ME.md` |
 | um texto que não precisa ser lido no T1 (ilustrativo) | `data-ler="ignorar"` no elemento; dizer no NOTE.md |
@@ -64,4 +70,5 @@ node $SKILL/scripts/ler.mjs $P/film/index-vertical.html $P/film/final-9x16.mp4
 - `gerar-trilha.mjs`: a música de fundo pela Lyria (API do Gemini), em `film/assets/musica/`.
 - `gerar-som.mjs` e `trilha.mjs`: efeitos sintetizados, a música (`--musica`, repetida com transição) ou a trilha de código, mixagem com a voz, tudo descendo nos últimos 1,6 s.
 - `efeitos-gravados/`: 3 sons em domínio público (CC0) para o A/B do toque e do sopro; origem e licença no LEIA-ME de lá.
+- `gerar-legenda.mjs`: `film/legenda.srt` com o texto do roteiro (quebrado em 1 ou 2 linhas) e o tempo da fala; o `scripts/legendar.mjs` grava esse `.srt` no MP4 com o ffmpeg, sem renderizar de novo.
 - `autoteste.mjs` e `tela-vazia.mjs`: as duas conferências que o `look.py` não faz.

@@ -37,6 +37,7 @@ O que é igual em todos:
 - **Filme em HTML.** Cada animação fica presa a uma palavra da voz. O render é quadro a quadro, pelo Chrome e pelo ffmpeg.
 - **Uma fonte, várias versões.** Longo e curto, modo escuro e claro, 9:16 e 16:9 saem da mesma fonte, só por configuração.
 - **Trilha e efeitos por código.** Por padrão, nada de banco de música ou de efeitos.
+- **Legenda em toda entrega.** O `.srt` sai do texto do roteiro e do tempo da fala. Um segundo MP4, legendado, serve a quem assiste sem som. O `--formato` (16x9 ou 9x16) é o mesmo nos dois comandos: no 9x16 a linha é mais curta.
 - **Conferência no arquivo entregue.** Imagem, texto, câmera, som e tela vazia são medidos por script. O agente nunca certifica o filme só pelo olho.
 
 ## Voz: Gemini TTS 3.8 Flash
@@ -86,7 +87,7 @@ O caminho do tutorial de app, o caso mais comum:
 7. **Som.** Trilha e efeitos sintetizados, misturados com a voz em -16 LUFS.
 8. **Render.** Um formato por vez, em resolução cheia, com desfoque de movimento de 8 fotos por quadro.
 9. **Portões no MP4 entregue.** Folha de contato, transcrição da fala e leitura do texto por OCR.
-10. **Entrega.** `film/NOTE.md` com os números de cada portão e `LEIA-ME.md` do projeto.
+10. **Entrega.** `film/NOTE.md` com os números de cada portão, `LEIA-ME.md` do projeto e a legenda (`.srt` e o MP4 legendado).
 
 Os comandos de cada passo estão em [`kit/LEIA-ME.md`](kit/LEIA-ME.md). As regras completas estão em [`SKILL.md`](SKILL.md).
 
@@ -149,6 +150,7 @@ O que você recebe:
 | arquivo | o que é |
 |---|---|
 | `film/final-9x16.mp4`, `film/final-16x9.mp4` | O filme, com som |
+| `film/legenda.srt`, `film/final-*-legendado.mp4` | A legenda e o MP4 com ela gravada, para quem assiste sem som |
 | `film/index-*.html` | A fonte editável, reproduzível quadro a quadro |
 | `film/NOTE.md` | O relato: o que é real e o que é ilustrativo, os números de cada portão e o que ainda falta |
 | `LEIA-ME.md` do projeto | O que sai, como refazer e onde mexer |
@@ -160,7 +162,7 @@ O que você recebe:
 | [`SKILL.md`](SKILL.md) | As regras que o agente segue, o passo a passo e os portões |
 | [`kit/`](kit/) | O projeto de tutorial de app: roteiro, voz, filme por fonte única, som, autoteste e tela vazia |
 | [`kit/vozes/`](kit/vozes/) | A voz: Gemini TTS 3.8 Flash, alinhamento e montagem frase a frase |
-| [`scripts/`](scripts/) | Render, portões e ferramentas: `render.mjs`, `render_partes.sh`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs`, `entonacao.mjs`, `pausas.mjs`, `mix.py`, `sync.mjs`, `brand.mjs`, `providers.sh` |
+| [`scripts/`](scripts/) | Render, portões e ferramentas: `render.mjs`, `render_partes.sh`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs`, `entonacao.mjs`, `pausas.mjs`, `mix.py`, `sync.mjs`, `brand.mjs`, `legendar.mjs`, `providers.sh` |
 | [`runtime/`](runtime/) | O motor de animação que volta a qualquer quadro (`motion.js`; API em `runtime/README.md`) |
 | [`references/`](references/) | O método de direção e os guias de ofício (movimento, tipografia, mundo, som, câmera), em inglês |
 | [`library/`](library/) | Precedentes de movimento por tipo de momento (`moments.jsonl`) |

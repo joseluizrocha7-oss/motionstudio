@@ -197,6 +197,19 @@ acusa como coberta.
 ilustrativo), `LEIA-ME.md` do projeto (o que sai, como refazer, onde mexer), entrada em
 `tarefas.md` do cliente. Dizer que ninguém ouviu.
 
+A legenda sai em toda entrega. O `.srt` sai de `node gerar-legenda.mjs --formato 16x9`, rodado na
+pasta do projeto: ele usa o texto do `roteiro.json` e o tempo de `film/assets/fala.js`. O MP4
+legendado (`scripts/legendar.mjs`) é um 2º arquivo, para quem assiste sem som. O MP4 sem legenda
+continua sendo o filme.
+```bash
+node gerar-legenda.mjs --formato 16x9                   # film/legenda.srt
+node "$SKILL/scripts/legendar.mjs" film/final-16x9.mp4 film/legenda.srt film/final-16x9-legendado.mp4 --formato 16x9
+```
+Use o mesmo `--formato` nos dois comandos: no 9x16 a linha é mais curta (32 caracteres; no 16x9,
+42). Se o app ocupa só parte do quadro, `--cor-caixa`, `--margem-esq` e `--margem-dir` põem a
+legenda embaixo dele. Olhe 3 ou 4 quadros do legendado: legenda inteira, com acento, sem cobrir o
+contorno que a voz está nomeando.
+
 ## Portões
 
 | portão | passa | quem mede |
@@ -324,7 +337,7 @@ chegando no nome.
 | arquivo | para |
 |---|---|
 | `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`); `kit/efeitos-gravados/`: 3 sons CC0 em teste |
-| `scripts/` | `render.mjs`, `render_partes.sh`, `render-trechos.mjs` (o render_partes em paralelo, com cache; usa `_pagina.mjs`), `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
+| `scripts/` | `render.mjs`, `render_partes.sh`, `render-trechos.mjs` (o render_partes em paralelo, com cache; usa `_pagina.mjs`), `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `legendar.mjs` (grava o `.srt` no MP4 com o ffmpeg), `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
 | `runtime/` | o motor de animação (`motion.js`, API em `runtime/README.md`) |
 | `references/` | o método de direção (`metodo.md`) e os guias de ofício, em inglês |
 | `taste/` | os vereditos do Jose e os antes e depois (fora do git) |

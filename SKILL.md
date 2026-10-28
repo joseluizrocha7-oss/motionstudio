@@ -202,11 +202,13 @@ pasta do projeto: ele usa o texto do `roteiro.json` e o tempo de `film/assets/fa
 legendado (`scripts/legendar.mjs`) é um 2º arquivo, para quem assiste sem som. O MP4 sem legenda
 continua sendo o filme.
 ```bash
-node gerar-legenda.mjs --formato 16x9                   # film/legenda.srt
-node "$SKILL/scripts/legendar.mjs" film/final-16x9.mp4 film/legenda.srt film/final-16x9-legendado.mp4 --formato 16x9
+node gerar-legenda.mjs --formato 16x9                   # film/legenda-16x9.srt (com --formato 9x16: film/legenda-9x16.srt)
+node "$SKILL/scripts/legendar.mjs" film/final-16x9.mp4 film/legenda-16x9.srt film/final-16x9-legendado.mp4
 ```
-Use o mesmo `--formato` nos dois comandos: no 9x16 a linha é mais curta (32 caracteres; no 16x9,
-42). Se o app ocupa só parte do quadro, `--cor-caixa`, `--margem-esq` e `--margem-dir` põem a
+O `legendar.mjs` tira o formato do tamanho do vídeo (paisagem = 16x9, retrato = 9x16). Se o `.srt` tem
+linha maior que o limite desse formato (32 caracteres no 9x16; 42 no 16x9), ele para com erro: gere o
+`.srt` com o `--formato` do vídeo. As opções do `gerar-legenda.mjs` vão com espaço (`--formato 9x16`);
+opção desconhecida ou resultado sem nenhuma legenda sai com erro. Se o app ocupa só parte do quadro, `--cor-caixa`, `--margem-esq` e `--margem-dir` põem a
 legenda embaixo dele. Olhe 3 ou 4 quadros do legendado: legenda inteira, com acento, sem cobrir o
 contorno que a voz está nomeando.
 
@@ -319,8 +321,10 @@ máscaras e marca. Aprendido em 20/10/2026, num comercial de fábrica de massas.
 ### Voz num filme que não é tutorial
 
 `kit/vozes/gerar-tomadas.mjs` e `montar.mjs` leem o `roteiro.json` em `join(AQUI, "..")`,
-isto é, na pasta **acima da pasta `vozes`**. Para usá-los fora do kit, copie `kit/vozes/`
-para o projeto e ponha o `roteiro.json` ao lado dela. O caminho do método (passo 5,
+isto é, na pasta **acima da pasta `vozes`**. Para usá-los fora do kit, copie `kit/vozes/` para
+`<projeto>/vozes/` **e** `kit/_skill.mjs` para `<projeto>/_skill.mjs` (o `gerar-tomadas.mjs` importa
+`../_skill.mjs` para achar a skill). Ponha o `roteiro.json` ao lado da pasta `vozes`. Se a skill não está
+em `~/.claude/skills/motionstudio`, defina a variável `SKILL`. O caminho do método (passo 5,
 `tts.mjs` direto) gera uma tomada só; o do kit gera várias e escolhe por medida, que é o
 padrão de qualidade deste usuário.
 

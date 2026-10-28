@@ -37,7 +37,7 @@ O que é igual em todos:
 - **Filme em HTML.** Cada animação fica presa a uma palavra da voz. O render é quadro a quadro, pelo Chrome e pelo ffmpeg.
 - **Uma fonte, várias versões.** Longo e curto, modo escuro e claro, 9:16 e 16:9 saem da mesma fonte, só por configuração.
 - **Trilha e efeitos por código.** Por padrão, nada de banco de música ou de efeitos.
-- **Legenda em toda entrega.** O `.srt` sai do texto do roteiro e do tempo da fala. Um segundo MP4, legendado, serve a quem assiste sem som. O `--formato` (16x9 ou 9x16) é o mesmo nos dois comandos: no 9x16 a linha é mais curta.
+- **Legenda, quando a voz sai do kit.** Com o `roteiro.json` e o `fala.js` do kit, o `kit/gerar-legenda.mjs` faz o `.srt` com o texto do roteiro e o tempo da fala (`film/legenda-16x9.srt` ou `film/legenda-9x16.srt`). O `scripts/legendar.mjs` grava esse `.srt` num segundo MP4, legendado, para quem assiste sem som. O `legendar.mjs` tira o formato do tamanho do vídeo. No 9x16 a linha é mais curta: gere o `.srt` com o `--formato` do vídeo.
 - **Conferência no arquivo entregue.** Imagem, texto, câmera, som e tela vazia são medidos por script. O agente nunca certifica o filme só pelo olho.
 
 ## Voz: Gemini TTS 3.8 Flash
@@ -188,7 +188,7 @@ O que você recebe:
 | arquivo | o que é |
 |---|---|
 | `film/final-9x16.mp4`, `film/final-16x9.mp4` | O filme, com som |
-| `film/legenda.srt`, `film/final-*-legendado.mp4` | A legenda e o MP4 com ela gravada, para quem assiste sem som |
+| `film/legenda-16x9.srt`, `film/legenda-9x16.srt`, `film/final-*-legendado.mp4` | A legenda e o MP4 com ela gravada, para quem assiste sem som |
 | `film/index-*.html` | A fonte editável, reproduzível quadro a quadro |
 | `film/NOTE.md` | O relato: o que é real e o que é ilustrativo, os números de cada portão e o que ainda falta |
 | `LEIA-ME.md` do projeto | O que sai, como refazer e onde mexer |

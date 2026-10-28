@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -49,4 +49,87 @@ test("legendar grava a legenda num caminho com espaço e acento", () => {
   } finally {
     rmSync(dirname(pasta), { recursive: true, force: true });
   }
+});
+
+// ---------- recusas (não codificam: o erro vem antes do ffmpeg) ----------
+
+// Vídeos pretos de 1 s, criados uma vez por arquivo de teste (preset ultrafast: é só o cenário do teste).
+const OFICINA = mkdtempSync(join(tmpdir(), "legendar-teste-"));
+const videos = {};
+function videoPreto(tamanho) {
+  if (!videos[tamanho]) {
+    const arq = join(OFICINA, `preto-${tamanho}.mp4`);
+    execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", `color=black:s=${tamanho}:d=1:r=10`,
+      "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", arq]);
+    videos[tamanho] = arq;
+  }
+  return videos[tamanho];
+}
+after(() => rmSync(OFICINA, { recursive: true, force: true }));
+
+// Roda o legendar.mjs; devolve { status, stderr, stdout, saida }.
+function legendarCom(video, conteudoSrt, extras = []) {
+  const srt = join(OFICINA, `l-${Math.random().toString(36).slice(2)}.srt`);
+  const saida = join(OFICINA, `s-${Math.random().toString(36).slice(2)}.mp4`);
+  writeFileSync(srt, conteudoSrt, "utf8");
+  const r = spawnSync(process.execPath, [LEGENDAR, video, srt, saida, ...extras], { encoding: "utf8" });
+  return { ...r, saida };
+}
+const srtDe = (...linhas) => `1\n00:00:00,000 --> 00:00:00,800\n${linhas.join("\n")}\n`;
+
+test("legendar recusa --formato diferente do vídeo (9x16 num vídeo 1920x1080)", () => {
+  const r = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--formato", "9x16"]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /^legendar: /);
+  assert.match(r.stderr, /1920x1080/);
+  assert.match(r.stderr, /16x9/);
+  assert.match(r.stderr, /--formato 9x16/);
+  assert.ok(!existsSync(r.saida), "não pode gravar a saída");
+});
+test("legendar recusa --formato inválido", () => {
+  const r = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--formato", "4x3"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /formato inválido: "4x3"/);
+});
+test("legendar tira o formato do vídeo: linha de 40 caracteres num 1080x1920 sem --formato (limite 32) sai com código 1", () => {
+  const longa = "abcdefghij".repeat(4);
+  assert.equal(longa.length, 40);
+  const r = legendarCom(videoPreto("1080x1920"), srtDe(longa));
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.ok(r.stderr.includes(longa), `a mensagem tem que citar a linha: ${r.stderr}`);
+  assert.match(r.stderr, /32/);
+  assert.match(r.stderr, /9x16/);
+  assert.match(r.stderr, /--formato/);
+  assert.match(r.stderr, /roteiro/);
+  assert.ok(!existsSync(r.saida), "não pode gravar a saída");
+});
+test("legendar usa o limite do 16x9 (42) num vídeo paisagem: linha de 50 recusada", () => {
+  const r = legendarCom(videoPreto("1920x1080"), srtDe("a".repeat(50)));
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /50 caracteres/);
+  assert.match(r.stderr, /limite do 16x9 é 42/);
+});
+test("legendar recusa .srt sem nenhuma legenda (vazio, só espaço, só BOM)", () => {
+  for (const conteudo of ["", "\n\n", "\uFEFF\n"]) {
+    const r = legendarCom(videoPreto("1080x1920"), conteudo);
+    assert.equal(r.status, 1, JSON.stringify(conteudo));
+    assert.match(r.stderr, /0 blocos/);
+    assert.ok(!existsSync(r.saida));
+  }
+});
+test("legendar recusa vídeo quadrado: nenhum formato serve", () => {
+  const r = legendarCom(videoPreto("1080x1080"), srtDe("Teste curto"));
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /quadrado/);
+});
+
+// ---------- a legenda num vídeo retrato (única codificação nova: 1 s, 1080x1920) ----------
+
+test("legendar grava a legenda num vídeo 1080x1920 quando o --formato 9x16 bate com o vídeo", () => {
+  const r = legendarCom(videoPreto("1080x1920"), srtDe("Linha curta do teste", "com duas linhas"), ["--formato", "9x16"]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /legendado: /);
+  const tam = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+    "-of", "csv=s=x:p=0", r.saida], { encoding: "utf8" }).trim();
+  assert.equal(tam, "1080x1920");
 });

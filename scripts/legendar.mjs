@@ -4,7 +4,10 @@
 // Comando:
 //   node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--cor-caixa #RRGGBB] [--margem-esq N] [--margem-dir N]
 //
-// Use o mesmo --formato que gerou o .srt: o limite de caracteres por linha muda (16x9 = 42; 9x16 = 32).
+// O formato sai do tamanho do vídeo (ffprobe): paisagem = 16x9, retrato = 9x16. O --formato é opcional; se vier
+// e não bater com o vídeo, o comando para. O .srt precisa ter sido gerado para o mesmo formato: o limite de
+// caracteres por linha muda (16x9 = 42; 9x16 = 32). Linha maior que o limite, .srt sem legenda e vídeo
+// quadrado saem com código 1.
 //
 // Caminho do Windows: o filtro ass não aceita bem "C:\...", espaço nem acento. Por isso o ffmpeg roda
 // numa pasta temporária (cwd) com o legenda.ass e a fonte, e o filtro usa só nomes relativos.
@@ -15,7 +18,7 @@ import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileS
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
+import { LIMITES, lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const FONTE = join(AQUI, "..", "runtime", "hero3d", "fonts", "Inter-Bold-Latin.ttf");
@@ -43,17 +46,51 @@ function margem(nome, valor) {
   return n;
 }
 
+// Lê a largura e a altura do vídeo com o ffprobe e devolve o formato: paisagem = "16x9", retrato = "9x16".
+function formatoDoVideo(video) {
+  const r = spawnSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+    "-of", "json", video], { encoding: "utf8" });
+  if (r.error) throw new Error(`não consegui rodar o ffprobe: ${r.error.message}`);
+  if (r.status !== 0) throw new Error(`o ffprobe não leu ${video} (código ${r.status}): ${(r.stderr ?? "").trim()}`);
+  let fluxo;
+  try { fluxo = JSON.parse(r.stdout).streams?.[0]; } catch { fluxo = null; }
+  const { width: l, height: a } = fluxo ?? {};
+  if (!(l > 0 && a > 0)) throw new Error(`${video} não tem trilha de vídeo com largura e altura`);
+  if (l === a) throw new Error(`o vídeo é quadrado (${l}x${a}): a legenda só existe para 16x9 (paisagem) e 9x16 (retrato)`);
+  return { tamanho: `${l}x${a}`, formato: l > a ? "16x9" : "9x16" };
+}
+
 function legendar(argv) {
   const { posicionais, opcoes } = lerArgumentos(argv);
   // Caminhos absolutos: o ffmpeg roda em outra pasta (cwd), então os relativos quebrariam.
   const [video, srt, saida] = posicionais.map((p) => resolve(p));
   for (const arq of [video, srt]) if (!existsSync(arq)) throw new Error(`não achei ${arq}`);
 
-  const estilo = { formato: opcoes.formato ?? "16x9" };
+  if (opcoes.formato !== undefined && !LIMITES[opcoes.formato]) {
+    throw new Error(`formato inválido: "${opcoes.formato}" (use ${Object.keys(LIMITES).join(" ou ")})`);
+  }
+  const blocos = lerSrt(readFileSync(srt, "utf8"));
+  if (!blocos.length) throw new Error(`${srt} não tem nenhuma legenda (0 blocos)`);
+
+  const { tamanho, formato } = formatoDoVideo(video);
+  if (opcoes.formato !== undefined && opcoes.formato !== formato) {
+    throw new Error(`o --formato ${opcoes.formato} não bate com o vídeo: ele tem ${tamanho} (${formato}). Tire o --formato: o legendar.mjs tira o formato do tamanho do vídeo.`);
+  }
+  // O .srt vem do gerar-legenda.mjs, que quebra a linha no limite do formato. Linha maior = .srt de outro formato (ou palavra longa).
+  const { maxLinha } = LIMITES[formato];
+  blocos.forEach((b, i) => {
+    const longa = b.texto.split("\n").find((l) => l.length > maxLinha);
+    if (longa !== undefined) {
+      throw new Error(`a linha do bloco ${i + 1} do .srt tem ${longa.length} caracteres e o limite do ${formato} é ${maxLinha}: "${longa}". ` +
+        `O vídeo é ${formato}. Gere o .srt com o --formato certo (node gerar-legenda.mjs --formato ${formato}) ou encurte a palavra longa no roteiro.`);
+    }
+  });
+
+  const estilo = { formato };
   if (opcoes["cor-caixa"] !== undefined) estilo.corCaixa = opcoes["cor-caixa"];
   if (opcoes["margem-esq"] !== undefined) estilo.margemEsq = margem("margem-esq", opcoes["margem-esq"]);
   if (opcoes["margem-dir"] !== undefined) estilo.margemDir = margem("margem-dir", opcoes["margem-dir"]);
-  const ass = paraAss(lerSrt(readFileSync(srt, "utf8")), estilo);
+  const ass = paraAss(blocos, estilo);
 
   const pasta = mkdtempSync(join(tmpdir(), "legendar-"));
   try {

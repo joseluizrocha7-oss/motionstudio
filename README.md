@@ -133,6 +133,44 @@ git clone https://github.com/joseluizrocha7-oss/motionstudio ~/.claude/skills/mo
 bash ~/.claude/skills/motionstudio/scripts/providers.sh     # confere Chrome, ffmpeg, Python e disco; não instala nada
 ```
 
+**Claude Code, pelo `npx skills add`.** O CLI [`skills`](https://www.npmjs.com/package/skills) copia a skill para o projeto. Use a versão `1.7.1`, a que foi testada. Rode na pasta do projeto:
+
+```bash
+npx -y skills@1.7.1 add joseluizrocha7-oss/motionstudio --agent claude-code --skill motionstudio --copy -y
+```
+
+O comando cria `.claude/skills/motionstudio/` e um `skills-lock.json` na pasta atual. O `--copy` grava os arquivos de verdade, não atalhos. Sem o `-y`, o CLI faz perguntas.
+
+Para instalar em todos os projetos, acrescente `-g`:
+
+```bash
+npx -y skills@1.7.1 add joseluizrocha7-oss/motionstudio --agent claude-code --skill motionstudio --copy -g -y
+```
+
+Este comando vem do `--help` do CLI e não foi testado. Ele grava em `~/.claude/skills/motionstudio`. Se você já clonou a skill nessa pasta, não rode: a cópia ocupa o lugar do clone.
+
+**O que a cópia não traz.** `LOCAL.md`, `historico/` e `taste/` (menos o `taste/LEIA-ME.md`) são da máquina do dono da skill e ficam fora do git. Quem instala começa sem eles. O `taste/LEIA-ME.md` explica como registrar os seus vereditos.
+
+**Como os scripts acham a skill.** O `kit/novo-projeto.mjs` copia os scripts do kit para o projeto e grava ali o `motionstudio.json`:
+
+```json
+{ "skill": "/caminho/da/pasta/.claude/skills/motionstudio" }
+```
+
+O caminho é absoluto e aponta para a skill que rodou o `novo-projeto.mjs`. O `autoteste.mjs`, o `tela-vazia.mjs` e a voz (`vozes/gerar-tomadas.mjs`) procuram a skill nesta ordem:
+
+1. A variável de ambiente `SKILL`, se existir.
+2. O primeiro `motionstudio.json` que achar, na pasta do script e em até 6 pastas acima.
+3. `~/.claude/skills/motionstudio`.
+
+Para usar outra cópia da skill, defina a variável. Ela vale mais que o `motionstudio.json`:
+
+```bash
+export SKILL=/caminho/da/outra/skill
+```
+
+Se você mover o projeto para outra máquina, edite o caminho no `motionstudio.json`. Também serve apagar o arquivo e rodar o `novo-projeto.mjs` da skill nova na mesma pasta: ele só recria o que falta.
+
 **Outros agentes.** A skill é uma pasta com `SKILL.md` na raiz. Aponte o agente para a pasta (ou copie para a pasta de skills dele) e dê acesso ao terminal.
 
 ## Como pedir

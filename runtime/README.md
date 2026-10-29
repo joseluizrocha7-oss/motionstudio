@@ -13,7 +13,7 @@ Optional layers: `runtime/hero3d/` (Three.js hero object, `M.hero3d`), `runtime/
 ## Seek contract
 `Motion.film()` registers `window.__timelines.main`, `window.__seek(t)`, `window.__duration`, `window.__events`, and writes
 `data-composition-id/start/duration/width/height` on `#main`. `scripts/render.mjs` drives `__seek`. Rules for your own code:
-author only through `M.*` (or `M.tl` with `fromTo` + `immediateRender:false`); never `setTimeout`, `Math.random`, `Date`, CSS animations.
+author only through `M.*` (or `M.tl` with `fromTo` + `immediateRender:false`, or your own drawing in `M.render`); never `setTimeout`, `Math.random`, `Date`, CSS animations.
 Two tweens must not overlap on the same property of the same element (e.g. `M.drift` scale and `M.press` scale on one node): put one on a parent.
 `kf`, `enter`, `snap` etc. all set the element's first value at time 0, so the page also looks right before any seek.
 
@@ -133,6 +133,20 @@ const vals = M.count('#num', { at: 130, from: 0, to: 10000, frames: 23, round: t
 M.cascade(['#a', '#b', '#c'], { at: 50, gaps: [3, 2], fn: (el, frame, i) => M.enter(el, { at: frame, from: { y: 40 } }) });      // returns the onset frames
 ```
 `format`: `'comma'` or `v => '$' + v`. Digits are never eased and use tabular numerals.
+
+## Your own renderer (M.render), LOCAL CHANGE (2026-10-29)
+Drawing that no `M.*` call covers (an SVG arc, a chart, particles on a 2D canvas, a subtitle drawn in the page) goes on the film clock with `M.render`:
+```js
+M.render((t, fr) => {                                                       // t: seconds, continuous; fr: the integer film frame
+  arc.setAttribute('stroke-dashoffset', (LEN * (1 - t / M.duration)).toFixed(2));
+  label.textContent = (fr / M.fps).toFixed(2) + ' s';                       // text follows the frame, not the sub-frame
+});
+M.render((t, fr) => drawParticles(ctx, t), { heavy: true });                // costly canvas drawing: selfTest skips the frames it does not snapshot
+```
+`M.render(fn, { heavy })` puts `fn` on the same renderer list as visibility, typing, `count`, `hero3d` and `lottie`: one clock tween whose property is a setter, so `fn` runs on every `__seek`, in `render.mjs`, stills, `selfTest` and `?previa` alike. It replaces the old trick of a setter on an object tweened in `M.tl`.
+* **Pure function of t.** `fn` redraws from scratch on every call and may run more than once per seek (the last call carries the seek's `t`). Never keep state between calls (a counter, `+=`, "the previous frame"): `selfTest` catches it (negative test in `tests/runtime-previa.test.mjs`). Use `t` for motion (a `--shutter` sub-frame gets its own `t`) and `fr` for anything that must hold for the whole frame (text, steps). On `clock: 'twos'`, `__seek` has already quantised `t`.
+* **`heavy: true`** skips `fn` while `window.__mdSnap === false` (`selfTest` stepping through a frame it will not snapshot), as `hero3d` and `lottie` do. The default runs it on every seek, so `selfTest`'s sequential pass really plays it through; keep the default for DOM writes, which are cheap.
+* A non-function throws `Motion.render: pass a function (t, frame) => void`. Example: `examples/relogio/index.html` (an arc, an orbiting dot, a pulse on every whole second and a frame readout, with `M.words` on the same clock).
 
 ## Self test
 ```js

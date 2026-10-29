@@ -9,6 +9,7 @@
  * transform-origin is a per-element track too: camera/snap/dive/cursor each claim an origin from their own start frame.
  * M.hero3d(canvas|container, {objects|build, state}) adds a Three.js layer that is redrawn by the same clock (module loaded from ./hero3d/, see README "3D").
  * M.lottie(canvas|container, {data|src, at}) plays a Lottie animation on the same clock (LOCAL CHANGE: dotlottie-web from ./vendor/dotlottie-web/, see README "Lottie").
+ * M.render((t, frame) => ..., {heavy}) puts your own drawing on the same clock (LOCAL CHANGE, see README "M.render").
  * Frames are the unit (fps default 30). On a clock:'twos' film onsets are quantised to even frames and __seek() holds each
  * pose for two frames. Eases are copied from the measured-ease library (12 curves fitted to 53 human-made films).
  */
@@ -583,8 +584,17 @@ function film(cfg) {
     return api;
   }
 
+  /* ---- LOCAL CHANGE (2026-10-29): M.render(fn, { heavy }), your own renderer on the film clock (the same R list as visibility, typing, count, hero3d, lottie).
+          fn(t, frame) runs on every seek, with t in seconds (continuous: a --shutter sub-frame gets its own t) and frame = the integer film frame; it may run more
+          than once per seek and must redraw from scratch (a pure function of t). heavy: true skips it while window.__mdSnap === false (selfTest steps through a
+          frame it will not snapshot), as hero3d and lottie do; the default runs it on every seek, so selfTest's sequential pass really plays it through. ---- */
+  const render = (fn, o) => {
+    if (typeof fn !== 'function') throw new Error('Motion.render: pass a function (t, frame) => void');
+    R.push(o && o.heavy ? (t, fr) => { if (root.__mdSnap !== false) fn(t, fr); } : fn);
+  };
+
   return (root.Motion.last = { tl, fps, duration, width: W, height: H, clock: cfg.clock || 'smooth', ease: EASE, f: F, q, twos: f => f - (f % 2), mark, seek, kf, show, hide, cut, wrap, enter, exit,
-    words, cadence: (s, o) => cadence(s, Object.assign({ fps }, o)), type, cursor, press, camera, snap, whip, dive, drift, count, cascade, hero3d, lottie });
+    words, cadence: (s, o) => cadence(s, Object.assign({ fps }, o)), type, cursor, press, camera, snap, whip, dive, drift, count, cascade, hero3d, lottie, render });
 }
 
 /* ---------- self test: play sequentially, then jump around (incl. backwards); every element's state must be identical ---------- */

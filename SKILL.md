@@ -131,11 +131,11 @@ roteiro. Depois `film/gerar-fala.mjs` grava os tempos (`assets/fala.js`).
 **4. Telas.** Fotos do app de verdade, operado num Chromium com a API simulada e dados
 fictícios, cada alvo com a sua caixa (`medidas.js`). Os dois temas do app, se ele tiver.
 Modelo: `capturar.mjs` do caso de referência. Alvo que é uma frase recebe a caixa do
-parágrafo inteiro (o elemento, `getByText(...)`), nunca só a das palavras: um contorno em
-"Conectado como" cortando a frase no meio pareceu defeito ao Jose (16/10). E todo contorno
+parágrafo inteiro (o elemento, `getByText(...)`), nunca só a das palavras: um anel de destaque em
+"Conectado como" cortando a frase no meio pareceu defeito ao Jose (16/10). E todo anel de destaque
 sai antes de a pílula do passo seguinte entrar.
 
-**5. Filme.** `film/fonte/`: `base.html` (câmera, telas, contorno, toque, gesto, peças,
+**5. Filme.** `film/fonte/`: `base.html` (câmera, telas, anel de destaque, toque, gesto, peças,
 marca do fim), `iphone.js` (Safari e Tela de Início, ilustrativos), a linha do tempo e
 `pe.html`. Cada mudança presa a uma palavra (`pal('e2', 'Entrar')`). `film/montar-filmes.mjs`
 gera os `index-*.html` (versões, temas, 9:16 e 16:9) com a duração tirada da voz.
@@ -143,19 +143,24 @@ No 9:16 o celular é 1,75x o do 16:9; o que fica ao lado do aparelho no 16:9 vai
 de baixo, e o que precisa ficar junto do botão vai por cima do app (`z-index`).
 
 **Ícone animado numa peça.** `library/lottie/` tem 5 ícones feitos à mão: `confirmado`, `alerta`,
-`dinheiro`, `email` e `documento`. Use no máximo 1 ícone por peça do painel. O ícone entra só no
-quadro em que a voz nomeia a peça, junto com ela. Peça que a voz não nomeia fica sem ícone. Copie o
-`_cor.js` e o `.js` do ícone para `film/assets/` e carregue os dois no `base.html`, depois do
-`motion.js`. Na linha do tempo, ponha um `<canvas>` na peça e chame o `M.lottie`:
+`dinheiro`, `email` e `documento`. Use no máximo 1 ícone por peça do painel. O ícone entra 5 quadros
+depois da peça que a voz nomeia (`at: a + 5`). Peça que a voz não nomeia fica sem ícone.
+1. Copie o `_cor.js` e o `.js` do ícone, de `$SKILL/library/lottie/`, para `film/assets/`.
+2. Carregue os dois no `film/fonte/base.html`, depois do `motion.js`.
+3. Rode `node film/montar-filmes.mjs` de novo: ele refaz os `index-*.html` com o `base.html` novo.
+4. Na linha do tempo, ponha um `<canvas>` na peça e chame o `M.lottie`:
 ```js
 const ACENTO = getComputedStyle(document.documentElement).getPropertyValue('--acento').trim();
 const el = peca('<canvas width="112" height="112" style="width:56px;height:56px"></canvas>Pagamento confirmado', x, y, a, b, { classe: 'nota' });
 M.lottie(el.querySelector('canvas'), { data: LOTTIE.cor(LOTTIE.confirmado, ACENTO), at: a + 5 });
 ```
-O `LOTTIE.cor` devolve uma cópia do ícone na cor de destaque do filme. O ícone começa 5 quadros
-depois da peça, quando ela está quase pousada. Ele se desenha em uns 25 quadros e para no último.
+O `LOTTIE.cor` devolve uma cópia do ícone na cor de acento do filme (a `--acento`). O ícone começa
+5 quadros depois da peça, quando ela está quase pousada. Ele se desenha em uns 25 quadros e para no último.
 Dê ao canvas o dobro do tamanho de tela (`width="112"` para 56 px): o traço sai liso. Ícone de
 banco de ícones só entra com licença comercial conferida, numa linha do `library/lottie/LICENCAS.md`.
+Projeto criado antes do `M.lottie` tem um `film/runtime/` antigo, porque o `novo-projeto.mjs` não
+sobrescreve nada. Copie `runtime/motion.js` e `runtime/vendor/dotlottie-web/` da skill para o
+`film/runtime/` desse projeto.
 Exemplo que roda: `examples/lottie-painel/index.html`.
 
 **6. Antes do render (todos obrigatórios):**
@@ -224,7 +229,7 @@ node gerar-legenda.mjs --formato 16x9                   # film/legenda-16x9.srt 
 node "$SKILL/scripts/legendar.mjs" film/final-16x9.mp4 film/legenda-16x9.srt film/final-16x9-legendado.mp4
 ```
 O `legendar.mjs` tira o formato do tamanho do vídeo (paisagem = 16x9, retrato = 9x16). Se o `.srt` tem
-linha maior que o limite desse formato (32 caracteres no 9x16; 42 no 16x9), ele para com erro: gere o
+linha maior que o limite desse formato (28 caracteres no 9x16; 42 no 16x9), ele para com erro: gere o
 `.srt` com o `--formato` do vídeo. As opções do `gerar-legenda.mjs` vão com espaço (`--formato 9x16`);
 opção desconhecida ou resultado sem nenhuma legenda sai com erro. Se o app ocupa só parte do quadro, `--margem-esq` e
 `--margem-dir` põem a legenda embaixo dele.
@@ -236,11 +241,12 @@ Escolha o estilo pelo tipo de vídeo:
 - **caixa (`--estilo caixa`):** filmagem de câmera, fundo com muito detalhe, ou quadro em que o contorno
   não separa a letra do fundo. Olhe os quadros antes de decidir.
 
-`--cor-contorno #RRGGBB` troca a cor da borda e só vale com contorno. `--cor-caixa #RRGGBB` troca a cor
-da faixa e só vale com caixa. O par errado sai com código 1. `--cor-texto #RRGGBB` troca a cor da letra,
-nos 2 estilos. Em filme claro (app claro, fundo claro), letra escura com contorno branco separa melhor do
+`--cor-contorno "#RRGGBB"` troca a cor do contorno e só vale com contorno. `--cor-caixa "#RRGGBB"` troca a cor
+da caixa e só vale com caixa. O par errado sai com código 1. `--cor-texto "#RRGGBB"` troca a cor da letra,
+nos 2 estilos. Ponha a cor sempre entre aspas: no Git Bash, o `#` sem aspas abre um comentário e o shell corta
+o resto da linha. Em filme claro (app claro, fundo claro), letra escura com contorno branco separa melhor do
 que letra branca: `--cor-texto "#0B2A66" --cor-contorno "#FFFFFF"`. Olhe 3 ou 4 quadros do legendado: legenda
-inteira, com acento, sem cobrir o contorno que a voz está nomeando.
+inteira, com acento, sem cobrir o anel de destaque que a voz está nomeando.
 
 ## Portões
 
@@ -371,7 +377,7 @@ chegando no nome.
 | arquivo | para |
 |---|---|
 | `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`); `kit/efeitos-gravados/`: 3 sons CC0 em teste |
-| `scripts/` | `render.mjs`, `render_partes.sh`, `render-trechos.mjs` (o render_partes em paralelo, com cache; usa `_pagina.mjs`), `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `legendar.mjs` (grava o `.srt` no MP4 com o ffmpeg), `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
+| `scripts/` | `render.mjs`, `render_partes.sh`, `render-trechos.mjs` (o render_partes em paralelo, com cache; usa `_pagina.mjs`), `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `erros.mjs` (as exceções da página, antes do autoteste), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `legendar.mjs` (grava o `.srt` no MP4 com o ffmpeg), `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
 | `runtime/` | o motor de animação (`motion.js`, API em `runtime/README.md`) |
 | `library/` | `moments.jsonl` (precedentes de movimento) e `lottie/` (5 ícones animados feitos à mão, `_cor.js` com o `LOTTIE.cor`, `_gerar.mjs` que grava os ícones e `LICENCAS.md`) |
 | `references/` | o método de direção (`metodo.md`) e os guias de ofício, em inglês |

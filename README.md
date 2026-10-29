@@ -37,7 +37,7 @@ O que é igual em todos:
 - **Filme em HTML.** Cada animação fica presa a uma palavra da voz. O render é quadro a quadro, pelo Chrome e pelo ffmpeg.
 - **Uma fonte, várias versões.** Longo e curto, modo escuro e claro, 9:16 e 16:9 saem da mesma fonte, só por configuração.
 - **Trilha e efeitos por código.** Por padrão, nada de banco de música ou de efeitos.
-- **Legenda, quando a voz sai do kit.** Com o `roteiro.json` e o `fala.js` do kit, o `kit/gerar-legenda.mjs` faz o `.srt` com o texto do roteiro e o tempo da fala (`film/legenda-16x9.srt` ou `film/legenda-9x16.srt`). O `scripts/legendar.mjs` grava esse `.srt` num segundo MP4, legendado, para quem assiste sem som. O `legendar.mjs` tira o formato do tamanho do vídeo. A legenda sai sem caixa, com contorno preto e sombra suave: serve para tutorial de tela, comercial, promo e vinheta com fundo limpo. Em filmagem de câmera ou fundo com muito detalhe, use `--estilo caixa`. `--cor-contorno` e `--cor-caixa` trocam a cor, cada uma só no seu estilo, e `--cor-texto` troca a cor da letra (em filme claro, letra escura com contorno branco separa melhor). No 9x16 a linha é mais curta: gere o `.srt` com o `--formato` do vídeo.
+- **Legenda, quando a voz sai do kit.** O `kit/gerar-legenda.mjs` faz o `.srt` com o texto do `roteiro.json` e o tempo do `fala.js` (`film/legenda-16x9.srt` ou `film/legenda-9x16.srt`). O `scripts/legendar.mjs` grava esse `.srt` num segundo MP4, legendado, para quem assiste sem som. Ele tira o formato do tamanho do vídeo; no 9x16 a linha é mais curta, então gere o `.srt` com o `--formato` do vídeo. A legenda sai sem caixa, com contorno preto e sombra suave: serve para tutorial de tela, comercial, promo e vinheta com fundo limpo. Em filmagem de câmera ou fundo com muito detalhe, use `--estilo caixa` e `--cor-caixa`; em filme claro, `--cor-texto` escuro com `--cor-contorno` branco separa melhor. As cores vão entre aspas (`--cor-texto "#0B2A66"`), porque o `#` abre um comentário no Git Bash.
 - **Conferência no arquivo entregue.** Imagem, texto, câmera, som e tela vazia são medidos por script. O agente nunca certifica o filme só pelo olho.
 
 ## Voz: Gemini TTS 3.8 Flash
@@ -200,7 +200,7 @@ O que você recebe:
 | [`SKILL.md`](SKILL.md) | As regras que o agente segue, o passo a passo e os portões |
 | [`kit/`](kit/) | O projeto de tutorial de app: roteiro, voz, filme por fonte única, som, autoteste e tela vazia |
 | [`kit/vozes/`](kit/vozes/) | A voz: Gemini TTS 3.8 Flash, alinhamento e montagem frase a frase |
-| [`scripts/`](scripts/) | Render, portões e ferramentas: `render.mjs`, `render_partes.sh`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs`, `entonacao.mjs`, `pausas.mjs`, `mix.py`, `sync.mjs`, `brand.mjs`, `legendar.mjs`, `providers.sh` |
+| [`scripts/`](scripts/) | Render, portões e ferramentas: `render.mjs`, `render_partes.sh`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs`, `erros.mjs`, `entonacao.mjs`, `pausas.mjs`, `mix.py`, `sync.mjs`, `brand.mjs`, `legendar.mjs`, `providers.sh` |
 | [`runtime/`](runtime/) | O motor de animação que volta a qualquer quadro (`motion.js`; API em `runtime/README.md`) |
 | [`references/`](references/) | O método de direção e os guias de ofício (movimento, tipografia, mundo, som, câmera), em inglês |
 | [`library/`](library/) | Precedentes de movimento por tipo de momento (`moments.jsonl`) e ícones animados feitos à mão para as peças do painel (`lottie/`, com `LICENCAS.md`) |

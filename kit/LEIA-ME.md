@@ -21,7 +21,8 @@ P=conteudo/<tema>-<data>; SKILL=~/.claude/skills/motionstudio
 cd $P/vozes && node --env-file=<.env com GEMINI_API_KEY> gerar-tomadas.mjs --tomadas 6 && node montar.mjs && cd -
 # 4. Tempos da voz para o filme e os filmes:
 node $P/film/gerar-fala.mjs && node $P/film/montar-filmes.mjs
-# 5. Conferências antes do render:
+# 5. Conferências antes do render. O erros.mjs vem primeiro: com exceção na página, o autoteste espera 10 minutos.
+node $SKILL/scripts/erros.mjs $P/film/index-vertical.html
 node $P/autoteste.mjs $P/film/index-vertical.html
 node $P/tela-vazia.mjs $P/film/index-vertical.html
 node $SKILL/scripts/camera.mjs $P/film/index-vertical.html --el "#celular"
@@ -54,14 +55,14 @@ node $SKILL/scripts/legendar.mjs $P/film/final-9x16.mp4 $P/film/legenda-9x16.srt
 | a música | `gerar-trilha.mjs` (pedido e modelo) e `--musica` no `gerar-som.mjs` |
 | volume da música e dos efeitos | `gerar-som.mjs --abaixo 20` (a música 20 dB sob a voz, que fica em -16 LUFS) |
 | o texto da legenda | `texto` no `roteiro.json` (a legenda mostra o `texto`, nunca a `fala`); depois `gerar-legenda.mjs` e `legendar.mjs` |
-| o tamanho da linha da legenda | `LIMITES` no `gerar-legenda.mjs` do projeto (16x9 = 42 caracteres por linha, 9x16 = 32) e o mesmo valor no `kit/gerar-legenda.mjs` da skill, porque o `legendar.mjs` recusa linha maior que o `LIMITES` da skill; depois gerar o `.srt` de novo |
+| o tamanho da linha da legenda | `LIMITES` no `gerar-legenda.mjs` do projeto (16x9 = 42 caracteres por linha, 9x16 = 28) e o mesmo valor no `kit/gerar-legenda.mjs` da skill, porque o `legendar.mjs` recusa linha maior que o `LIMITES` da skill; depois gerar o `.srt` de novo. Projeto criado antes de 28/10/2026 tem 9x16 = 32 e `maxPedaco` 56: troque para 28 e 48 |
 | a fonte, a margem de baixo, a espessura do contorno e o espaço entre as letras da legenda no MP4 | `FORMATOS_ASS` no `kit/gerar-legenda.mjs` da skill, não na cópia do projeto: o `legendar.mjs` lê o da skill, e a mudança vale para todos os projetos |
 | o estilo da legenda no MP4: com ou sem caixa | `legendar.mjs --estilo contorno` (padrão, sem caixa: tutorial de tela, comercial, promo, vinheta) ou `--estilo caixa` (filmagem de câmera, fundo com muito detalhe, quadro em que o contorno não separa a letra) |
-| a cor da letra, do contorno ou da caixa e a posição da legenda no MP4 | `legendar.mjs --cor-texto #RRGGBB` (a letra; em filme claro, escura com `--cor-contorno "#FFFFFF"`), `--cor-contorno #RRGGBB` (só com contorno), `--cor-caixa #RRGGBB` (só com caixa), `--margem-esq N --margem-dir N` (app que ocupa só parte do quadro) |
+| a cor da letra, do contorno ou da caixa e a posição da legenda no MP4 | `legendar.mjs --cor-texto "#RRGGBB"` (a letra; em filme claro, escura com `--cor-contorno "#FFFFFF"`), `--cor-contorno "#RRGGBB"` (só com contorno), `--cor-caixa "#RRGGBB"` (só com caixa), `--margem-esq N --margem-dir N` (app que ocupa só parte do quadro); ponha a cor entre aspas, porque no Git Bash o `#` sem aspas abre um comentário |
 | o estilo da voz | `estilo` no `roteiro.json` (o dinâmico é o padrão desde 28/10/2026) |
 | toque e sopro gravados no lugar dos sintetizados (em teste) | `gerar-som.mjs --toque pop-hand --ar fast-whoosh`; ver `efeitos-gravados/LEIA-ME.md` |
 | um texto que não precisa ser lido no T1 (ilustrativo) | `data-ler="ignorar"` no elemento; dizer no NOTE.md |
-| um ícone animado numa peça (no máximo 1 por peça, só no quadro em que a voz nomeia a peça) | copiar `_cor.js` e o ícone de `$SKILL/library/lottie/` para `film/assets/` e carregar no `film/fonte/base.html`; o `M.lottie` vai em `film/fonte/<linha>.js` (exemplo no SKILL.md, passo 5) |
+| um ícone animado numa peça (no máximo 1 por peça; entra 5 quadros depois da peça que a voz nomeia) | 1. copiar `_cor.js` e o ícone de `$SKILL/library/lottie/` para `film/assets/`; 2. carregar os dois no `film/fonte/base.html`; 3. rodar `node $P/film/montar-filmes.mjs` de novo; 4. pôr o `M.lottie` em `film/fonte/<linha>.js` (exemplo no SKILL.md, passo 5). Projeto criado antes do `M.lottie`: copiar `runtime/motion.js` e `runtime/vendor/dotlottie-web/` da skill para o `film/runtime/` do projeto (o `novo-projeto.mjs` não sobrescreve nada) |
 
 ## O que cada peça faz
 

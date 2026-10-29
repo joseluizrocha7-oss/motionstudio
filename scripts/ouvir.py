@@ -43,6 +43,11 @@ Portões (saída 1 se algum der ALERTA; 2 = erro de uso; 3 = sem transcrição):
   S3 fala e tela juntas   cada evento com "fala" entra de 0,25 s antes a 0,12 s depois da palavra
   S4 mixagem enxuta       frases no mesmo volume, trilha abaixo da voz, poucos efeitos
 
+S2 e S3 na primeira palavra depois de uma pausa: a transcrição costuma esticar essa
+palavra para trás, por cima do silêncio. Se o começo dela cai num trecho quieto do som,
+o começo passa a ser o fim desse trecho, medido pela energia (com trilha por baixo, o
+trecho quieto é o que fica perto do nível da trilha).
+
 O que este script NÃO enxerga: a trilha abaixando debaixo de cada fala (--duck). Com a voz
 por cima não dá para separar a trilha na mixagem pronta; uma medida pelo grave foi testada e
 descartada (a voz e os efeitos também têm energia ali). Isso se evita na origem: o mix.py
@@ -300,6 +305,40 @@ def db(x):
     return 20 * math.log10(max(1e-6, float(np.sqrt((x.astype(np.float64) ** 2).mean())))) if len(x) else -120.0
 
 
+def envelope(som, sr, passo=0.01):
+    """Nível do som em dB, por janela de `passo` s."""
+    import numpy as np
+    n = max(1, int(sr * passo))
+    k = len(som) // n
+    x = som[:k * n].astype(np.float64).reshape(k, n)
+    return 10 * np.log10((x ** 2).mean(axis=1) + 1e-12)
+
+
+def inicio_pela_energia(env, a, b, passo=0.01, minimo=0.10):
+    """b é a primeira palavra depois de uma pausa; a, a palavra antes dela. A transcrição costuma esticar b para trás,
+    por cima do silêncio. Se o começo de b cai num trecho quieto, devolve (fim do trecho quieto, duração dele) em s;
+    senão, None. Quieto é perto do nível mais baixo entre o começo de a e o fim de b: o silêncio, ou a trilha."""
+    import numpy as np
+    i0, i1, k = max(0, int(a["de"] / passo)), min(len(env), int(math.ceil(b["ate"] / passo))), int(b["de"] / passo + 1e-6)
+    if i1 - i0 < 10 or not (i0 <= k < i1):
+        return None
+    piso, fala = float(np.percentile(env[i0:i1], 5)), float(np.percentile(env[i0:i1], 95))
+    if fala - piso < 12:                                   # fala e vão no mesmo nível: não dá para medir
+        return None
+    # 9 dB no mínimo: a trilha varia uns 8 dB no vão (medido em 28/10, trilha 20 dB abaixo da voz)
+    limite = piso + max(9.0, 0.35 * (fala - piso))
+    if env[k] >= limite:                                   # o começo que a transcrição deu já tem som
+        return None
+    ini, fim = k, k
+    while ini > i0 and env[ini - 1] < limite:
+        ini -= 1
+    while fim < i1 and env[fim] < limite:
+        fim += 1
+    if (fim - ini) * passo < minimo or fim >= i1 - 1 or fim * passo - b["de"] < 0.02:   # vão curto, palavra toda quieta ou nada muda
+        return None
+    return fim * passo, (fim - ini) * passo
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("arquivo"); ap.add_argument("--roteiro", required=True); ap.add_argument("--eventos"); ap.add_argument("--sfx")
@@ -355,6 +394,23 @@ def main():
     pares, faltaram, sobraram, parecidas, equivalentes = alinhar(rot, pal, iguais)
     alertas, res = {"S1": [], "S2": [], "S3": [], "S4": []}, {}
 
+    # a primeira palavra depois de uma pausa começa onde o som começa (S2 e S3): a transcrição estica a palavra pela pausa.
+    # Pausa: a do roteiro (sinal, <break>, fim de linha) ou a pontuação da transcrição, que vale também para a palavra
+    # que não casou com o roteiro (a marca com pronúncia diferente).
+    mix, sr = amostras(o.arquivo)
+    env = envelope(mix, sr)
+    depois_da_pausa = {pares[i + 1]: pares[i] for i in range(len(rot) - 1) if (rot[i]["pausa"] or rot[i]["sinal"] or rot[i].get("quebra"))
+                       and i in pares and i + 1 in pares and pares[i + 1] > pares[i]}
+    for j in range(1, len(pal)):
+        if re.search(r"[.,;:!?…][\"'”’)]*$", pal[j - 1]["p"]):
+            depois_da_pausa.setdefault(j, j - 1)
+    pela_energia = {}
+    for j, antes in sorted(depois_da_pausa.items()):
+        r = inicio_pela_energia(env, pal[antes], pal[j])
+        if r:
+            pela_energia[j] = {"palavra": pal[j]["p"], "transcricao": round(pal[j]["de"], 2), "energia": round(r[0], 2), "vao": round(r[1], 2)}
+            pal[j]["de"] = r[0]
+
     # ---- S1 fala inteira
     grupos = []
     for i in sorted(faltaram):
@@ -378,7 +434,7 @@ def main():
         if i not in pares or i + 1 not in pares or pares[i + 1] <= pares[i]:
             continue
         a, b = pal[pares[i]], pal[pares[i + 1]]
-        vao = b["de"] - a["ate"]
+        vao = max(b["de"] - a["ate"], pela_energia[pares[i + 1]]["vao"] if pares[i + 1] in pela_energia else -9)
         fim_de_frase = rot[i]["sinal"] == "." or rot[i].get("quebra")
         combinada = rot[i]["pausa"] or rot[i]["sinal"] or rot[i].get("quebra")
         pausas.append({"depois_de": rot[i]["p"], "antes_de": rot[i + 1]["p"], "t": round(a["ate"], 2), "s": round(vao, 2), "sinal": rot[i]["sinal"] or ("⏸" if rot[i]["pausa"] else "")})
@@ -386,7 +442,7 @@ def main():
             alertas["S2"].append("pausa de %s s no meio da frase, entre \"%s\" e \"%s\" (aos %s s): corte ou emenda no lugar errado?" % (br(vao), rot[i]["p"], rot[i + 1]["p"], br(a["ate"])))
         if fim_de_frase and vao < EMENDA[motor]:
             alertas["S2"].append("frases emendadas: só %s s entre \"%s\" e \"%s\" (aos %s s)" % (br(max(0, vao)), rot[i]["p"], rot[i + 1]["p"], br(a["ate"])))
-    res["S2"] = {"pausas": pausas}
+    res["S2"] = {"pausas": pausas, "inicio_pela_energia": list(pela_energia.values())}
 
     # ---- S3 fala e tela juntas
     ligados, avisos = [], []
@@ -412,14 +468,13 @@ def main():
                 continue
             ouv = min(cand, key=lambda x: abs(x - t))
             d = t - ouv
-            ligados.append({"tela": e.get("label", "") if e.get("fala") else "", "fala": alvo, "entra": round(t, 2), "ouvida": round(ouv, 2), "dif": round(d, 2)})
+            ligados.append({"tela": e.get("label", "") if e.get("fala") else "", "fala": alvo, "entra": round(t, 2), "ouvida": round(ouv, 2), "dif": round(d, 2) + 0.0})   # + 0.0: sem "-0,00"
             if not (JANELA_TELA[motor][0] <= d <= JANELA_TELA[motor][1]):
                 alertas["S3"].append("o texto entra aos %s s e \"%s\" é ouvida aos %s s (%s%s s): %s" % (
                     br(t), alvo, br(ouv), "+" if d > 0 else "", br(d), "a tela chega atrasada" if d > 0 else "a tela chega cedo demais"))
     res["S3"] = {"ligados": ligados, "avisos": avisos}
 
     # ---- S4 mixagem enxuta
-    mix, sr = amostras(o.arquivo)
     dur = len(mix) / sr
     falas = []                                             # trechos de fala: palavras com menos de 0,30 s entre elas
     for w in pal:
@@ -473,6 +528,8 @@ def main():
             print("  grafia: o roteiro diz \"%s\" e a transcrição escreveu \"%s\" (conferir a pronúncia de ouvido)" % (a, b))
         if equivalentes:
             print("  outra grafia, mesma fala: " + "; ".join("\"%s\" = \"%s\"" % (a, b) for a, b in equivalentes[:8]) + (" e mais %d" % (len(equivalentes) - 8) if len(equivalentes) > 8 else ""))
+        for x in pela_energia.values():
+            print("  começo pela energia: \"%s\" aos %s s (a transcrição dizia %s s; vão de %s s antes)" % (x["palavra"], br(x["energia"]), br(x["transcricao"]), br(x["vao"])))
         longas = sorted(pausas, key=lambda p: -p["s"])[:4]
         if longas:
             print("  pausas mais longas: " + "; ".join("%s s depois de \"%s\"%s" % (br(p["s"]), p["depois_de"], " " + p["sinal"] if p["sinal"] else " (sem sinal)") for p in longas))

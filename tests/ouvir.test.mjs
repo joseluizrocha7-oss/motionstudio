@@ -212,3 +212,42 @@ test("ouvir.py: S1 passa com número e sigla, e as marcas de S3 acham \"Dois mil
   assert.equal(ligados["cê bê ésse"].ouvida, 2.25);
   assert.deepEqual(s.alertas.S3.filter((a) => /Dois mil|cê bê ésse/.test(a)), []);
 });
+
+// ---------------------------------------------------------------- ouvir.py S2 e S3: a palavra esticada pela pausa
+for (const trilha of [false, true]) {
+  test(`ouvir.py: depois de 0,81 s ${trilha ? "só com trilha" : "de silêncio"}, o começo de "Xyra" vem da energia (S2 e S3 passam)`, () => {
+    const s = ouvirFilme({ trilha });
+    assert.equal(s.portoes.S2, "PASS", s.alertas.S2.join("\n"));
+    assert.equal(s.portoes.S3, "PASS", s.alertas.S3.join("\n"));
+    const pela = s.medidas.S2.inicio_pela_energia;
+    assert.equal(pela.length, 1, JSON.stringify(pela));            // só a palavra esticada muda; "Sua" e "a" ficam
+    assert.equal(pela[0].palavra, "Xyra.");
+    assert.equal(pela[0].transcricao, 5.43);
+    assert.ok(Math.abs(pela[0].energia - 6.21) <= 0.02, `começo pela energia ${pela[0].energia}`);
+    assert.ok(Math.abs(pela[0].vao - 0.81) <= 0.04, `vão ${pela[0].vao}`);
+    const zaira = s.medidas.S3.ligados.find((l) => l.fala === "Zaira");
+    assert.ok(Math.abs(zaira.dif - 0.04) <= 0.02, `tela x fala ${zaira.dif}`);
+  });
+}
+
+test("ouvir.py: a palavra que não casou com o roteiro também começa pela energia, pela pontuação da transcrição", () => {
+  // só a fala ("Zaira"): a palavra ouvida "Xyra." não casa com o roteiro, mas vem depois de "pronta?"
+  const s = ouvirFilme({ vo: true, marcas: { events: [{ type: "fala", label: "Xyra", t: 6.25 }] } });
+  assert.equal(s.portoes.S1, "ALERTA");                                   // "Zaira" x "Xyra" segue acusado
+  assert.equal(s.portoes.S3, "PASS", s.alertas.S3.join("\n"));
+  assert.deepEqual(s.medidas.S2.inicio_pela_energia.map((x) => x.palavra), ["Xyra."]);
+  assert.ok(Math.abs(s.medidas.S3.ligados[0].dif - 0.04) <= 0.02, `tela x fala ${s.medidas.S3.ligados[0].dif}`);
+});
+
+test("inicio_pela_energia não mexe quando o começo da palavra já tem som ou o vão é curto", () => {
+  const res = py(`import numpy as np, ouvir
+env = np.full(300, -20.0)              # 3 s de fala, janelas de 10 ms
+env[100:105] = -70.0                   # vão de 0,05 s entre 1,00 e 1,05 s
+a, b = {"de": 0.2, "ate": 1.0}, {"de": 1.02, "ate": 2.0}
+curto = ouvir.inicio_pela_energia(env, a, b)
+env2 = np.full(300, -20.0); env2[100:181] = -70.0      # vão de 0,81 s, mas a transcrição já começa no som
+com_som = ouvir.inicio_pela_energia(env2, a, {"de": 1.85, "ate": 2.5})
+esticada = ouvir.inicio_pela_energia(env2, a, {"de": 1.03, "ate": 2.5})
+saida([curto, com_som, [round(x, 2) for x in esticada]])`);
+  assert.deepEqual(res, [null, null, [1.81, 0.81]]);
+});

@@ -3,7 +3,8 @@
 // Mude aqui, não nos .js: eles são reescritos a cada rodada.
 //   node library/lottie/_gerar.mjs            (grava nesta pasta)
 //   node library/lottie/_gerar.mjs <pasta>    (grava em outra pasta; o teste usa para comparar)
-// Cada .js registra o Lottie em window.LOTTIE.<nome>, porque o Chrome não faz fetch() de file://.
+// Cada .js registra o Lottie em window.LOTTIE.<nome>, e não em um .json (escolha do projeto): um <script> comum carrega em
+// file:// com ou sem --allow-file-access-from-files; um .json pediria fetch() de file://, que só funciona com essa opção.
 // Regras do conjunto: quadro de 200 x 200, 30 qps, 30 quadros (0 a 29), uma camada só.
 // Traço de 12 com ponta e junta redondas, cantos arredondados, uma cor só (COR).
 // O quadro 0 é vazio (opacidade 0): é ele que aparece antes do `at` do M.lottie.

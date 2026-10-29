@@ -53,6 +53,21 @@ test("cada ícone tem a sua linha no LICENCAS.md", () => {
   for (const n of ICONES) assert.match(lic, new RegExp("\\| `" + n + "\\.js` \\| feito à mão"), n);
 });
 
+test("dinheiro e documento creditam a Lucide, e o LICENCAS.md traz o texto da licença dela", () => {
+  const lic = readFileSync(join(PASTA, "LICENCAS.md"), "utf8");
+  for (const [n, icone] of [["dinheiro", "circle-dollar-sign"], ["documento", "file-text"]]) {
+    const linha = lic.split("\n").find((l) => l.startsWith("| `" + n + ".js`"));
+    assert.ok(linha && linha.includes("Lucide") && linha.includes("https://lucide.dev/icons/" + icone) && linha.includes("ISC"), `${n}: ${linha}`);
+  }
+  assert.ok(!/nenhum veio de banco de ícones/i.test(lic), "a frase antiga, que negava a Lucide, voltou");
+  assert.match(lic, /Copyright \(c\) 20\d\d Lucide Icons and Contributors/);
+  assert.match(lic, /Permission to use, copy, modify, and\/or distribute this software/);   // o ISC
+  assert.match(lic, /Copyright \(c\) 2013-present Cole Bemis/);                              // o aviso do Feather (MIT)
+  assert.match(lic, /lucide-icons\/lucide\/[0-9a-f]{40}\/LICENSE/);                          // o commit fixo de onde o texto veio
+  const aviso = readFileSync(join(PASTA, "..", "..", "NOTICE"), "utf8");
+  assert.match(aviso, /Lucide[^\n]*dinheiro\.js e documento\.js/);
+});
+
 test("os .js da pasta são os que o _gerar.mjs grava", () => {
   const tmp = mkdtempSync(join(tmpdir(), "lottie-"));
   execFileSync(process.execPath, [join(PASTA, "_gerar.mjs"), tmp]);

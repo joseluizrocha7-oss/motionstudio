@@ -99,6 +99,10 @@ dotlottie-web 0.81.0   (runtime/vendor/dotlottie-web/)
   runtime/vendor/dotlottie-web/LICENCAS-TERCEIROS.md
 
 --------------------------------------------------------------------------------
+Lucide   (library/lottie/dinheiro.js e documento.js: a geometria dos ícones circle-dollar-sign e file-text)
+  Copyright (c) 2026 Lucide Icons and Contributors. https://lucide.dev. License: ISC. Full text: library/lottie/LICENCAS.md
+
+--------------------------------------------------------------------------------
 Inter   (runtime/fonts/InterVariable.woff2, runtime/hero3d/fonts/Inter-Bold-Latin.ttf)
   Copyright (c) 2016 The Inter Project Authors. https://github.com/rsms/inter
   License: SIL Open Font License 1.1. Full text: runtime/fonts/OFL.txt and

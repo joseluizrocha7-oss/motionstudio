@@ -160,6 +160,25 @@ test("legendar recusa cor inválida no --cor-contorno e no --cor-caixa", () => {
   assert.match(r.stderr, /cor inválida: "#12345"/);
 });
 
+// ---------- --cor-texto ----------
+
+test("legendar recusa --cor-texto inválido", () => {
+  const r = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--cor-texto", "azul"]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /^legendar: /);
+  assert.match(r.stderr, /cor inválida: "azul"/);
+  assert.ok(!existsSync(r.saida), "não pode gravar a saída");
+});
+test("legendar: --cor-texto troca a cor da letra (cinza 808080 sobre preto: o máximo da faixa cai de 255 para perto de 128)", () => {
+  const padrao = legendarCom(videoPreto("1920x1080"), srtDe("Teste de legenda"));
+  const cinza = legendarCom(videoPreto("1920x1080"), srtDe("Teste de legenda"), ["--cor-texto", "#808080"]);
+  assert.equal(padrao.status, 0, padrao.stdout + padrao.stderr);
+  assert.equal(cinza.status, 0, cinza.stdout + cinza.stderr);
+  const a = lerFaixa(padrao.saida, 0.4), b = lerFaixa(cinza.saida, 0.4);
+  assert.ok(a.maximo > 200, `padrão: letra branca, máximo da faixa devia passar de 200: ${a.maximo}`);
+  assert.ok(b.maximo > 100 && b.maximo < 170, `--cor-texto #808080: máximo da faixa devia ficar perto de 128: ${b.maximo}`);
+});
+
 // ---------- o estilo no quadro: contorno (padrão) não escurece o fundo, caixa escurece ----------
 
 // Fundo cinza 1920x1080 de 1 s: a faixa de baixo mostra se há caixa (escurece em volta do texto) ou só contorno.
@@ -173,8 +192,8 @@ test("legendar: o padrão (contorno) deixa o fundo cinza como está; --estilo ca
   assert.equal(semCaixa.status, 0, semCaixa.stdout + semCaixa.stderr);
   assert.equal(comCaixa.status, 0, comCaixa.stdout + comCaixa.stderr);
   const a = lerFaixa(semCaixa.saida, 0.4), b = lerFaixa(comCaixa.saida, 0.4);
-  // Medido em 28/10/2026 (cinza 128, fonte 40, faixa 1920x200, pixels abaixo de 90): contorno = 5482 pixels (só a
-  // borda e a sombra das letras), média 127,6; caixa = 25715 pixels (a faixa inteira), média 123,0.
+  // Medido em 28/10/2026 (cinza 128, fonte 40, faixa 1920x200, pixels abaixo de 90): contorno = 5253 pixels (só a
+  // borda e a sombra das letras), média 127,8; caixa = 25715 pixels (a faixa inteira), média 123,0.
   assert.ok(a.media > 120, `contorno: a média da faixa devia ficar perto do cinza 128 do fundo: ${a.media}`);
   assert.ok(a.escuros > 0, "contorno: a borda preta das letras tem que aparecer");
   assert.ok(b.escuros > 2 * a.escuros, `caixa: devia ter mais de 2 x os pixels escuros do contorno (${a.escuros}): ${b.escuros}`);

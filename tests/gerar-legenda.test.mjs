@@ -111,11 +111,22 @@ test("paraAss contorno: corTexto e corContorno entram na ordem BGR do ASS; a cai
   assert.equal(c.BorderStyle, "1");
   assert.ok(!s.includes("&H266B2B03"), "não sobra cor de caixa");
 });
-test("paraAss contorno: espessura e sombra por formato (16x9 = 2,5 e 1; 9x16 = 3,4 e 1,5); a margem e a fonte seguem iguais", () => {
+test("paraAss contorno: contorno, sombra e espaço entre letras por formato (16x9 = 2, 1 e 1,5; 9x16 = 2,7, 1,35 e 2); a margem e a fonte seguem iguais", () => {
   const c16 = campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9" }));
-  assert.equal(c16.Outline, "2.5"); assert.equal(c16.Shadow, "1"); assert.equal(c16.Fontsize, "40"); assert.equal(c16.MarginV, "30");
+  assert.equal(c16.Outline, "2"); assert.equal(c16.Shadow, "1"); assert.equal(c16.Spacing, "1.5");
+  assert.equal(c16.Fontsize, "40"); assert.equal(c16.MarginV, "30");
   const c9 = campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16" }));
-  assert.equal(c9.Outline, "3.4"); assert.equal(c9.Shadow, "1.5"); assert.equal(c9.Fontsize, "54"); assert.equal(c9.MarginV, "260");
+  assert.equal(c9.Outline, "2.7"); assert.equal(c9.Shadow, "1.35"); assert.equal(c9.Spacing, "2");
+  assert.equal(c9.Fontsize, "54"); assert.equal(c9.MarginV, "260");
+});
+test("paraAss contorno: borda suave (blur) no começo de cada fala; a caixa não leva", () => {
+  const blocos = [{ a: 0, b: 1, texto: "a\nb" }, { a: 1, b: 2, texto: "c" }];
+  const textos = (ass) => ass.split("\n").filter((l) => l.startsWith("Dialogue:")).map((l) => l.split(",,0,0,0,,")[1]);
+  assert.deepEqual(textos(paraAss(blocos, { formato: "16x9" })), ["{\\blur0.8}a\\Nb", "{\\blur0.8}c"]);
+  assert.deepEqual(textos(paraAss(blocos, { formato: "9x16" })), ["{\\blur1.1}a\\Nb", "{\\blur1.1}c"]);
+  const caixa = paraAss(blocos, { formato: "16x9", tipo: "caixa" });
+  assert.deepEqual(textos(caixa), ["a\\Nb", "c"]);       // a caixa fica como era: sem blur e sem espaço extra
+  assert.equal(campos(caixa).Spacing, "0");
 });
 test("paraAss recusa tipo desconhecido e cor inválida do contorno", () => {
   assert.throws(() => paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9", tipo: "borda" }), /tipo.*"borda".*contorno.*caixa/);

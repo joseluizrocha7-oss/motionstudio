@@ -3,11 +3,11 @@
 //
 // Comando:
 //   node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--estilo contorno|caixa]
-//                     [--cor-contorno #RRGGBB] [--cor-caixa #RRGGBB] [--margem-esq N] [--margem-dir N]
+//                     [--cor-texto #RRGGBB] [--cor-contorno #RRGGBB] [--cor-caixa #RRGGBB] [--margem-esq N] [--margem-dir N]
 //
 // O estilo padrão é "contorno": letra branca com borda preta e sombra suave, sem caixa. "caixa" põe uma faixa
 // atrás do texto (para filmagem de câmera ou fundo cheio de detalhe). --cor-contorno só vale com contorno e
-// --cor-caixa só vale com caixa; o par errado sai com código 1.
+// --cor-caixa só vale com caixa; o par errado sai com código 1. --cor-texto troca a cor da letra (padrão branca) nos 2 estilos.
 //
 // O formato sai do tamanho do vídeo (ffprobe): paisagem = 16x9, retrato = 9x16. O --formato é opcional; se vier
 // e não bater com o vídeo, o comando para. O .srt precisa ter sido gerado para o mesmo formato: o limite de
@@ -27,8 +27,8 @@ import { LIMITES, lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const FONTE = join(AQUI, "..", "runtime", "hero3d", "fonts", "Inter-Bold-Latin.ttf");
-const USO = "uso: node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--estilo contorno|caixa] [--cor-contorno #RRGGBB] [--cor-caixa #RRGGBB] [--margem-esq N] [--margem-dir N]";
-const OPCOES = ["formato", "estilo", "cor-contorno", "cor-caixa", "margem-esq", "margem-dir"];
+const USO = "uso: node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--estilo contorno|caixa] [--cor-texto #RRGGBB] [--cor-contorno #RRGGBB] [--cor-caixa #RRGGBB] [--margem-esq N] [--margem-dir N]";
+const OPCOES = ["formato", "estilo", "cor-texto", "cor-contorno", "cor-caixa", "margem-esq", "margem-dir"];
 const ESTILOS = ["contorno", "caixa"];
 
 // Separa os 3 caminhos (sem --) das opções (--nome valor).
@@ -101,6 +101,7 @@ function legendar(argv) {
   });
 
   const estilo = { formato, tipo };
+  if (opcoes["cor-texto"] !== undefined) estilo.corTexto = opcoes["cor-texto"];
   if (opcoes["cor-contorno"] !== undefined) estilo.corContorno = opcoes["cor-contorno"];
   if (opcoes["cor-caixa"] !== undefined) estilo.corCaixa = opcoes["cor-caixa"];
   if (opcoes["margem-esq"] !== undefined) estilo.margemEsq = margem("margem-esq", opcoes["margem-esq"]);

@@ -198,11 +198,14 @@ export function lerSrt(texto) {
 
 // ---------- .ass ----------
 
-// Por formato: resolução do vídeo, tamanho da fonte, margem de baixo, espessura do contorno e distância da
-// sombra (tudo em pixels da resolução). Contorno e sombra valem para o tipo "contorno"; a caixa tem folga fixa.
+// Por formato: resolução do vídeo, tamanho da fonte, margem de baixo e, para o tipo "contorno", espessura da borda,
+// distância da sombra, espaço extra entre letras e desfoque da borda (tudo em pixels da resolução). A borda fina com
+// espaço entre as letras não junta as letras vizinhas; o desfoque tira o serrilhado. Medido em quadros reais
+// (28/10/2026): borda de 2,5 px sem espaço entre as letras juntava as vizinhas. O 9x16 é o 16x9 vezes 1,35 (a razão
+// das fontes, 54 / 40). A caixa tem folga fixa e não usa esses 4 valores.
 const FORMATOS_ASS = {
-  "16x9": { largura: 1920, altura: 1080, fonte: 40, margemV: 30, contorno: 2.5, sombra: 1 },
-  "9x16": { largura: 1080, altura: 1920, fonte: 54, margemV: 260, contorno: 3.4, sombra: 1.5 },
+  "16x9": { largura: 1920, altura: 1080, fonte: 40, margemV: 30, contorno: 2, sombra: 1, espaco: 1.5, desfoque: 0.8 },
+  "9x16": { largura: 1080, altura: 1920, fonte: 54, margemV: 260, contorno: 2.7, sombra: 1.35, espaco: 2, desfoque: 1.1 },
 };
 const TIPOS_ASS = ["contorno", "caixa"];   // contorno (padrão): letra com borda e sombra suave; caixa: faixa atrás do texto
 const OPACIDADE_SOMBRA = 0.5;               // sombra do contorno: preto a 50%
@@ -235,13 +238,14 @@ export function paraAss(blocos, estilo) {
   if (!(opacidadeCaixa >= 0 && opacidadeCaixa <= 1)) throw new Error(`opacidadeCaixa fora de 0 a 1: ${opacidadeCaixa}`);
   // caixa: BorderStyle 3 desenha a caixa com OutlineColour; Outline 14 é a folga dela em volta do texto.
   // contorno: BorderStyle 1 desenha a borda com OutlineColour (opaca) e a sombra com BackColour.
-  const [corBorda, corFundo, borda, espessura, sombra] = tipo === "caixa"
-    ? [corAss(corCaixa, opacidadeCaixa), corAss(corCaixa, opacidadeCaixa), 3, 14, 0]
-    : [corAss(corContorno), corAss("#000000", OPACIDADE_SOMBRA), 1, f.contorno, f.sombra];
+  const [corBorda, corFundo, borda, espessura, sombra, espaco, desfoque] = tipo === "caixa"
+    ? [corAss(corCaixa, opacidadeCaixa), corAss(corCaixa, opacidadeCaixa), 3, 14, 0, 0, ""]
+    : [corAss(corContorno), corAss("#000000", OPACIDADE_SOMBRA), 1, f.contorno, f.sombra, f.espaco, `{\\blur${f.desfoque}}`];
   const estiloLegenda = ["Legenda", "Inter Variable", f.fonte, corAss(corTexto), corAss(corTexto), corBorda, corFundo,
-    -1, 0, 0, 0, 100, 100, 0, 0, borda, espessura, sombra, 2, margemEsq, margemDir, f.margemV, 1].join(",");
+    -1, 0, 0, 0, 100, 100, espaco, 0, borda, espessura, sombra, 2, margemEsq, margemDir, f.margemV, 1].join(",");
+  // O {\blur} no começo de cada fala suaviza a borda do contorno (a caixa não leva).
   const falas = blocos.map((b) =>
-    `Dialogue: 0,${tempoAss(b.a)},${tempoAss(b.b)},Legenda,,0,0,0,,${b.texto.replace(/\n/g, "\\N")}`);
+    `Dialogue: 0,${tempoAss(b.a)},${tempoAss(b.b)},Legenda,,0,0,0,,${desfoque}${b.texto.replace(/\n/g, "\\N")}`);
   return [
     "[Script Info]", "ScriptType: v4.00+", `PlayResX: ${f.largura}`, `PlayResY: ${f.altura}`, "ScaledBorderAndShadow: yes", "",
     "[V4+ Styles]",

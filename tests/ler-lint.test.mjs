@@ -92,7 +92,32 @@ test("lint F1: nome de fonte com algarismo sem aspas acusa; com aspas não", () 
   // Sem alarme falso: fonte com aspas e @font-face carregada, e fonte do sistema pedida de propósito.
   assert.ok(!achar(hits, "html-ok"), `o texto HTML com aspas não devia ser acusado: ${lista}`);
   assert.ok(!achar(hits, "html-arial"), `Arial pedida sem @font-face não devia ser acusada: ${lista}`);
-  assert.equal(hits.length, 6, `só os 6 avisos esperados: ${lista}`);
+  assert.equal(hits.length, 7, `só os 7 avisos esperados: ${lista}`);
+});
+
+// O CDP (CSS.getPlatformFontsForNode) devolve a fonte do elemento somando os glifos dos descendentes. Cada caso abaixo
+// era um falso aviso, ou um aviso com a culpa errada, na primeira versão do F1.
+test("lint F1: parágrafo com um <span> em fonte do sistema de propósito não acusa o parágrafo nem o span", () => {
+  const hits = rodarLint(join(FIXTURES, "lint-fonte.html")).rules.find((r) => r.id === "F1")?.hits ?? [];
+  const lista = hits.map((h) => h.snippet).join(" | ");
+  assert.ok(!achar(hits, "html-misto"), `os glifos do <span> em Arial são do span, não do parágrafo: ${lista}`);
+  assert.ok(!/sistema/.test(lista), `o <span> pediu Arial de propósito: ${lista}`);
+});
+
+test("lint F1: o aviso sai uma vez por elemento, mesmo com 2 nós de texto no parágrafo", () => {
+  const hits = rodarLint(join(FIXTURES, "lint-fonte.html")).rules.find((r) => r.id === "F1")?.hits ?? [];
+  const doParagrafo = hits.filter((h) => /#html-dup[.>]/.test(h.snippet));
+  assert.equal(doParagrafo.length, 1, `o parágrafo html-dup tem 2 nós de texto e devia ter 1 aviso: ${doParagrafo.map((h) => h.snippet).join(" | ")}`);
+});
+
+test("lint F1: só a primeira família da pilha decide (Arial, 'Teste 4' pede Arial)", () => {
+  const hits = rodarLint(join(FIXTURES, "lint-fonte.html")).rules.find((r) => r.id === "F1")?.hits ?? [];
+  assert.ok(!achar(hits, "html-pilha"), "Arial vem antes da @font-face na pilha; sair em Arial é o pedido");
+});
+
+test("lint F1: emoji que sai na fonte de emoji não conta como glifo que falta", () => {
+  const hits = rodarLint(join(FIXTURES, "lint-fonte.html")).rules.find((r) => r.id === "F1")?.hits ?? [];
+  assert.ok(!achar(hits, "html-emoji"), "o emoji sai na fonte de emoji; a fonte web não precisa ter esse glifo");
 });
 
 test("lint F1: a mensagem está em pt-BR e nomeia o elemento, o que foi pedido e a fonte usada", () => {

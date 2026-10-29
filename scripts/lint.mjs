@@ -34,7 +34,9 @@
 //                               declaration without a word), but was drawn in a system font. The font used is Chrome's own
 //                               answer (CDP CSS.getPlatformFontsForNode), compared with document.fonts. Message in pt-BR.
 //                               Invalid names are read from <style>, style="" and the SVG font-family attribute (not from
-//                               the font shorthand or a linked stylesheet); the render check covers any source        WARN
+//                               the font shorthand or a linked stylesheet); the render check covers any source. Only the first
+//                               family of the stack is "asked" (Arial, "Web" asks for Arial); emoji and symbols are not
+//                               missing glyphs; a descendant with another font-family mutes the partial-fallback verdict   WARN
 //   [data-ui="captured"] marks a faithful rebuild of a captured product screen: V5 is skipped inside it (the exemption is printed).
 //
 // Output: PASS / WARN / FAIL per rule with the sample times, an element snippet and the bbox [x0,y0,x1,y1] (0-1 of the frame),
@@ -225,14 +227,19 @@ const PAGE_LIB = String.raw`(() => {
     window.__lintBad = bad;
     return bad.filter((b) => b.sel === '@font-face').map((b) => b.value);
   };
-  // Text elements visible now that asked for an @font-face family or for an invalid one, not seen before. The elements
-  // stay in window.__lintFE (the node side turns them into CDP nodes by index); the list returned is plain data.
+  // Text elements visible now that asked for an @font-face family or for an invalid one, not seen before. One entry per
+  // element, however many text nodes it holds: CDP answers per element, summing the glyphs of its descendants too.
+  // The elements stay in window.__lintFE (the node side turns them into CDP nodes by index); the list returned is plain data.
+  // Only the FIRST family of the stack decides what was asked: "Arial, 'Web'" asks for Arial, and Arial is a system font.
+  // pict counts the characters that are drawn by an emoji / symbol font on purpose (pictographs, flags, keycaps): they
+  // are not glyphs the web font is missing. mista is true when a descendant with text has another font-family: the glyphs
+  // of that descendant are summed into this element by CDP, so a "some glyphs fell back" verdict here would blame the wrong text.
   window.__lintFontCands = async () => {
     if (document.fonts.status !== 'loaded') {                       // a face used for the first time at this sample may still be loading
       try { await document.fonts.ready; } catch (e) {}
       await raf2();
     }
-    const W = innerWidth, H = innerHeight, faces = {}, out = [];
+    const W = innerWidth, H = innerHeight, faces = {}, out = [], porEl = new Map();
     for (const f of document.fonts) { const k = unq(f.family).toLowerCase(); const x = faces[k] || (faces[k] = { nome: unq(f.family), status: f.status }); if (f.status === 'loaded') x.status = 'loaded'; }
     window.__lintFE = [];
     const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -244,11 +251,18 @@ const PAGE_LIB = String.raw`(() => {
       const rs = [...rg.getClientRects()].filter((q) => q.width > 0.5 && q.height > 0.5); if (!rs.length) continue;
       const x0 = Math.min(...rs.map((q) => q.left)), y0 = Math.min(...rs.map((q) => q.top)), x1 = Math.max(...rs.map((q) => q.right)), y1 = Math.max(...rs.map((q) => q.bottom));
       if (x1 < 0 || x0 > W || y1 < 0 || y0 > H) continue;
-      const key = id(p) + '|' + txt.slice(0, 60); if (fseen.has(key)) continue; fseen.add(key);
-      const face = cs(p).fontFamily.split(',').map(unq).filter(Boolean).map((f) => faces[f.toLowerCase()]).find(Boolean) || null;
+      const g = porEl.get(p) || { txt: [], x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9, pict: 0 }; porEl.set(p, g);
+      g.txt.push(txt); g.x0 = Math.min(g.x0, x0); g.y0 = Math.min(g.y0, y0); g.x1 = Math.max(g.x1, x1); g.y1 = Math.max(g.y1, y1);
+      g.pict += (txt.match(/[\p{Extended_Pictographic}\p{Regional_Indicator}\u20E3]/gu) || []).length;
+    }
+    for (const [p, g] of porEl) {
+      const txt = g.txt.join(' '), key = id(p) + '|' + txt.slice(0, 60); if (fseen.has(key)) continue; fseen.add(key);
+      const fam = cs(p).fontFamily.split(',').map(unq).filter(Boolean)[0];
+      const face = (fam && faces[fam.toLowerCase()]) || null;
       const inv = window.__lintBad.find((b) => { if (b.el) return b.el.contains(p); try { return !!p.closest(b.sel); } catch (e) { return false; } });
       if (!face && !inv) continue;                                  // asked for a system font: not ours to judge
-      out.push({ idx: window.__lintFE.length, key, snip: snip(p, txt), bbox: [x0 / W, y0 / H, x1 / W, y1 / H], face, inv: inv ? inv.value : null });
+      const propria = cs(p).fontFamily, mista = [...p.querySelectorAll('*')].some((d) => d.textContent.trim() && cs(d).fontFamily !== propria);
+      out.push({ idx: window.__lintFE.length, key, snip: snip(p, txt), bbox: [g.x0 / W, g.y0 / H, g.x1 / W, g.y1 / H], face, inv: inv ? inv.value : null, pict: g.pict, mista });
       window.__lintFE.push(p);
     }
     return out;
@@ -364,13 +378,18 @@ function evalSample(t, A, B, hits) {
 // null when there is nothing to say. A text is judged only if it asked for an @font-face family or for an invalid one
 // (a system font on purpose is not our business), and only if some glyph came out in a font that is not a web font.
 // Chrome's familyName for a web font is the name inside the file ("Inter Variable"), not the CSS name, so the web
-// font is told by isCustomFont.
+// font is told by isCustomFont. CDP answers per element and sums the glyphs of the descendants, so:
+//   - c.pict emoji / symbol characters are taken out of the count (they are drawn by an emoji font on purpose);
+//   - if a descendant has another font-family (c.mista), the "some glyphs fell back" verdict is not given: the glyphs
+//     may be the descendant's, drawn in a system font on purpose. The "no glyph in a web font" verdict still holds.
 function notaFonte(c, fonts) {
   const web = fonts.filter((f) => f.isCustomFont), outras = fonts.filter((f) => !f.isCustomFont);
   if (!outras.length) return null;
   const usada = outras.map((f) => '"' + f.familyName + '"').join(', ');
   const glifos = (l) => l.reduce((s, f) => s + (f.glyphCount || 0), 0);
-  if (web.length) return c.face || c.inv ? `pediu "${c.face ? c.face.nome : c.inv}", mas a fonte não tem ${glifos(outras)} dos ${glifos(fonts)} glifos do texto; o que faltou saiu em ${usada}` : null;
+  const faltam = glifos(outras) - (c.pict || 0), total = glifos(fonts) - (c.pict || 0);
+  if (faltam <= 0) return null;                                    // só emoji e símbolo saíram fora da fonte web
+  if (web.length) return !c.mista && (c.face || c.inv) ? `pediu "${c.face ? c.face.nome : c.inv}", mas a fonte não tem ${faltam} dos ${total} glifos do texto; o que faltou saiu em ${usada}` : null;
   if (c.inv) return `font-family inválido: "${c.inv}" não vale e o Chrome descartou a declaração; o texto saiu em ${usada}. Nome com algarismo ou símbolo vai entre aspas`;
   const por = { error: 'a @font-face não carregou (status error: confira o caminho do arquivo)', loaded: 'a @font-face carregou, mas não tem os glifos deste texto' }[c.face.status] || `a @font-face está com status ${c.face.status} e não foi usada`;
   return `pediu "${c.face.nome}", mas ${por}; o texto saiu em ${usada}`;
@@ -381,12 +400,14 @@ async function evalFonts(page, t) {
   const lista = await page.send('Runtime.evaluate', { expression: 'window.__lintFE' });
   const props = await page.send('Runtime.getProperties', { objectId: lista.result.objectId, ownProperties: true });
   const obj = new Map(props.result.filter((x) => /^\d+$/.test(x.name) && x.value && x.value.objectId).map((x) => [Number(x.name), x.value.objectId]));
-  for (const c of cands) {
-    if (!obj.has(c.idx)) continue;
-    const { nodeId } = await page.send('DOM.requestNode', { objectId: obj.get(c.idx) });
-    const { fonts } = await page.send('CSS.getPlatformFontsForNode', { nodeId });
-    const note = notaFonte(c, fonts || []);
-    if (note) addHit('F1', t, c.key, { text: '', snippet: c.snip, bbox: c.bbox.map(r2), note });
+  for (const c of cands) {                                         // one bad element must not turn F1 off for the rest of the run
+    try {
+      if (!obj.has(c.idx)) continue;
+      const { nodeId } = await page.send('DOM.requestNode', { objectId: obj.get(c.idx) });
+      const { fonts } = await page.send('CSS.getPlatformFontsForNode', { nodeId });
+      const note = notaFonte(c, fonts || []);
+      if (note) addHit('F1', t, c.key, { text: '', snippet: c.snip, bbox: c.bbox.map(r2), note });
+    } catch (e) { console.error('warn: font check (F1) skipped ' + c.snip + ': ' + e.message); }
   }
 }
 
@@ -439,7 +460,7 @@ let br, exitCode = 0;
   for (const t of times) {
     await page.eval(`window.__lintSeek(${t})`, { timeout: 40000 });
     const A = JSON.parse(await page.eval('JSON.stringify(window.__lintScan())', { timeout: 30000 }));
-    if (fontes) { try { await evalFonts(page, t); } catch (e) { console.error('warn: font check (F1) failed at t=' + t + ': ' + e.message); fontes = false; } }
+    if (fontes) { try { await evalFonts(page, t); } catch (e) { console.error('warn: font check (F1) failed at t=' + t + ': ' + e.message); } }   // a failed sample does not turn F1 off for the next ones
     const t2 = t + 0.1 <= dur ? t + 0.1 : Math.max(0, t - 0.1);
     await page.eval(`window.__lintSeek(${t2})`, { timeout: 40000 });
     const B = JSON.parse(await page.eval('JSON.stringify(window.__lintScan())', { timeout: 30000 }));

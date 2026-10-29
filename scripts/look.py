@@ -163,7 +163,9 @@ def find_events(film, given):
 
 def events_to_cuts(path, fps, nframes):
     try:
-        ev = json.load(open(path))
+        # explicit utf-8: on Windows open() defaults to cp1252 and fails on an accented label (the UTF-8 bytes C3 81)
+        with open(path, encoding="utf-8") as f:
+            ev = json.load(f)
     except (OSError, ValueError) as e:
         die("cannot read events %s: %s" % (path, e))
     if isinstance(ev, dict):
@@ -483,7 +485,7 @@ def main():
         evf = [f for f, _ in ev_cuts]
         unexplained = [(f, s) for f, s in detected if min(abs(f - e) for e in evf) > MERGE]
 
-    with open(os.path.join(a.out, "cuts.txt"), "w") as f:
+    with open(os.path.join(a.out, "cuts.txt"), "w", encoding="utf-8") as f:   # event labels may carry accents
         f.write("# cuts from %s%s (time s, frame, timecode, source)\n" % (source, " " + ev_path if ev_cuts else " scene>=%s | scene>=%s+structure | pixel spike" % (a.scene, a.scene_low)))
         for (fr, s) in cut_list:
             f.write("%.3f\tframe %d\t%s\t%s\n" % (fr / fps, fr, tc(fr / fps), s))
@@ -573,7 +575,7 @@ def main():
     G = compute_gates(a, dur, fps, nf, M, C, vs, au, cuts, hold, final_dur)
     print_gates(G, M, fps)
     mm = sum(M[1:]) / max(1, len(M) - 1)
-    with open(os.path.join(a.out, "gates.json"), "w") as f:
+    with open(os.path.join(a.out, "gates.json"), "w", encoding="utf-8") as f:
         json.dump({"film": a.film, "duration": dur, "fps": fps, "gates": [{"id": g, "name": n, "status": st, "detail": w} for g, n, st, w in G],
                    "motion_mean_luma_diff": round(mm, 2), "human_band": {"median": HUMAN_MOTION[0], "q1": HUMAN_MOTION[1], "q3": HUMAN_MOTION[2]},
                    "audio": ({k: v for k, v in ares.items() if k not in ("env_n",)} if ares else None), "loudness": loud}, f, indent=1)

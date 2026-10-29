@@ -4,6 +4,7 @@
 # Usage:  bash providers.sh [--help]
 # Prints a JSON report on stdout (human warnings go to stderr). "codex.image_generation" is true only when the Codex CLI's
 # image_generation feature is on (needed by scripts/imagegen.py); null when it cannot be read.
+# "gemini" says whether GEMINI_API_KEY is set in the environment and in ./.env, as true/false only; the value is never printed.
 # Exit code: 0 always if the script ran; 1 only if the hard requirements
 # (ffmpeg, node, chrome) are missing -- check "ready" in the report.
 #
@@ -11,7 +12,7 @@
 # and by looking for a cached copy in ~/.npm/_npx.
 
 if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-  sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0
+  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0
 fi
 
 PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin"
@@ -87,6 +88,14 @@ if [ -z "$EL" ]; then
 fi
 ELMCP=""; grep -qi elevenlabs "$HOME/.claude.json" 2>/dev/null && ELMCP=1
 
+# --- Gemini (voice and music need GEMINI_API_KEY)
+# LOCAL CHANGE (2026-10-29): report where the key is, as true/false only. The value is never read into a variable or printed.
+# In ./.env (the project folder) it counts only with a non-empty value; a comment or "GEMINI_API_KEY=" does not.
+GMENV=""; GMFILE=""
+[ -n "$GEMINI_API_KEY" ] && GMENV=1
+if [ -f ./.env ] && grep -Eq "^[[:space:]]*(export[[:space:]]+)?GEMINI_API_KEY[[:space:]]*=[[:space:]]*[\"']?[^\"'[:space:]]" ./.env 2>/dev/null; then GMFILE=1; fi
+GM=""; [ -n "$GMENV$GMFILE" ] && GM=1
+
 # --- codex (+ the image_generation feature that scripts/imagegen.py needs: on / off / unknown)
 CODEX="$(command -v codex)"; CODEXV=""; [ -n "$CODEX" ] && CODEXV="$(codex --version 2>/dev/null | head -1)"
 CODEXIMG=""; CODEXIMGNOTE=""
@@ -129,6 +138,7 @@ cat <<EOF
     "mcp_server_may_exist": $(bool "$ELMCP"),
     "hint": $(str "$([ -n "$ELMCP" ] && echo 'ELEVENLABS mentioned in ~/.claude.json: an ElevenLabs MCP server may be configured (tools named like mcp__elevenlabs__*).')")
   },
+  "gemini": { "key": $(bool "$GM"), "in_env": $(bool "$GMENV"), "in_dotenv": $(bool "$GMFILE") },
   "codex": { "available": $(bool "$([ -n "$CODEX" ] && echo 1)"), "path": $(str "$CODEX"), "version": $(str "$CODEXV"),
     "image_generation": $(if [ "$CODEXIMG" = 1 ]; then echo true; elif [ "$CODEXIMG" = 0 ]; then echo false; else echo null; fi),
     "image_note": $(str "$CODEXIMGNOTE") },

@@ -8,6 +8,7 @@
  * Visibility is ONE track per element (every show/enter/exit/cut adds an on/off op; the last op at or before the frame wins).
  * transform-origin is a per-element track too: camera/snap/dive/cursor each claim an origin from their own start frame.
  * M.hero3d(canvas|container, {objects|build, state}) adds a Three.js layer that is redrawn by the same clock (module loaded from ./hero3d/, see README "3D").
+ * M.lottie(canvas|container, {data|src, at}) plays a Lottie animation on the same clock (LOCAL CHANGE: dotlottie-web from ./vendor/dotlottie-web/, see README "Lottie").
  * Frames are the unit (fps default 30). On a clock:'twos' film onsets are quantised to even frames and __seek() holds each
  * pose for two frames. Eases are copied from the measured-ease library (12 curves fitted to 53 human-made films).
  */
@@ -89,6 +90,17 @@ function cadence(text, o) {
   }
   return ev;
 }
+
+/* ---------- LOCAL CHANGE (2026-10-28): dotlottie-web for M.lottie, loaded once per page (its wasm URL is global) ----------
+   The wasm is never fetched from a file:// URL: its bytes come in a JS module (gzip + base64, import() works on file://), are unpacked here and handed to
+   the player as a blob: URL. setWasmUrl also turns off the player's jsdelivr/unpkg fallback, so a failed load fails loudly instead of reaching a CDN. */
+let LOTTIE_LIB = null;
+const dotLottie = base => LOTTIE_LIB || (LOTTIE_LIB = Promise.all([import(base + 'index.js'), import(base + 'dotlottie-player.wasm.js')]).then(async ([lib, w]) => {
+  const gz = Uint8Array.from(atob(w.default), c => c.charCodeAt(0));
+  const wasm = await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  lib.DotLottie.setWasmUrl(URL.createObjectURL(new Blob([wasm], { type: 'application/wasm' })));
+  return lib.DotLottie;
+}));
 
 /* ---------- the film ---------- */
 function film(cfg) {
@@ -524,8 +536,55 @@ function film(cfg) {
     return api;
   }
 
+  /* ---- LOCAL CHANGE (2026-10-28): M.lottie, a Lottie animation (an animated icon) on the film clock. Player: dotlottie-web 0.81.0, main-thread DotLottie,
+          software renderer (runtime/vendor/dotlottie-web/, see README "Lottie"). Animation frame = (t * fps - at) * (animation fps / film fps), from the
+          CONTINUOUS t, with frame interpolation on, so a --shutter sub-frame sees its own frame. Frame 0 before `at`; after the end the last frame holds,
+          unless loop (then it wraps). setFrame renders into the wasm pixel buffer before it returns, and the renderer copies that buffer to the canvas in
+          the same call: the frame is on the canvas when __seek returns. A local animation goes by `data` (a Lottie object or JSON string, e.g. from a .js
+          that sets window.LOTTIE.name); `src` is for http(s). ---- */
+  function lottie(target, o) {
+    o = Object.assign({}, o);
+    if (o.data == null && !o.src) throw new Error('Motion.lottie: pass { data } (a Lottie object or JSON string) or { src } (an http(s) URL)');
+    let cv = one(target);
+    if (cv.tagName !== 'CANVAS') { const host = cv; cv = document.createElement('canvas'); cv.style.cssText = 'display:block;width:100%;height:100%'; host.appendChild(cv); cv.width = o.width || host.clientWidth; cv.height = o.height || host.clientHeight; }
+    else { if (o.width) cv.width = o.width; if (o.height) cv.height = o.height; }
+    if (!(cv.width > 0 && cv.height > 0)) throw new Error('Motion.lottie: the canvas has no size; pass { width, height }');
+    const at = q(o.at || 0), api = { canvas: cv, player: null, ready: null };
+    let last = null, drawn = null, ctx = null, k = 1, L = 0;
+    const frameAt = t => {                                            // animation frame at film time t (seconds, continuous)
+      let a = (t * fps - at) * k;
+      if (!(a > 0)) return 0;
+      if (o.loop) a %= L + 1;                                         // a loop shows frame L for one frame, then 0 again
+      return a >= L ? L : Math.round(a * 1e4) / 1e4;
+    };
+    const draw = t => {                                               // setFrame only when the target frame changes; the canvas keeps the last one drawn
+      const a = frameAt(t); if (a === drawn) return; drawn = a;
+      const p = api.player; p.setFrame(a);
+      const b = p.buffer;                                             // RGBA, straight alpha, cv.width x cv.height (the size the player was created with)
+      ctx.putImageData(new ImageData(new Uint8ClampedArray(b.buffer, b.byteOffset, b.byteLength), cv.width, cv.height), 0, 0);
+    };
+    R.push(t => { last = t; if (api.player && root.__mdSnap !== false) draw(t); });   // __mdSnap===false: selfTest is stepping through frames it will not snapshot
+    const base = o.vendor || (SELF ? new URL('vendor/dotlottie-web/', SELF).href : '');
+    api.ready = (base ? dotLottie(base) : Promise.reject(new Error('Motion.lottie: runtime path unknown (motion.js was inlined). Pass { vendor: "<url of runtime/vendor/dotlottie-web/>" }.'))).then(DotLottie => new Promise((ok, no) => {
+      // canvas = a plain { width, height } surface: the player never resizes it from CSS (getBoundingClientRect), observes it or touches its style
+      const p = new DotLottie({ canvas: { width: cv.width, height: cv.height }, data: o.data, src: o.data == null ? o.src : undefined, autoplay: false, loop: false, useFrameInterpolation: true });
+      p.addEventListener('load', () => ok(p));
+      p.addEventListener('loadError', e => no(new Error('Motion.lottie: ' + ((e.error && e.error.message) || 'the animation did not load'))));
+    })).then(p => {
+      L = Math.max(0, p.totalFrames - 1);                             // frames 0..L: setFrame ignores anything outside
+      const fpsA = p.duration > 0 ? p.totalFrames / p.duration : fps;
+      k = o.frames ? L / o.frames : fpsA / fps;                       // frames: the animation lasts that many FILM frames (reaches L on at + frames)
+      api.player = p; ctx = cv.getContext('2d');
+      drawn = null; if (last != null) draw(last);                     // the page seeked before the player existed: paint where it is now
+      return api;
+    });
+    PENDING.push(api.ready);
+    if (root.__ready === undefined) root.__ready = root.Motion.loaded();
+    return api;
+  }
+
   return (root.Motion.last = { tl, fps, duration, width: W, height: H, clock: cfg.clock || 'smooth', ease: EASE, f: F, q, twos: f => f - (f % 2), mark, seek, kf, show, hide, cut, wrap, enter, exit,
-    words, cadence: (s, o) => cadence(s, Object.assign({ fps }, o)), type, cursor, press, camera, snap, whip, dive, drift, count, cascade, hero3d });
+    words, cadence: (s, o) => cadence(s, Object.assign({ fps }, o)), type, cursor, press, camera, snap, whip, dive, drift, count, cascade, hero3d, lottie });
 }
 
 /* ---------- self test: play sequentially, then jump around (incl. backwards); every element's state must be identical ---------- */
@@ -557,7 +616,7 @@ function selfTest(M, o) {
 }
 
 // resolves once fonts AND the load event are done (text measurement is only cached then: run selfTest after this, or it is very slow)
-const loaded = () => document.fonts.ready.then(() => new Promise(r => (document.readyState === 'complete' ? r() : root.addEventListener('load', r)))).then(() => Promise.all(PENDING));   // + M.hero3d scenes
+const loaded = () => document.fonts.ready.then(() => new Promise(r => (document.readyState === 'complete' ? r() : root.addEventListener('load', r)))).then(() => Promise.all(PENDING));   // + M.hero3d scenes and M.lottie players
 
 root.Motion = { film, ease: EASE, easeFrames: EASE_FRAMES, cadence, selfTest, loaded };
 })(typeof window !== 'undefined' ? window : this);

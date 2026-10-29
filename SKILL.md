@@ -144,12 +144,14 @@ de baixo, e o que precisa ficar junto do botão vai por cima do app (`z-index`).
 
 **6. Antes do render (todos obrigatórios):**
 ```bash
+node "$SKILL/scripts/erros.mjs" film/index-vertical.html   # sem exceção
 node autoteste.mjs film/index-vertical.html          # 0 divergências
 node tela-vazia.mjs film/index-vertical.html         # nenhum instante com o celular vazio
 node "$SKILL/scripts/camera.mjs" film/index-vertical.html --el "#celular"   # Z1, Z2
 node "$SKILL/scripts/lint.mjs" film/index-vertical.html                     # G5 (a pílula de passo acusa C1: é o desenho)
 node "$SKILL/scripts/render.mjs" film/index-vertical.html --still 2,40,93 film/stills   # e OLHAR
 ```
+Rode o `erros.mjs` antes do autoteste: com exceção na página, o autoteste espera 10 minutos.
 
 **7. Som.** Música: `node --env-file=<.env> gerar-trilha.mjs <nome>` (Lyria 3 Pro, o pedido
 aprovado; grava em `film/assets/musica/`). Depois

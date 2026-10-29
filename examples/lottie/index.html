@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>M.lottie: ícone animado no relógio do filme</title>
+<meta name="viewport" content="width=1920, height=1080">
+<!-- Um Lottie feito à mão (circulo.js: um círculo que cresce de 10% a 100% em 30 quadros) preso ao relógio do filme, começando no quadro 10.
+     O player (dotlottie-web) é um módulo ES: abra com render.mjs, autoteste.mjs ou um servidor, não com dois cliques.
+     Fotos: node scripts/render.mjs examples/lottie/index.html --still 0.2,1,2 stills   Autoteste: node kit/autoteste.mjs examples/lottie/index.html -->
+<link rel="stylesheet" href="../../runtime/fonts.css">
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+#main { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; background: #EDEBE6; }
+#icone { position: absolute; left: 760px; top: 340px; width: 400px; height: 400px; display: block; }
+</style>
+</head>
+<body>
+<div id="main">
+  <canvas id="icone" width="400" height="400"></canvas>
+</div>
+
+<script src="../../runtime/vendor/gsap.min.js"></script>
+<script src="../../runtime/motion.js"></script>
+<script src="circulo.js"></script>
+<script>
+const M = Motion.film({ fps: 30, duration: 3, width: 1920, height: 1080 });
+
+// Antes do quadro 10, o quadro 0 da animação (círculo pequeno); do 10 ao 39, o crescimento; depois, o último quadro (cheio).
+M.lottie('#icone', { data: LOTTIE.circulo, at: 10 });
+
+window.__ready = Motion.loaded().then(() => { if (/selftest/.test(location.search)) Motion.selfTest(M, { samples: 24 }); });
+</script>
+</body>
+</html>

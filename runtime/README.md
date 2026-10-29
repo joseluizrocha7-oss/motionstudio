@@ -8,7 +8,7 @@ Frames are the unit (30 fps default). Every frame is a pure function of `t`: jum
 <script src="./runtime/vendor/gsap.min.js"></script><script src="./runtime/motion.js"></script>
 ```
 Copy `runtime/` next to your film (`film/runtime/`, paths `./runtime/` as above) or reference it by absolute path. Start from `templates/film.html`; see `examples/demo/index.html` (paths `../../runtime/`, because it lives two levels below the skill root).
-Optional layers: `runtime/hero3d/` (Three.js hero object, `M.hero3d`) and `runtime/native-ui/` (iOS phone / notification builders); examples `examples/3d-hero`, `examples/phone`.
+Optional layers: `runtime/hero3d/` (Three.js hero object, `M.hero3d`), `runtime/vendor/dotlottie-web/` (Lottie player, `M.lottie`) and `runtime/native-ui/` (iOS phone / notification builders); examples `examples/3d-hero`, `examples/lottie`, `examples/phone`.
 
 ## Seek contract
 `Motion.film()` registers `window.__timelines.main`, `window.__seek(t)`, `window.__duration`, `window.__events`, and writes
@@ -142,7 +142,7 @@ Plays frames 0..N in order, then jumps to 24 random frames (via a detour, so eac
 attributes, inline style (compared as a parsed property map: `visibility:hidden` and `visibility: hidden`, declaration order and colour spelling can no longer cause a false FAIL),
 computed transform and own text, **and the pixels of every `<canvas>`** (see "Canvas hashing" below). Open any film with `?selftest` (template/demo wire it) to run it. Wire it as `window.__ready = Motion.loaded().then(() => ...)`:
 `Motion.loaded()` resolves after fonts AND the load event; text measurement is only cached then, and a selfTest started earlier can take a minute.
-`Motion.loaded()` also waits for every `M.hero3d` scene (module + fonts + env + shader compile), so `window.__ready = Motion.loaded()...` is all a 3D film needs.
+`Motion.loaded()` also waits for every `M.hero3d` scene (module + fonts + env + shader compile) and every `M.lottie` player (module + wasm + animation), so `window.__ready = Motion.loaded()...` is all a 3D or Lottie film needs.
 `examples/selftest/index.html` is the regression page for this runtime (visibility composition, per-word options, multi-line styled typing, origin claims, `kf` steps); it must print `PASS` and `[asserts] PASS`.
 
 ## 3D (hero3d)
@@ -177,6 +177,25 @@ Returns `{ canvas, ready, hero, H, THREE, key, pulse }` (`hero`, `H`, `THREE` af
 * **3D text and fonts.** `extrudedText` uses opentype.js: it reads `.ttf/.otf/.woff` but NOT woff2 and ignores variable axes. `hero3d/fonts/Inter-Bold-Latin.ttf` is the default. For the brand face (brand.mjs downloads woff2/variable): `python3 runtime/hero3d/tools/fontconv.py brand.woff2 out.ttf --wght 700 [--text "Fathom" | --latin]` (fontTools + brotli; instances variable axes, unwraps woff2, optional subset).
 * **Vendor.** `hero3d/vendor/` = three r186.1 + addons + opentype.js (licences alongside, 3 MB). The only edit: addons import `'three'` by relative path (`../../three.module.js`) instead of the bare specifier; `SVGLoader.js` was added for logos. Re-vendoring: copy the addon, then `sed "s#from 'three'#from '../../three.module.js'#"`.
 * **Direct use** (no Motion): `import { createHero3D, key, pulse } from './hero3d/hero3d.js'`, `const h = await createHero3D(canvas, opts); h.renderAt(t, state?, frame?)`.
+
+## Lottie (M.lottie), LOCAL CHANGE (2026-10-28)
+An animated icon or small illustration exported as Lottie, on the film clock. Player: dotlottie-web 0.81.0 vendored in `runtime/vendor/dotlottie-web/` (MIT; main-thread `DotLottie`, software renderer; no CDN, no build).
+```html
+<canvas id="icone" width="400" height="400" style="position:absolute;left:760px;top:340px;width:400px;height:400px"></canvas>
+<script src="circulo.js"></script>   <!-- window.LOTTIE = window.LOTTIE || {}; LOTTIE.circulo = { ...the Lottie JSON... }; -->
+<script>
+M.lottie('#icone', { data: LOTTIE.circulo, at: 10 });   // a <canvas>, or any container (a canvas is created inside at 100%); starts on film frame 10
+window.__ready = Motion.loaded();                        // waits for the player too (M.lottie also sets __ready if you did not)
+</script>
+```
+`M.lottie(target, { data | src, at, frames?, loop?, width?, height?, vendor? })` returns `{ canvas, ready, player }` (`player` = the `DotLottie` instance, after `ready`).
+* **Time.** Animation frame = (t x film fps - `at`) x (animation fps / film fps), from the continuous `t` of the seek, not the integer frame, with frame interpolation on. So each sub-frame seek of `render.mjs --shutter` gets its own frame (measured on `examples/lottie`: the 8 sub-frames of film frame 18 gave 8 different canvases, circle 125.7 to 130.6 px). Before `at`: frame 0. After the last frame: it holds, unless `loop: true` (wraps: the last frame shows for one animation frame, then frame 0). `frames: n` stretches or squeezes the animation so that its last frame lands on film frame `at + n`. The frame is clamped to 0..totalFrames-1 first, because `setFrame` silently ignores a frame outside that range.
+* **Synchronous paint (checked in 0.81.0).** `DotLottie.prototype.setFrame` (`vendor/dotlottie-web/index.js`, line 5, column 8448) is `if (core.set_frame(f)) { const ok = core.render(); drainEvents(); ok && this._draw() }`. `core.render()` is a synchronous wasm call that fills the pixel buffer, and `_draw()` (column 4287) is a `putImageData`: no promise, no requestAnimationFrame, no event to wait for. `M.lottie` creates the player on a plain `{ width, height }` surface, so the player never resizes the canvas from `getBoundingClientRect` (which would depend on the camera's transforms and on load timing), never observes it and never touches its style. After `setFrame`, the renderer copies `player.buffer` (RGBA, straight alpha) to the canvas with `putImageData` in the same call. The frame is on the canvas when `__seek` returns, so `selfTest` and `render.mjs` capture the right frame. `setFrame` runs only when the target frame changes, and not while `window.__mdSnap === false` (as hero3d). The worker variant (`DotLottieWorker`, async `setFrame`) is not used.
+* **file:// pages.** Films open as `file://` (`render.mjs`, `autoteste.mjs` and `erros.mjs` pass `--allow-file-access-from-files`). The player and the wasm come by `import()`: `vendor/dotlottie-web/dotlottie-player.wasm.js` holds the `.wasm` as gzip + base64; `M.lottie` unpacks it (`DecompressionStream`) and hands the player a `blob:` URL (`DotLottie.setWasmUrl`, which also turns off the player's jsdelivr/unpkg fallback). A local animation goes by `data` (a Lottie object or JSON string), from a `.js` that registers it in a global, the same pattern as `film/assets/fala.js`: `window.LOTTIE = window.LOTTIE || {}; LOTTIE.nome = {...}`. `src` is for http(s) URLs. A double-clicked page does not draw it (as 3D).
+* **Size.** A `<canvas>` keeps its `width`/`height` attributes unless `width`/`height` are given; a container gets a canvas with the container's size. The animation is fit `contain`, centred. If `motion.js` is inlined, pass `{ vendor: '<url of runtime/vendor/dotlottie-web/>' }`.
+* **Failures.** A module, wasm or animation that does not load rejects `ready`, and so `__ready`: `render.mjs` stops instead of shipping an empty canvas. `node scripts/erros.mjs film.html` shows the exception in 6 s.
+* **Vendor.** `index.js` (the package's `dist/index.js`, unchanged, 165 KB), `dotlottie-player.wasm.js` (666 KB), `LICENSE`, `LEIA-ME.md` (origin and how to rebuild the wasm module): about 0.8 MB, which `kit/novo-projeto.mjs` copies into every project with the rest of `runtime/`.
+* Example: `examples/lottie/index.html` (a hand-made circle that grows from 10% to 100% in 30 frames, from film frame 10).
 
 ## Phone UI (native-ui)
 True-proportion iOS furniture (393 x 852 pt device, 1 unit = 1 pt via `--s`), for when the product's real UI cannot be captured. If a real screenshot exists, use the screenshot. `runtime/native-ui/native-ui.{css,js}` (plain script, after `motion.js`):

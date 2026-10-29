@@ -18,7 +18,7 @@ Sigla soletrada e número por extenso ("cê bê ésse" = "CBS", "dois mil e trin
 três" = "2033") casam com a palavra do Whisper pelo normalizar.py (ao lado deste
 arquivo): o tempo vem dessa palavra, repartido pelas sílabas, e não é estimado.
 """
-import difflib, io, json, os, re, subprocess, sys, unicodedata
+import io, json, os, re, subprocess, sys, unicodedata
 import numpy as np
 
 
@@ -38,12 +38,12 @@ def _achar_skill():
 
 
 try:
-    from normalizar import casar                           # ao lado: kit/vozes/ da skill ou vozes/ do projeto
+    from normalizar import casar, trechos                  # ao lado: kit/vozes/ da skill ou vozes/ do projeto
 except ImportError:
     # projeto antigo que recebeu só o alinhar.py novo: usa o normalizar.py da skill
     sys.path.append(os.path.join(_achar_skill(), "kit", "vozes"))
     try:
-        from normalizar import casar
+        from normalizar import casar, trechos
     except ImportError:
         sys.exit("alinhar.py: falta o normalizar.py. Copie kit/vozes/normalizar.py da skill para a pasta deste arquivo.")
 
@@ -84,14 +84,13 @@ def silabas(t):
 def alinhar(tokens, ouvidas, amostras):
     """Tempo de cada palavra do roteiro (tokens, com a pontuação colada) a partir das ouvidas [{p, ini, fim}]."""
     dur = len(amostras) / SR
-    alvo = [norm(t) for t in tokens]
-    fonte = [norm(w["p"]) for w in ouvidas]
     mapa = [None] * len(tokens)                            # índice da ouvida, ("est", ini, fim) ou ("grupo", k0)
     grupos = {}                                            # k0 -> [k0, k1, ini, fim]: tokens[k0:k1] são uma palavra ouvida
-    sm = difflib.SequenceMatcher(a=alvo, b=fonte, autojunk=False)
-    for bloco in sm.get_matching_blocks():
-        for k in range(bloco.size):
-            mapa[bloco.a + k] = bloco.b + k
+
+    def agrupar(a0, a1, b0, b1):
+        grupos[a0] = [a0, a1, ouvidas[b0]["ini"], ouvidas[b1 - 1]["fim"]]
+        for k in range(a0, a1):
+            mapa[k] = ("grupo", a0)
 
     def estimar(a0, a1, b0, b1):
         """Reparte o tempo das ouvidas entre as palavras do roteiro que não casaram."""
@@ -113,15 +112,20 @@ def alinhar(tokens, ouvidas, amostras):
         for k in range(n):
             mapa[a0 + k] = ("est", ini + (fim - ini) * k / n, ini + (fim - ini) * (k + 1) / n)
 
-    for tag, a0, a1, b0, b1 in sm.get_opcodes():
-        if tag in ("replace", "delete") and a1 > a0:
+    # Por unidade: número por extenso e sigla soletrada contam como 1 ("dois mil e vinte e cinco" = "2025"),
+    # e o "e" de dentro do número não casa com o "e" ouvido logo depois.
+    for tag, a0, a1, b0, b1 in trechos(tokens, [w["p"] for w in ouvidas]):
+        if tag == "equal":
+            if a1 - a0 == 1 and b1 - b0 == 1:
+                mapa[a0] = b0
+            else:
+                agrupar(a0, a1, b0, b1)
+        elif tag in ("replace", "delete") and a1 > a0:
             # sigla soletrada e número por extenso: "cê bê ésse" = "CBS", "dois mil e trinta e três" = "2033"
             ia, ib = a0, b0
             for x0, x1, y0, y1 in (casar(tokens[a0:a1], [w["p"] for w in ouvidas[b0:b1]]) if b1 > b0 else []):
                 estimar(ia, a0 + x0, ib, b0 + y0)
-                grupos[a0 + x0] = [a0 + x0, a0 + x1, ouvidas[b0 + y0]["ini"], ouvidas[b0 + y1 - 1]["fim"]]
-                for k in range(a0 + x0, a0 + x1):
-                    mapa[k] = ("grupo", a0 + x0)
+                agrupar(a0 + x0, a0 + x1, b0 + y0, b0 + y1)
                 ia, ib = a0 + x1, b0 + y1
             # Trechos que não casaram nem assim: reparte o tempo das ouvidas entre as do roteiro.
             estimar(ia, a1, ib, b1)

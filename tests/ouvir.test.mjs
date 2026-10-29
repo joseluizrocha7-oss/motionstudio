@@ -319,3 +319,65 @@ test("alinhar.py sem o normalizar.py ao lado usa o da skill, pelo motionstudio.j
     rmSync(pasta, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------- Rodada 1: dinheiro, decimal e palavra comum
+test("forma: dinheiro, decimal e sigla com hífen casam com a transcrição", () => {
+  const pares = [
+    ["mil e quinhentos reais", "R$ 1.500"], ["trinta e dois reais", "R$ 32"], ["trinta e dois reais", "R$32"], ["um real", "R$ 1"],
+    ["um vírgula cinco", "1,5"], ["dois vírgula cinco por cento", "2,5%"], ["um vírgula vinte e cinco", "1,25"], ["um vírgula zero cinco", "1,05"],
+    ["mil e quinhentos vírgula cinco", "1.500,5"], ["um vírgula cinco", "1.5"],
+    ["Cê-Bê-Ésse", "CBS"], ["cê bê ésse", "CBS"], ["ce be esse", "CBS"], ["cê érre ême", "CRM"], ["a cê bê ésse e o", "a CBS e o"],
+  ];
+  const res = py("from normalizar import forma\nsaida([[forma(a.split()), forma(b.split())] for a, b in dados])", pares);
+  pares.forEach(([a, b], k) => assert.equal(res[k][0], res[k][1], `"${a}" x "${b}": ${res[k][0]} x ${res[k][1]}`));
+});
+
+test("forma: palavra comum não vira sigla, e decimal não vira inteiro", () => {
+  const pares = [["esse é", "se"], ["ele é", "le"], ["de e", "de"], ["Veja esse é o plano", "Veja se o plano"],
+    ["quinze", "1,5"], ["um vírgula cinco", "15"], ["mil e quinhentos", "1,5"], ["trinta e dois", "R$ 32"]];
+  const res = py("from normalizar import forma\nsaida([[forma(a.split()), forma(b.split())] for a, b in dados])", pares);
+  pares.forEach(([a, b], k) => assert.notEqual(res[k][0], res[k][1], `"${a}" x "${b}" não podiam casar: ${res[k][0]}`));
+  assert.deepEqual(py("from normalizar import forma\nsaida([forma(['1.500']), forma(['2.033']), forma(['1.5'])])"), ["1500", "2033", "1.5"]);
+});
+
+// Número com "e" dentro, seguido de outro "e": o "e" ouvido não pode casar com o "e" de dentro do número.
+const CASOS_E = [
+  ["Metas de dois mil e vinte e cinco e dois mil e trinta e três.", "Metas de 2025 e 2033."],
+  ["De vinte e cinco por cento e trinta por cento.", "De 25% e 30%."],
+  ["De cinquenta e dois e quarenta e cinco.", "De 52 e 45."],
+  ["Em dois mil e trinta e três e cê bê ésse.", "Em 2033 e CBS."],
+];
+const ALINHAR_CASOS = `import os, tempfile, ouvir
+saidas = []
+for rot_txt, ouv in dados:
+    arq = os.path.join(tempfile.mkdtemp(), "r.txt")
+    open(arq, "w", encoding="utf-8").write(rot_txt)
+    rot = ouvir.ler_roteiro(arq)
+    pal = [{"p": p, "de": k, "ate": k + 0.8} for k, p in enumerate(ouv.split())]
+    r = ouvir.alinhar(rot, pal, {})
+    saidas.append({"faltaram": [rot[i]["p"] for i in r[1]], "sobraram": [pal[j]["p"] for j in r[2] if j not in r[0].values()]})
+saida(saidas)`;
+
+test("S1: número com \"e\" dentro seguido de outro \"e\" não acusa falta", () => {
+  const res = py(ALINHAR_CASOS, CASOS_E);
+  CASOS_E.forEach(([rot], k) => assert.deepEqual(res[k], { faltaram: [], sobraram: [] }, rot));
+});
+
+test("S1: dinheiro por extenso casa com R$; \"esse é\" segue diferente de \"se\"", () => {
+  const casos = [["Custa mil e quinhentos reais.", "Custa R$ 1.500."], ["Custa trinta e dois reais.", "Custa R$ 32."], ["Veja esse é o plano.", "Veja se o plano."]];
+  const res = py(ALINHAR_CASOS, casos);
+  assert.deepEqual(res[0], { faltaram: [], sobraram: [] });
+  assert.deepEqual(res[1], { faltaram: [], sobraram: [] });
+  assert.notDeepEqual(res[2], { faltaram: [], sobraram: [] });
+});
+
+test("alinhar.py: número com \"e\" dentro seguido de outro \"e\" não sai estimado", () => {
+  const res = py(`import numpy as np, alinhar
+saidas = []
+for fala, ouv in dados:
+    ouvidas = [{"p": p, "ini": k * 0.5, "fim": k * 0.5 + 0.45} for k, p in enumerate(ouv.split())]
+    x = np.random.default_rng(5).normal(0, 0.1, int((len(ouvidas) * 0.5 + 0.5) * alinhar.SR)).astype(np.float32)
+    saidas.append([p["word"] for p in alinhar.alinhar(fala.split(" "), ouvidas, x) if p.get("est")])
+saida(saidas)`, CASOS_E);
+  CASOS_E.forEach(([fala], k) => assert.deepEqual(res[k], [], fala));
+});

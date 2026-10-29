@@ -63,7 +63,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="repla
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # número por extenso e sigla soletrada: o mesmo módulo do alinhar.py, em kit/vozes/ da skill
 sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "kit", "vozes"))
-from normalizar import casar, forma
+from normalizar import casar, forma, trechos
 
 PAUSA_NO_MEIO = {"scribe": 0.35, "whisper": 0.50}     # s sem fala entre duas palavras da mesma frase
 EMENDA = {"scribe": 0.22, "whisper": 0.15}            # s mínimos depois de ponto, interrogação ou exclamação
@@ -249,10 +249,14 @@ def alinhar(rot, pal, iguais):
         else:
             faltaram.extend(range(i1, i2)); sobraram.extend(range(j1, j2))
 
-    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+    ouvidas = [pal[j]["p"] if b[j] == norm(pal[j]["p"]) else b[j] for j in range(len(pal))]
+    # por unidade: número por extenso e sigla soletrada contam como 1 ("dois mil e vinte e cinco" = "2025")
+    for op, i1, i2, j1, j2 in trechos([x["p"] for x in rot], ouvidas, troca):
         if op == "equal":
             for k in range(i2 - i1):
-                pares[i1 + k] = j1 + k
+                pares[i1 + k] = j1 + k * (j2 - j1) // (i2 - i1)
+            if "".join(a[i1:i2]) != "".join(b[j1:j2]):
+                equivalentes.append((" ".join(x["p"] for x in rot[i1:i2]), " ".join(x["p"] for x in pal[j1:j2])))
             continue
         # a mesma coisa em outra grafia: número por extenso, sigla soletrada, palavra da tela
         alt = {}
@@ -260,9 +264,8 @@ def alinhar(rot, pal, iguais):
             for k1, f in rot[k].get("alt", ()):
                 if k1 <= i2:
                     alt.setdefault((k - i1, k1 - i1), set()).add(f)
-        ouvidas = [pal[j]["p"] if b[j] == norm(pal[j]["p"]) else b[j] for j in range(j1, j2)]
         ia, ja = i1, j1
-        for x0, x1, y0, y1 in casar([x["p"] for x in rot[i1:i2]], ouvidas, alt):
+        for x0, x1, y0, y1 in casar([x["p"] for x in rot[i1:i2]], ouvidas[j1:j2], alt):
             resto(ia, i1 + x0, ja, j1 + y0)
             for k in range(x1 - x0):
                 pares[i1 + x0 + k] = j1 + y0 + k * (y1 - y0) // (x1 - x0)

@@ -106,6 +106,13 @@ const LER = `(() => { const a = document.getElementById('md-previa-audio'), l = 
   return { quadro: +l.dataset.quadro, leitura: l.textContent, hora: document.getElementById('md-previa-hora').textContent,
     botao: document.getElementById('md-previa-tocar').textContent, som: document.getElementById('md-previa-som').textContent,
     audio: a ? { t: a.currentTime, parado: a.paused } : null }; })()`;
+// Lê a prévia (LER) a cada 20 ms até a condição valer sobre a leitura "s", no máximo 5 s. Devolve a leitura que valeu
+// (a última, se o prazo acabou: aí a asserção do teste falha com ela). Prova movimento sem depender da velocidade da máquina.
+const ate = (p, cond, ms = 5000) => p.eval(`new Promise(r => {
+  const ler = () => ${LER}, ok = s => ${cond}, t0 = performance.now();
+  const f = () => { const s = ler(); if (ok(s) || performance.now() - t0 > ${ms}) r(s); else setTimeout(f, 20); };
+  f();
+})`);
 
 test("?previa: o quadro cabe na janela e os controles ficam embaixo", { timeout: 30000 }, async () => {
   const { p, erros } = await abrir("?previa", { largura: 1280, altura: 720 });
@@ -158,12 +165,11 @@ test("?previa: reproduzir anda o filme no relógio do áudio; pausar para os doi
   assert.equal(await esperarPrevia(p), true, "a prévia não montou");
   assert.equal(await p.eval("new Promise(r => { const a = document.getElementById('md-previa-audio'); a.readyState >= 1 ? r(true) : (a.onloadedmetadata = () => r(true), a.onerror = () => r(false)); })"), true, "o audio/mix.wav do exemplo não carregou");
   await p.eval("document.getElementById('md-previa-tocar').click()");
-  await esperar(p, 700);
-  const a = await p.eval(LER);
-  // O áudio é o relógio: se ele pula, o filme vai atrás no quadro seguinte (o relógio da página não pularia).
-  await p.eval("document.getElementById('md-previa-audio').currentTime = 3");
-  await esperar(p, 150);
-  const b = await p.eval(LER);
+  // Espera a condição, não um tempo fixo: o teste prova que o filme anda junto com o áudio, qualquer que seja a velocidade da máquina.
+  const a = await ate(p, "s.quadro >= 9 && Math.abs(s.quadro / 30 - s.audio.t) < 0.15");
+  // O áudio é o relógio: se ele pula, o filme vai atrás (o relógio da página não pularia: ficaria 1,5 s para trás).
+  await p.eval("document.getElementById('md-previa-audio').currentTime = 2");
+  const b = await ate(p, "s.audio.t >= 2 && Math.abs(s.quadro / 30 - s.audio.t) < 0.15");
   await p.eval("document.getElementById('md-previa-tocar').click()");
   const c = await p.eval(LER);
   await esperar(p, 300);
@@ -172,8 +178,8 @@ test("?previa: reproduzir anda o filme no relógio do áudio; pausar para os doi
   assert.equal(a.botao, "Pausar");
   assert.equal(a.audio.parado, false, "o áudio está tocando");
   assert.ok(a.quadro >= 9, `o filme andou: quadro ${a.quadro}`);
-  assert.ok(Math.abs(a.quadro / 30 - a.audio.t) < 0.1, `filme e áudio juntos: ${a.quadro / 30} e ${a.audio.t}`);
-  assert.ok(b.quadro >= 90 && b.quadro <= 100, `o filme seguiu o pulo do áudio para 3 s: quadro ${b.quadro}`);
+  assert.ok(Math.abs(a.quadro / 30 - a.audio.t) < 0.15, `filme e áudio juntos: ${a.quadro / 30} e ${a.audio.t}`);
+  assert.ok(b.quadro >= 60 && Math.abs(b.quadro / 30 - b.audio.t) < 0.15, `o filme seguiu o pulo do áudio para 2 s: quadro ${b.quadro}, áudio em ${b.audio.t}`);
   assert.equal(c.botao, "Reproduzir");
   assert.equal(c.audio.parado, true, "pausar para o áudio");
   assert.equal(d.quadro, c.quadro, "pausado, o filme não anda");
@@ -186,8 +192,7 @@ test("?previa com áudio que não existe: avisa e toca no relógio da página", 
   assert.equal(await p.eval("new Promise(r => { let n = 0; const f = () => /sem áudio/.test(document.getElementById('md-previa-som').textContent) ? r(true) : ++n > 150 ? r(false) : setTimeout(f, 20); f(); })"), true, "não avisou da falta do áudio");
   const a = await p.eval(LER);
   await p.eval("document.getElementById('md-previa-tocar').click()");
-  await esperar(p, 500);
-  const b = await p.eval(LER);
+  const b = await ate(p, "s.quadro >= 6");
   await p.eval("document.getElementById('md-previa-tocar').click()");
   await p.close();
   assert.match(a.som, /nao-existe\.wav/);
@@ -211,23 +216,79 @@ test("?previa: áudio mais curto que o filme passa o relógio para a página; no
   assert.equal(await esperarPrevia(p), true, "a prévia não montou");
   assert.equal(await p.eval("new Promise(r => { const a = document.getElementById('md-previa-audio'); a.readyState >= 1 ? r(true) : (a.onloadedmetadata = () => r(true), a.onerror = () => r(false)); })"), true, "o WAV curto não carregou");
   await p.eval("document.getElementById('md-previa-tocar').click()");
-  await esperar(p, 1000);
-  const ac = await p.eval(LER);
+  const ac = await ate(p, "s.quadro >= 24");
   const fim = await p.eval("document.getElementById('md-previa-audio').ended");
   // perto do fim: tocar até o último quadro e parar
   await p.eval("document.getElementById('md-previa-tocar').click()");
   await p.eval("(() => { const f = document.getElementById('md-previa-tempo'); f.value = '3.8'; f.dispatchEvent(new Event('input')); })()");
   await p.eval("document.getElementById('md-previa-tocar').click()");
-  await esperar(p, 600);
-  const b = await p.eval(LER);
-  await p.eval("document.getElementById('md-previa-tocar').click()");      // tocar de novo, parado no fim
-  const c = await p.eval(LER);
+  const b = await ate(p, "s.botao === 'Reproduzir' && s.quadro === 120");
+  const c = await p.eval("(() => { document.getElementById('md-previa-tocar').click(); return " + LER + "; })()");      // tocar de novo, parado no fim; lido no mesmo instante
   await p.eval("document.getElementById('md-previa-tocar').click()");
   await p.close();
   assert.equal(fim, true, "o áudio de 0,4 s acabou");
   assert.ok(ac.quadro >= 24, `depois do fim do áudio, o filme seguiu pelo relógio da página: quadro ${ac.quadro}`);
   assert.deepEqual([b.botao, b.quadro], ["Reproduzir", 120], "no fim do filme, para no último instante");
   assert.ok(c.quadro <= 3 && c.botao === "Pausar", `tocar no fim recomeça do zero: quadro ${c.quadro}`);
+  assert.deepEqual(erros, []);
+});
+
+// Gestos na página (a prévia escuta o window). O jump é síncrono: gesto e leitura no mesmo eval mostram o que ele deixou, sem corrida com o relógio.
+const TOCAR = "document.getElementById('md-previa-tocar').click()";
+const TECLA = (code) => `window.dispatchEvent(new KeyboardEvent('keydown', { code: '${code}', key: '${code}', bubbles: true }))`;
+const FAIXA = (v) => `(() => { const f = document.getElementById('md-previa-tempo'); f.value = '${v}'; f.dispatchEvent(new Event('input', { bubbles: true })); })()`;
+const gestoELe = (p, gesto) => p.eval(`(() => { ${gesto}; return ${LER}; })()`);
+const audioPronto = (p) => p.eval("new Promise(r => { const a = document.getElementById('md-previa-audio'); a.readyState >= 1 ? r(true) : (a.onloadedmetadata = () => r(true), a.onerror = () => r(false)); })");
+
+test("?previa: End, a faixa no máximo e a seta no último quadro, tocando, param no fim em vez de recomeçar o filme", { timeout: 30000 }, async () => {
+  const { p, erros } = await abrir("?previa", { largura: 1280, altura: 720 });
+  assert.equal(await esperarPrevia(p), true, "a prévia não montou");
+  assert.equal(await audioPronto(p), true, "o audio/mix.wav do exemplo não carregou");
+  const resultados = [];
+  for (const como of ["End", "faixa no máximo", "seta no último quadro"]) {
+    let gesto;
+    if (como === "seta no último quadro") {                 // parado no penúltimo quadro, toca e aperta a seta no mesmo instante
+      await p.eval(FAIXA(3.9667));
+      gesto = TOCAR + "; " + TECLA("ArrowRight");
+    } else {
+      await p.eval(TOCAR);                                  // tocando no meio do filme
+      await ate(p, "s.quadro >= 3 && s.botao === 'Pausar'");
+      gesto = como === "End" ? TECLA("End") : FAIXA(4);
+    }
+    const a = await gestoELe(p, gesto);                     // no mesmo instante do gesto
+    await esperar(p, 300);                                  // se o filme tivesse recomeçado, já estaria andando
+    const b = await p.eval(LER);
+    resultados.push([como, a.botao, a.quadro, b.botao, b.quadro]);
+    await p.eval(TECLA("Home"));                            // volta ao começo, parado, para a próxima volta
+  }
+  await p.close();
+  assert.deepEqual(resultados, [
+    ["End", "Reproduzir", 120, "Reproduzir", 120],
+    ["faixa no máximo", "Reproduzir", 120, "Reproduzir", 120],
+    ["seta no último quadro", "Reproduzir", 120, "Reproduzir", 120],
+  ]);
+  assert.deepEqual(erros, []);
+});
+
+test("?previa: áudio que acaba com a aba escondida entrega o filme ao relógio da página no fim do áudio, sem repetir o final mudo", { timeout: 30000 }, async () => {
+  const curto = wavMudo("curto-escondido", 0.4);
+  const { p, erros } = await abrir("?previa&audio=" + encodeURIComponent(curto), { largura: 1280, altura: 720 });
+  assert.equal(await esperarPrevia(p), true, "a prévia não montou");
+  assert.equal(await audioPronto(p), true, "o WAV curto não carregou");
+  await p.eval(TOCAR);
+  await ate(p, "s.quadro >= 2 && s.audio.t < 0.35");        // tocando, ainda dentro do áudio
+  // Aba escondida: o Chrome para o requestAnimationFrame. A página de teste guarda os pedidos em vez de rodá-los.
+  await p.eval("(() => { window.__raf = window.requestAnimationFrame; window.__fila = []; window.requestAnimationFrame = f => { window.__fila.push(f); return 0; }; })()");
+  assert.equal(await p.eval("new Promise(r => { const a = document.getElementById('md-previa-audio'), t0 = performance.now(); const f = () => a.ended ? r(true) : performance.now() - t0 > 5000 ? r(false) : setTimeout(f, 20); f(); })"), true, "o áudio de 0,4 s não acabou");
+  // A aba volta: o primeiro quadro depois da volta tem que estar no fim do áudio (0,4 s = quadro 12), não no último quadro mostrado antes de esconder.
+  const quadro = await p.eval(`new Promise(r => {
+    const raf = window.__raf, fila = window.__fila.splice(0); window.requestAnimationFrame = raf;
+    fila.forEach(f => raf(f));
+    raf(() => r(+document.getElementById('leitura').dataset.quadro));
+  })`);
+  await p.eval(TOCAR);                                        // pausa
+  await p.close();
+  assert.ok(quadro >= 11, `depois da volta o filme está no quadro ${quadro}; o áudio acabou em 0,4 s (quadro 12)`);
   assert.deepEqual(erros, []);
 });
 

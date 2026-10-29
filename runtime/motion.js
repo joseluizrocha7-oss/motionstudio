@@ -645,7 +645,7 @@ function preview(M, stage, o) {
   const tick = () => {
     if (!playing) return;
     const a = hasAudio && !audio.paused && !audio.ended;
-    if (!a && onAudio) { base = t; t0 = performance.now(); }       // the audio stopped (ended or failed): the page clock goes on from here
+    if (!a && onAudio) { base = audio.ended ? audio.currentTime : t; t0 = performance.now(); }   // the audio stopped (ended or failed): the page clock goes on from here; an audio that ended while the tab was hidden (no frames) ends at its own end, not at the last frame shown
     onAudio = a;
     const v = a ? audio.currentTime : base + (performance.now() - t0) / 1000;
     if (v >= D) { pause(); show(D); return; }
@@ -661,7 +661,7 @@ function preview(M, stage, o) {
     }
     raf = requestAnimationFrame(tick);
   };
-  const jump = v => { const was = playing; if (was) pause(); show(v); if (hasAudio) audio.currentTime = t; if (was) play(); };
+  const jump = v => { const was = playing; if (was) pause(); show(v); if (hasAudio) audio.currentTime = t; if (was && t < D - 1e-6) play(); };   // a jump to the end stays at the end (play() there would restart the film)
   const toggle = () => (playing ? pause() : play());
   btn.addEventListener('click', toggle);
   byId('md-previa-recomecar').addEventListener('click', () => { jump(0); if (!playing) play(); });

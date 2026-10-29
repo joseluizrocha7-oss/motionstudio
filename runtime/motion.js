@@ -92,8 +92,8 @@ function cadence(text, o) {
 }
 
 /* ---------- LOCAL CHANGE (2026-10-28): dotlottie-web for M.lottie, loaded once per page (its wasm URL is global) ----------
-   The wasm is never fetched from a file:// URL: its bytes come in a JS module (gzip + base64, import() works on file://), are unpacked here and handed to
-   the player as a blob: URL. setWasmUrl also turns off the player's jsdelivr/unpkg fallback, so a failed load fails loudly instead of reaching a CDN. */
+   The wasm is never fetched from a file:// URL: its bytes come in a JS module (gzip + base64, loaded by import() like the player itself; on file://
+   both need Chrome's --allow-file-access-from-files, which render.mjs sets), are unpacked here and handed to the player as a blob: URL. setWasmUrl also turns off the player's jsdelivr/unpkg fallback, so a failed load fails loudly instead of reaching a CDN. */
 let LOTTIE_LIB = null;
 const dotLottie = base => LOTTIE_LIB || (LOTTIE_LIB = Promise.all([import(base + 'index.js'), import(base + 'dotlottie-player.wasm.js')]).then(async ([lib, w]) => {
   const gz = Uint8Array.from(atob(w.default), c => c.charCodeAt(0));

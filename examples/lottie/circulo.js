@@ -1,5 +1,7 @@
 // Lottie mínimo feito à mão: um círculo laranja que cresce de 10% a 100% em 30 quadros (30 fps, quadros 0 a 29).
-// Vai num .js, e não num .json, porque o Chrome não faz fetch() de file://: o filme lê LOTTIE.circulo e passa em { data }.
+// Vai num .js que registra a animação num global, e não num .json (escolha do projeto): um <script> comum carrega em
+// file:// com ou sem --allow-file-access-from-files; um .json pediria fetch() de file://, que só funciona com essa opção.
+// O filme lê LOTTIE.circulo e passa em { data }.
 window.LOTTIE = window.LOTTIE || {};
 LOTTIE.circulo = {
   v: "5.7.4", nm: "circulo", fr: 30, ip: 0, op: 30, w: 400, h: 400, ddd: 0, assets: [],

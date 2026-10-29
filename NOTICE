@@ -82,9 +82,14 @@ dotlottie-web 0.81.0   (runtime/vendor/dotlottie-web/)
   Copyright (c) 2023 LottieFiles.com. https://github.com/LottieFiles/dotlottie-web
   License: MIT. Full text: runtime/vendor/dotlottie-web/LICENSE
   index.js is the package's dist/index.js, unchanged. dotlottie-player.wasm.js
-  holds the package's dist/dotlottie-player.wasm as gzip + base64. The wasm is
-  built from dotlottie-rs and ThorVG (https://github.com/thorvg/thorvg, MIT);
-  the npm package ships only the LottieFiles license.
+  holds the package's dist/dotlottie-player.wasm as gzip + base64. The npm
+  package ships only the LottieFiles license, but the wasm also compiles
+  dotlottie-rs (MIT), ThorVG (MIT) and code that ThorVG bundles: libwebp
+  (BSD-3-Clause, with a patent grant), LodePNG (zlib), jpgd (public domain),
+  RapidJSON (MIT) and JerryScript (Apache-2.0), plus Rust crates and the Rust
+  standard library (MIT, Apache-2.0, Zlib, 0BSD, Blue Oak 1.0.0, BSD).
+  Sources (repository and commit), copyright lines and full license texts:
+  runtime/vendor/dotlottie-web/LICENCAS-TERCEIROS.md
 
 --------------------------------------------------------------------------------
 Inter   (runtime/fonts/InterVariable.woff2, runtime/hero3d/fonts/Inter-Bold-Latin.ttf)

@@ -57,7 +57,7 @@ node $SKILL/scripts/legendar.mjs $P/film/final-9x16.mp4 $P/film/legenda-9x16.srt
 | quero mudar | arquivo |
 |---|---|
 | o que a voz fala | `roteiro.json`; depois voz, tempos, filmes e render |
-| a pronúncia de uma marca | `fala` fonética na linha do `roteiro.json` (`texto` "Bluside", `fala` "Blusáide"); o Jose confirma a grafia antes de gerar tomada; depois, transcrever as tomadas sem o roteiro e ler como a marca saiu |
+| a pronúncia de uma marca | `fala` fonética na linha do `roteiro.json` (`texto` "Quíron", `fala` "Kíron"); o Jose confirma a grafia antes de gerar tomada; depois, transcrever as tomadas sem o roteiro e ler como a marca saiu |
 | o segundo em que cada linha fala (filme de tempo fixo) | `tempos.json` ao lado do `roteiro.json` (o `id` da linha e o segundo em que ela começa; `{ "inicio": s, "fim": s }` acrescenta o fim da cena); depois `node film/posicionar-voz.mjs --duracao <s>`, `dur: <s>` na linha do filme em `FILMES` e `--audio audio-filme --total <s>` no `gerar-som.mjs` |
 | o limite do ganho fino de volume entre trechos de fala | `node vozes/montar.mjs --fino N` (padrão 4 dB; 0 desliga); a saída mostra o RMS falado e o ganho de cada trecho |
 | forçar uma tomada numa frase | `node vozes/montar.mjs --forcar <bloco>:<frase>=<tomada>` |

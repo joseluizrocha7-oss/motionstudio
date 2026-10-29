@@ -73,7 +73,7 @@ Regras da voz:
 2. Gere só o necessário: cada tomada gasta saldo da API.
 3. Se a frase termina em nome de botão, escreva o nome em minúsculas na `fala`. Ou reescreva a frase para terminar em verbo. Nome de botão no fim tende a subir o tom.
 4. Escreva sigla e número como se fala: "T.I." vira "tê í", "90" vira "noventa".
-5. Nome próprio de marca leva `fala` com a grafia fonética ("Bluside" vira "Blusáide"). Confirme a grafia com quem pediu o filme antes de gerar a primeira tomada. Depois da voz, transcreva as tomadas sem o roteiro e leia como a marca saiu.
+5. Nome próprio de marca leva `fala` com a grafia fonética ("Quíron" vira "Kíron"). Confirme a grafia com quem pediu o filme antes de gerar a primeira tomada. Depois da voz, transcreva as tomadas sem o roteiro e leia como a marca saiu.
 6. A transcrição confere a fala, mas não valida pronúncia de nome próprio nem tom. Isso pede ouvido humano, e a entrega diz isso.
 
 ## Como funciona
@@ -109,8 +109,9 @@ Um portão que falha se corrige. Um alerta que vem de erro da transcrição se p
 | G3 fim curto | Final parado de 0,6 a 1,4 s | `look.py` |
 | G4 um herói por quadro | Um foco por quadro | olho, na folha de contato |
 | G5 sem cromo de página | Sem rótulo de canto, contador ou barra de progresso | `lint.mjs` |
+| F1 fonte usada | Aviso, sem derrubar o G5, quando o texto pediu uma fonte carregada e saiu em fonte do sistema (nome com algarismo sem aspas, arquivo que não carrega, glifo que falta) | `lint.mjs` |
 | T1 texto lido | Todo texto parado do HTML é lido pelo OCR no MP4, acento incluído | `ler.mjs` |
-| T2 texto inteiro | Nenhum texto fica com pedaço fora do quadro | `ler.mjs` |
+| T2 texto inteiro | Nenhum texto fica com pedaço fora do quadro; conta a tinta das letras, não a caixa da fonte | `ler.mjs` |
 | Z1 câmera contida | Aproximação máxima de 1,5x o plano-base; não se aplica em filme sem aparelho filmado | `camera.mjs` |
 | Z2 objeto no quadro | Metade ou mais do aparelho à vista na mediana; não se aplica em filme sem aparelho filmado | `camera.mjs` |
 | autoteste | 0 divergências entre tocar e saltar para um quadro | `kit/autoteste.mjs` |

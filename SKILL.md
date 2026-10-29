@@ -72,12 +72,12 @@ o repositório é público.
   ("T.I." vira "tê í", "90" vira "noventa"). O saldo do Gemini é o mesmo dos sistemas em
   produção: gerar só o necessário.
 - **Nome próprio de marca: `fala` fonética, confirmada antes de gerar tomada.** O TTS lê a
-  marca pela grafia. Marca que se diz de outro jeito (com som inglês, por exemplo) sai errada.
-  No roteiro, a linha com a marca leva `fala` com a grafia fonética: o `texto` fica "Bluside"
-  e a `fala` fica "Blusáide". Mostre a grafia ao Jose e espere a confirmação antes de gastar a
+  marca pela grafia. Marca que se diz de outro jeito (nome estrangeiro, letra que muda de som)
+  sai errada. No roteiro, a linha com a marca leva `fala` com a grafia fonética: o `texto` fica
+  "Quíron" e a `fala` fica "Kíron". Mostre a grafia ao Jose e espere a confirmação antes de gastar a
   primeira tomada. Depois da voz, faça a transcrição livre: transcreva as tomadas sem passar o
   roteiro (Whisper puro) e leia como ele escreveu a marca. É o teste da pronúncia. Num caso,
-  3 de 6 tomadas saíram na forma inglesa: escolha as tomadas pela transcrição.
+  3 de 6 tomadas saíram com a pronúncia errada: escolha as tomadas pela transcrição.
 - **pt-BR com acento em tudo e nunca travessão** (voz, tela, NOTE.md, LEIA-ME).
 - **Ninguém ouviu.** Toda entrega diz que a fala foi conferida por transcrição e medida, e
   que pronúncia de nome próprio e tom só o ouvido do Jose valida.
@@ -215,6 +215,21 @@ em subpastas nem no `events.json`, e escreve quantas fotos apagou. Use em toda r
 folha de conferência não mistura rodadas, e o `rm -rf` (que o modo automático recusa) fica
 desnecessário. Sem `--still`, o `render.mjs` recusa a opção.
 
+O `lint.mjs` tem a regra F1 (WARN: não derruba o G5). Ela confere a fonte que o Chrome usou de
+verdade contra as `@font-face` carregadas. F1 acusa o texto que pediu uma `@font-face` e saiu em
+fonte do sistema, no todo ou em parte: `font-family` inválido, arquivo da fonte que não carrega ou
+glifo que a fonte não tem. Nome de família com algarismo, espaço ou símbolo vai entre aspas. No
+SVG: `font-family="'Source Serif 4'"`. No CSS: `font-family: "Source Serif 4", serif`. Sem
+aspas, o Chrome descarta a declaração sem avisar e o texto cai na fonte herdada. Limites:
+- Só a primeira família da pilha conta como pedida: `Arial, "Fonte Web"` pede Arial. Para pedir
+  a fonte web, ponha a web primeiro.
+- Emoji, bandeira e keycap saem na fonte de emoji de propósito e não contam como glifo que falta.
+- Elemento com um `<span>` de outra fonte não recebe o aviso de glifo parcial. O `<span>` é
+  avaliado sozinho se ele mesmo pediu uma `@font-face`.
+- O nome inválido é lido de `<style>`, `style=""` e do atributo SVG, não do atalho `font:` nem de
+  `<link rel=stylesheet>`. Texto desenhado em `<canvas>` ou imagem o lint não vê.
+- O aviso sai uma vez por elemento.
+
 O `camera.mjs` mede o objeto filmado (`--el`). Filme sem aparelho filmado (tipografia e marca,
 sem celular nem tela de app) não tem o que passar em `--el`. Nele, Z1 e Z2 não se aplicam. Escreva isso
 no NOTE.md. A regra "Câmera contida" (no máximo 1,5x o plano-base) continua: meça o maior zoom
@@ -287,6 +302,20 @@ e medir o silêncio na narração. Para cada alerta do `ler.mjs`, abra o recorte
 
 Rode o `ler.mjs` no filme inteiro: com `--de`/`--ate`, uma camada que apareceu antes do trecho
 acusa como coberta.
+
+O T2 mede a tinta das letras (acento, cedilha, til e a descendente do "j" entram na conta), não a
+caixa da fonte, que é maior. Título em máscara `overflow: hidden` com a tinta inteira não acusa
+mais. Letra cortada de verdade acusa "CORTADO". Na Inter Bold, o acento de maiúscula sobe 0,95 em
+e a descendente do "j" desce 0,22 em: máscara de 1 linha com "Á" e "j" pede cerca de 1,17 em de
+altura. Com `line-height: 1`, as duas saem da máscara (9 px e 8 px a 100 px), e o T2 acusa com
+razão. Use `line-height` de 1,2 ou mais, ou `padding` na máscara. Título só em maiúsculas cabe com
+`line-height` apertado (0,85). Limites:
+- Texto com `rotate`, `skew`, espelho vertical, 3D ou `writing-mode` vertical volta à regra da
+  caixa da fonte. Ela acusa a mais, nunca a menos: título girado com a tinta inteira numa máscara
+  justa ainda acusa. Olhe o recorte.
+- Justificação, fonte de reserva na linha e escala diferente nos dois eixos também voltam à regra
+  da caixa.
+- Só a vertical é refinada. `text-transform: capitalize` e `font-variant` não entram na conta.
 
 **10. Entrega.** `film/NOTE.md` com os números de cada portão (e o que é real e o que é
 ilustrativo), `LEIA-ME.md` do projeto (o que sai, como refazer, onde mexer), entrada em
@@ -375,8 +404,9 @@ inteira, com acento, sem cobrir o anel de destaque que a voz está nomeando.
 | G3 fim curto | final parado de 0,6 a 1,4 s (a marca do fim chegando com o próprio nome na última frase resolve; pulso pequeno não conta como movimento). No tutorial do Jose o fim fica com 1,8 s de marca depois da última palavra e a trilha descendo, a pedido dele ("cortou seco"): o G3 acusa e o NOTE.md diz que é escolha | `look.py` |
 | G4 um herói por quadro | por olho | folha de contato |
 | G5 sem cromo de página | sem rótulo de canto, contador, barra de progresso | `lint.mjs` |
+| F1 fonte usada | o texto sai na fonte que pediu (aviso WARN, não derruba o G5) | `lint.mjs` |
 | T1 texto lido | todo texto do HTML que fica parado na tela é lido pelo OCR no MP4 entregue, acento inclusive; nenhum texto passa a vida inteira debaixo de outra peça | `ler.mjs` |
-| T2 texto inteiro | nenhum texto fica com pedaço fora do quadro o tempo todo | `ler.mjs` |
+| T2 texto inteiro | nenhum texto fica com pedaço fora do quadro o tempo todo; conta a tinta das letras, não a caixa da fonte | `ler.mjs` |
 | Z1 câmera contida | aproximação máxima até 1,5x o plano-base; não se aplica em filme sem aparelho filmado | `camera.mjs` |
 | Z2 objeto no quadro | metade ou mais do aparelho à vista na mediana; não se aplica em filme sem aparelho filmado | `camera.mjs` |
 | autoteste | 0 divergências entre tocar e saltar | `kit/autoteste.mjs` |

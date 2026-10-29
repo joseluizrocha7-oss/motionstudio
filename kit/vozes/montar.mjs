@@ -248,11 +248,15 @@ for (const tr of trechos) {
   if (g > cabe) { g = cabe; tr.limite = "pico"; }
   tr.ganho = +g.toFixed(2);
 }
-// Trecho curto (o S4 não mede) fica com o ganho do trecho medido mais perto, o anterior primeiro.
+// Trecho curto (o S4 não mede) fica com o ganho do trecho medido mais perto, o anterior primeiro. O pico dele
+// também vale: o ganho herdado sobe só até PICO_MAX_DB (ganho negativo fica como veio).
 trechos.forEach((tr, k) => {
   if (tr.medido) return;
   const antes = trechos.slice(0, k).reverse().find((o) => o.medido), depois = trechos.slice(k + 1).find((o) => o.medido);
-  tr.ganho = (antes ?? depois)?.ganho ?? 0;
+  const herdado = (antes ?? depois)?.ganho ?? 0;
+  const cabe = Math.max(0, PICO_MAX_DB - tr.picoDb);
+  if (herdado > cabe) tr.limite = "pico";
+  tr.ganho = +Math.min(herdado, cabe).toFixed(2);
   tr.herdado = true;
 });
 const espalhamento = (valores) => (valores.length ? Math.max(...valores) - Math.min(...valores) : 0);

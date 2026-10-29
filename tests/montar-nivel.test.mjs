@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { escreverWav, juntar, lerWav, rmsDb, silencio, tom } from "./_voz-sintetica.mjs";
+import { SR, escreverWav, juntar, lerWav, rmsDb, silencio, tom } from "./_voz-sintetica.mjs";
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
 const base = mkdtempSync(join(tmpdir(), "motionstudio-montar-"));
@@ -15,7 +15,7 @@ after(() => rmSync(base, { recursive: true, force: true }));
 const LIMITE_S4 = Number(/^VOLUME_ENTRE_FRASES\s*=\s*([\d.]+)/m.exec(readFileSync(join(RAIZ, "scripts", "ouvir.py"), "utf8"))?.[1]);
 
 // Tomada sintética: cada frase tem uma ou mais partes (palavras de 0,5 s com 0,1 s entre elas, num tom e numa
-// amplitude), com `pausa` s de silêncio entre as partes. Parte e parte separadas por 0,30 s ou mais são
+// amplitude; `dur` muda os 0,5 s da palavra e `rajada` soma um estalo de 4 ms no meio dela), com `pausa` s de silêncio entre as partes. Parte e parte separadas por 0,30 s ou mais são
 // trechos diferentes para o S4.
 // Espectro e amplitude diferentes entre frases: depois do nivelamento em LUFS o RMS falado ainda difere
 // (a ponderação K da EBU R128 dá mais peso a 4 kHz do que a 80 Hz).
@@ -52,8 +52,10 @@ function criarProjeto(nome, frases, { linhas = frases.map((_, i) => [i]), roteir
       if (n) { partes.push(silencio(f.pausa ?? 0.4)); t += f.pausa ?? 0.4; }
       parte.palavras.split(" ").forEach((w, i) => {
         if (i) { partes.push(silencio(0.1)); t += 0.1; }
-        palavras.push({ word: w, start: +t.toFixed(3), end: +(t + 0.5).toFixed(3) });
-        partes.push(tom(parte.freq, 0.5, parte.amp)); t += 0.5;
+        const dur = parte.dur ?? 0.5, som = tom(parte.freq, dur, parte.amp);
+        if (parte.rajada) for (let k = 0, m = Math.round((dur / 2) * SR); k < 192; k++) som[m + k] += parte.rajada * Math.sin((2 * Math.PI * 2000 * k) / SR);
+        palavras.push({ word: w, start: +t.toFixed(3), end: +(t + dur).toFixed(3) });
+        partes.push(som); t += dur;
       });
     });
     linhasTomada.push({ text: textoDe(f), start: +ini.toFixed(3), end: +t.toFixed(3) });
@@ -168,4 +170,37 @@ test("--fino limita o ganho de cada trecho", () => {
   assert.ok(curto.trechos.some((t) => Math.abs(t.ganhoFino) > 0.9), "algum trecho bate no limite de 1 dB");
   assert.ok(reguaS4(curto.saida, 4) > 0, "com o limite curto sobra diferença");
   assert.ok(curto.trechos.some((t) => t.limite === "máximo"));
+});
+
+// Frases longas e uma palavra curta (0,3 s: o S4 não mede) com um estalo que só o pico vê. A 2ª frase é a mais baixa
+// e sobe; a palavra curta vem logo depois dela e herda esse ganho.
+const COM_CURTA = [
+  { partes: [{ palavras: "Ágata chegou aqui.", freq: 1000, amp: 0.30 }] },
+  { partes: [{ palavras: "Átomo ficou lá.", freq: 4000, amp: 0.12 }] },
+  { partes: [{ palavras: "Sim.", freq: 1000, amp: 0.2, dur: 0.3, rajada: 0.9 }] },
+  { partes: [{ palavras: "Depois saiu agora.", freq: 80, amp: 0.45 }] },
+];
+const PICO_MAX_DB = -1;   // o do montar.mjs
+
+test("trecho curto que herda ganho do vizinho respeita o pico de -1 dBFS", () => {
+  const pasta = criarProjeto("curto-pico", COM_CURTA);
+  const sem = montar(pasta, "sem-fino", "--fino", "0");
+  assert.ok(sem.trechos.every((t) => t.ganhoFino === 0), "--fino 0: nenhum trecho muda, nem o herdado");
+  const com = montar(pasta, "com-fino");
+  const curto = com.trechos[2];
+  const vizinho = com.trechos[1];
+  assert.equal(com.trechos.length, 4);
+  assert.ok(vizinho.ganhoFino > 1, `premissa: o trecho anterior sobe (${vizinho.ganhoFino} dB)`);
+  assert.equal(curto.herdado, true, "a palavra curta herda o ganho");
+  assert.equal(curto.rmsFalado, null, "a palavra curta não é medida pelo S4");
+  assert.ok(curto.picoDb + vizinho.ganhoFino > PICO_MAX_DB, `premissa: herdar ${vizinho.ganhoFino} dB passaria de ${PICO_MAX_DB} dBFS (pico ${curto.picoDb} dB)`);
+  // O ganho herdado desce até o que o pico deixa.
+  assert.ok(curto.ganhoFino > 0 && curto.ganhoFino < vizinho.ganhoFino, `ganho do trecho curto: ${curto.ganhoFino} dB`);
+  assert.ok(curto.picoDb + curto.ganhoFino <= PICO_MAX_DB + 0.01, `pico depois do ganho: ${curto.picoDb + curto.ganhoFino} dBFS`);
+  assert.equal(curto.limite, "pico");
+  // No vo.wav o pico da palavra curta fica em -1 dBFS ou abaixo.
+  const { amostras } = lerWav(join(com.saida, "vo.wav"));
+  let pico = 0;
+  for (let n = Math.round((curto.de - 0.1) * SR); n < Math.round((curto.ate + 0.1) * SR); n++) pico = Math.max(pico, Math.abs(amostras[n]));
+  assert.ok(20 * Math.log10(pico) <= PICO_MAX_DB + 0.05, `pico da palavra curta no vo.wav: ${(20 * Math.log10(pico)).toFixed(2)} dBFS`);
 });

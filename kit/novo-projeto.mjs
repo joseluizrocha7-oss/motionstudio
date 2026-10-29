@@ -25,13 +25,14 @@ const destino = process.argv[2] && resolve(process.argv[2]);
 if (!destino) { console.error("uso: node novo-projeto.mjs <pasta-do-projeto>"); process.exit(2); }
 
 const copiados = [];
+const cacheDoPython = (nome) => nome === "__pycache__" || nome.endsWith(".pyc");   // fica na máquina de quem rodou o Python
 function copiar(de, para) {
   if (statSync(de).isDirectory()) {
     mkdirSync(para, { recursive: true });
-    for (const f of readdirSync(de)) copiar(join(de, f), join(para, f));
+    for (const f of readdirSync(de)) if (!cacheDoPython(f)) copiar(join(de, f), join(para, f));
   } else if (!existsSync(para)) { cpSync(de, para); copiados.push(para); }
 }
-for (const f of readdirSync(KIT)) if (f !== "novo-projeto.mjs" && f !== "LEIA-ME.md") copiar(join(KIT, f), join(destino, f));
+for (const f of readdirSync(KIT)) if (f !== "novo-projeto.mjs" && f !== "LEIA-ME.md" && !cacheDoPython(f)) copiar(join(KIT, f), join(destino, f));
 copiar(join(SKILL, "runtime"), join(destino, "film", "runtime"));
 for (const d of ["film/assets", "film/telas", "vozes/tomadas"]) mkdirSync(join(destino, d), { recursive: true });
 // Os scripts do projeto (autoteste, tela-vazia, vozes) acham a skill por este arquivo.

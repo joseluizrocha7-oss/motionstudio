@@ -286,6 +286,20 @@ test("alinhar.py: sigla soletrada e número por extenso tiram o tempo da palavra
   assert.deepEqual(pal.map((p) => p.word), FALA_TOMADA.split(" "));
 });
 
+// "dois mil e vinte e cinco por cento" dito por extenso e ouvido palavra a palavra: o tempo de cada palavra é o do Whisper,
+// não a fatia por sílaba do grupo (a mesma largura nos dois lados). Durações de propósito fora da proporção das sílabas.
+const PALAVRAS_EXTENSO = [["Meta", 0.0, 0.4], ["de", 0.45, 0.55], ["dois", 0.6, 0.9], ["mil", 0.95, 1.5], ["e", 1.55, 1.6], ["vinte", 1.65, 1.85],
+  ["e", 1.9, 1.95], ["cinco", 2.0, 2.6], ["por", 2.65, 2.9], ["cento,", 2.95, 3.5], ["fechada.", 3.8, 4.4]];
+
+test("alinhar.py: número por extenso que o Whisper também escreve por extenso mantém o tempo exato de cada palavra", () => {
+  const ouvidas = PALAVRAS_EXTENSO.map(([p, ini, fim]) => ({ p, ini, fim }));
+  const sons = PALAVRAS_EXTENSO.map(([, ini, fim]) => [ini, fim]);
+  const fala = "Meta de dois mil e vinte e cinco por cento, fechada.";
+  const pal = py(ALINHAR_TOMADA, { sons, ouvidas, fala });
+  assert.deepEqual(pal.filter((p) => p.est).map((p) => p.word), []);
+  assert.deepEqual(pal.map((p) => [p.word, p.start, p.end]), PALAVRAS_EXTENSO);
+});
+
 test("alinhar.py: palavra que não casa nem pela forma segue estimada", () => {
   const ouvidas = OUVIDAS_TOMADA.map((o) => (o.p === "CBS" ? { ...o, p: "Cobras" } : o));
   const pal = py(ALINHAR_TOMADA, { sons: SONS_TOMADA, ouvidas, fala: FALA_TOMADA });

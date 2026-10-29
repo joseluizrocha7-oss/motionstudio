@@ -116,8 +116,10 @@ def alinhar(tokens, ouvidas, amostras):
     # e o "e" de dentro do número não casa com o "e" ouvido logo depois.
     for tag, a0, a1, b0, b1 in trechos(tokens, [w["p"] for w in ouvidas]):
         if tag == "equal":
-            if a1 - a0 == 1 and b1 - b0 == 1:
-                mapa[a0] = b0
+            if a1 - a0 == b1 - b0:
+                # mesma largura nos dois lados ("dois mil e vinte e cinco" ouvido por extenso): cada palavra tem o tempo exato dela
+                for k in range(a1 - a0):
+                    mapa[a0 + k] = b0 + k
             else:
                 agrupar(a0, a1, b0, b1)
         elif tag in ("replace", "delete") and a1 > a0:

@@ -18,6 +18,12 @@
 //   --toque pop-hand | mouse-click-2     o toque na tela
 //   --ar fast-whoosh                     o celular entrando e a lista arrastada
 // Os sons ficam em efeitos-gravados/ (domínio público, CC0). Sem a opção, tudo sintetizado.
+//
+// Modo comercial (desde 29/10/2026): efeitos por evento rotulado (M.mark), escolhidos num mapa
+// de rótulo para efeito e afinados no tom medido da música; música 20 dB sob a voz, pausa curta
+// opcional e a mistura em -16 LUFS em 2 passadas. Opções e formato do mapa em som-comercial.mjs.
+//   --comercial sons.json --total <s> [--musica assets/musica/<faixa>.mp3] [--pausa <s>]
+// Sem --comercial, nada muda no modo de tutorial abaixo.
 import { execFileSync, spawnSync } from "node:child_process";
 // Sonoridade integrada de um arquivo (EBU R128).
 function lufsDe(arq) {
@@ -35,6 +41,12 @@ import { gerarAudio } from "./trilha.mjs";
 // Versão curta: node gerar-som.mjs <eventos> --audio audio-curto --fala fala-curto.js --total 59.4
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const opcao = (n, p) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : p; };
+if (process.argv.includes("--comercial")) {
+  const { modoComercial } = await import("./som-comercial.mjs");
+  try { await modoComercial(AQUI, process.argv.slice(2)); }
+  catch (e) { console.error(`erro: ${e.message}`); process.exit(1); }
+  process.exit(0);
+}
 const AUDIO = join(AQUI, "film", opcao("audio", "audio"));
 const argEventos = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : join(AQUI, "film", "stills", "events.json");
 const eventos = JSON.parse(readFileSync(argEventos, "utf8"));

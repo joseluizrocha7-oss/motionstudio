@@ -308,3 +308,6 @@ export function gerarAudio({ total, tempos, efeitos, arquivoTrilha, arquivoEfeit
   });
   gravarWav(arquivoEfeitos, fx);
 }
+
+// Para o modo comercial do gerar-som.mjs (som-comercial.mjs): os mesmos timbres, afinados no tom da música.
+export { SR, novaFaixa, somar, gravarWav, nota, sopro, trilha, EFEITO, trocaDe, colar };

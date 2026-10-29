@@ -39,7 +39,7 @@ o repositório é público.
   (`--shutter 180 --subframes 8`); o Jose recusou cair para 4. Para acelerar, ver "Render".
 - **Câmera contida.** No máximo 1,5x o plano-base; o aparelho aparece quase o tempo todo e
   a câmera chega perto só no momento-chave.
-- **Som enxuto.** Frases da voz niveladas uma a uma (-20 LUFS), música num volume só do
+- **Som enxuto.** Frases da voz niveladas uma a uma (-20 LUFS, mais um ganho fino por trecho de fala, passo 3), música num volume só do
   começo ao fim (**20 dB abaixo da voz**), poucos efeitos e baixos, corte da voz só em
   silêncio medido: cada frase termina onde a tomada fica 80 ms abaixo de -50 dB, não no fim
   que o Whisper marca (ele chega cedo; com 0,12 s de cauda o "-ção" da última palavra do
@@ -71,6 +71,13 @@ o repositório é público.
   ("Toque em Reconectar quando a senha mudar."). Sigla e nome próprio na grafia de fala
   ("T.I." vira "tê í", "90" vira "noventa"). O saldo do Gemini é o mesmo dos sistemas em
   produção: gerar só o necessário.
+- **Nome próprio de marca: `fala` fonética, confirmada antes de gerar tomada.** O TTS lê a
+  marca pela grafia. Marca que se diz de outro jeito (com som inglês, por exemplo) sai errada.
+  No roteiro, a linha com a marca leva `fala` com a grafia fonética: o `texto` fica "Bluside"
+  e a `fala` fica "Blusáide". Mostre a grafia ao Jose e espere a confirmação antes de gastar a
+  primeira tomada. Depois da voz, faça a transcrição livre: transcreva as tomadas sem passar o
+  roteiro (Whisper puro) e leia como ele escreveu a marca. É o teste da pronúncia. Num caso,
+  3 de 6 tomadas saíram na forma inglesa: escolha as tomadas pela transcrição.
 - **pt-BR com acento em tudo e nunca travessão** (voz, tela, NOTE.md, LEIA-ME).
 - **Ninguém ouviu.** Toda entrega diz que a fala foi conferida por transcrição e medida, e
   que pronúncia de nome próprio e tom só o ouvido do Jose valida.
@@ -104,7 +111,7 @@ o repositório é público.
 | pedido | caminho |
 |---|---|
 | tutorial de app, onboarding, treinamento de sistema | o kit (`kit/`), passo a passo abaixo |
-| comercial, promo, anúncio, vinheta, lançamento | o método de direção: `references/metodo.md` e `references/` |
+| comercial, promo, anúncio, vinheta, lançamento | o método de direção: `references/metodo.md` e `references/`; voz em cenas de tempo fixo: seção "Voz num filme que não é tutorial" |
 | sem tela para mostrar (produto físico, foto) | trechos gerados (Veo 3.1) e trilha (Lyria 3) pela chave do Gemini (a nota está em `historico/`, quando existir) |
 
 ## Passo a passo: tutorial de app (o caso mais comum)
@@ -113,20 +120,40 @@ o repositório é público.
 `taste/verdicts.md`, `taste/edits.md` (o que o Jose aprovou e reprovou) e `LOCAL.md`,
 quando existirem.
 
+A voz e a música dependem da `GEMINI_API_KEY`. O `providers.sh` mostra `gemini.key`,
+`gemini.in_env` e `gemini.in_dotenv` (verdadeiro ou falso; o valor nunca aparece). Rode na
+pasta que tem o `.env`, a raiz do repositório do cliente. Ele só lê o `./.env` da pasta atual.
+Valor vazio ou linha comentada conta como falso. Com `gemini.key` falso, pare antes de
+planejar a voz e peça ao Jose a chave no `.env` do próprio repositório do cliente. Não aponte
+`--env-file` para o `.env` de outro projeto: o modo automático bloqueia como "Credential
+Exploration".
+
 **1. Projeto.** `node "$SKILL/kit/novo-projeto.mjs" <pasta>` (em `conteudo/<tema>-<data>/`
 do repositório do cliente). O kit e os comandos: `kit/LEIA-ME.md`.
 
 **2. Roteiro** (`roteiro.json`). Blocos por passo; cada linha com `texto` (tela e voz) e,
 quando precisa, `fala` (só voz). Na ordem de quem acabou de receber o acesso: boas-vindas,
 entrar, conectar o que precisa, instalar, a tela principal, as ações, os detalhes, as
-configurações, o fecho. Mostrar ao Jose um roteiro resumido antes de gastar com voz.
+configurações, o fecho. Mostrar ao Jose um roteiro resumido antes de gastar com voz. Marca que
+se diz diferente da grafia leva `fala` fonética, confirmada por ele (regra "Nome próprio de marca").
 
 **3. Voz.** Gemini TTS 3.8 Flash (`roteiro.voz.modelo`: `gemini-3.8-flash-tts`; chave em
-`GEMINI_API_KEY`, num `.env` passado com `node --env-file`). `vozes/gerar-tomadas.mjs --tomadas 6` (por bloco: a voz precisa saber de onde
+`GEMINI_API_KEY`, num `.env` do repositório do cliente passado com `node --env-file`, nunca o de outro projeto). `vozes/gerar-tomadas.mjs --tomadas 6` (por bloco: a voz precisa saber de onde
 vem e para onde vai) e `vozes/montar.mjs` (escolhe frase a frase pela medida, guarda a
 respiração, nivela). Frase reescrita: mais tomadas com `--inicio 7`; das antigas valem as
 frases que não mudaram. Versão curta com pouco tempo: `respiracao` e `cauda` menores no
-roteiro. Depois `film/gerar-fala.mjs` grava os tempos (`assets/fala.js`).
+roteiro. Depois `film/gerar-fala.mjs` grava os tempos (`assets/fala.js`). Filme de cenas com
+tempo fixo (comercial, promo): no lugar dele, `film/posicionar-voz.mjs` (seção "Voz num filme que
+não é tutorial").
+
+O `montar.mjs` nivela em dois passos. Primeiro em LUFS, frase a frase. Depois dá um ganho fino a
+cada trecho de fala, até a mediana do RMS da parte falada: é a régua do S4 do `ouvir.py`. Trecho
+é o conjunto de palavras com menos de 0,30 s entre si, e só os de 0,40 s ou mais contam. O ganho
+vai até 4 dB (`--fino N`; `--fino 0` desliga) e até o pico de -1 dBFS. Ele troca no meio da
+pausa entre dois trechos. A saída mostra o RMS falado e o ganho de cada trecho, e o espalhamento antes
+e depois. O número "depois" é o do S4, que acusa acima de 4,0 dB. Trecho "limitado pelo máximo":
+regrave a tomada ou suba o `--fino`. Projeto criado antes de 29/10/2026 tem o `montar.mjs` antigo
+(o `novo-projeto.mjs` não sobrescreve nada): copie o da skill para `vozes/`.
 
 **4. Telas.** Fotos do app de verdade, operado num Chromium com a API simulada e dados
 fictícios, cada alvo com a sua caixa (`medidas.js`). Os dois temas do app, se ele tiver.
@@ -141,6 +168,15 @@ marca do fim), `iphone.js` (Safari e Tela de Início, ilustrativos), a linha do 
 gera os `index-*.html` (versões, temas, 9:16 e 16:9) com a duração tirada da voz.
 No 9:16 o celular é 1,75x o do 16:9; o que fica ao lado do aparelho no 16:9 vai para a faixa
 de baixo, e o que precisa ficar junto do botão vai por cima do app (`z-index`).
+
+**Desenho próprio no relógio do filme.** Algo que nenhuma chamada `M.*` cobre (arco SVG, gráfico,
+partículas num canvas 2D, legenda desenhada na página) usa `M.render(fn, { heavy })`. Ele
+substitui o setter num objeto tweenado em `M.tl`. A `fn(t, quadro)` redesenha do zero a cada seek,
+pode rodar mais de uma vez por seek e nunca guarda estado entre chamadas: o autoteste acusa. Use
+`t` (segundos, contínuo) para movimento e `quadro` (inteiro) para texto e degrau. `heavy: true`
+vale só para desenho caro em canvas: o autoteste pula os quadros que não fotografa. Exemplo que
+roda: `examples/relogio/index.html`. A API está em `runtime/README.md`. Projeto criado antes de
+29/10/2026 tem um `film/runtime/` antigo: copie `runtime/motion.js` da skill para ele.
 
 **Ícone animado numa peça.** `library/lottie/` tem 5 ícones feitos à mão: `confirmado`, `alerta`,
 `dinheiro`, `email` e `documento`. Use no máximo 1 ícone por peça do painel. O ícone entra 5 quadros
@@ -170,9 +206,19 @@ node autoteste.mjs film/index-vertical.html          # 0 divergências
 node tela-vazia.mjs film/index-vertical.html         # nenhum instante com o celular vazio
 node "$SKILL/scripts/camera.mjs" film/index-vertical.html --el "#celular"   # Z1, Z2
 node "$SKILL/scripts/lint.mjs" film/index-vertical.html                     # G5 (a pílula de passo acusa C1: é o desenho)
-node "$SKILL/scripts/render.mjs" film/index-vertical.html --still 2,40,93 film/stills   # e OLHAR
+node "$SKILL/scripts/render.mjs" film/index-vertical.html --still 2,40,93 film/stills --limpar   # e OLHAR
 ```
 Rode o `erros.mjs` antes do autoteste: com exceção na página, o autoteste espera 10 minutos.
+
+O `--limpar` apaga só os `still_*.png` da pasta antes de gravar. Ele não toca em outros arquivos,
+em subpastas nem no `events.json`, e escreve quantas fotos apagou. Use em toda rodada de fotos: a
+folha de conferência não mistura rodadas, e o `rm -rf` (que o modo automático recusa) fica
+desnecessário. Sem `--still`, o `render.mjs` recusa a opção.
+
+O `camera.mjs` mede o objeto filmado (`--el`). Filme sem aparelho filmado (tipografia e marca,
+sem celular nem tela de app) não tem o que passar em `--el`. Nele, Z1 e Z2 não se aplicam. Escreva isso
+no NOTE.md. A regra "Câmera contida" (no máximo 1,5x o plano-base) continua: meça o maior zoom
+do filme e escreva o número.
 
 **7. Som.** Música: `node --env-file=<.env> gerar-trilha.mjs <nome>` (Lyria 3 Pro, o pedido
 aprovado; grava em `film/assets/musica/`). Depois
@@ -181,6 +227,17 @@ a música 20 dB sob a voz (`--abaixo`), efeitos por código e a mistura. Sem `--
 trilha de código (só se não houver saldo no Gemini). O toque e o sopro gravados
 (`--toque`, `--ar`, sons CC0 em `kit/efeitos-gravados/`) estão em teste. Não use sem o Jose
 aprovar o A/B de 19/10/2026 (`kit/efeitos-gravados/LEIA-ME.md`).
+
+**Ver com som antes do render.** Abra o filme no Chrome com `?previa` no endereço
+(`file:///<projeto>/film/index-vertical.html?previa`). Aparecem o quadro reduzido, os controles
+embaixo (Reproduzir/Pausar, Recomeçar, faixa de tempo, hora e quadro) e o `audio/mix.wav` ao
+lado da página. O `currentTime` do áudio dita o tempo do filme, então imagem e som não se
+separam. Teclas: Espaço, setas (1 quadro), Shift + setas (1 s), Home e End. Outro som:
+`?previa&audio=audio/mix-v2.wav`, ou `preview: { audio }` no `Motion.film` (`false` tira o som).
+Voz posicionada por cena: `?previa&audio=audio-filme/mix.wav`. Use antes do render final e para
+mostrar ao Jose. Não use uma página com `<iframe>`: em `file://` ela não alcança o `__seek` do
+filme no Chrome. Filme com 3D ou Lottie pede o Chrome aberto com `--allow-file-access-from-files`,
+ou um servidor local. O `render.mjs`, o `autoteste.mjs` e o `erros.mjs` nunca abrem esse modo.
 
 **8. Render**, um formato de cada vez:
 ```bash
@@ -191,7 +248,22 @@ Mais rápido, com a mesma imagem (2 Chromes em paralelo, GPU fixa, trava de mem�
 node "$SKILL/scripts/render-trechos.mjs" film/index-vertical.html film/final-9x16.mp4 --audio film/audio/mix.wav --shutter 180 --subframes 8
 ```
 Ele guarda cada trecho em `film/cache-render/`. Se o filme mudar sem mudar de duração, rode o
-mesmo comando: os trechos sem mudança saem do cache. Apague a pasta depois da entrega.
+mesmo comando: os trechos sem mudança saem do cache. Apague a pasta depois da entrega. Diga ao
+Jose a hora prevista de término no começo do render (um trecho de 5 s leva de 94 a 136 s).
+
+**Outro render na máquina.** Dois renders juntos disputam a memória e derrubam o Chrome. No
+início, o `render-trechos.mjs` lista os processos. Para cada `render.mjs`, `render-trechos.mjs` ou
+`render-rapido.mjs` vivo, avisa o pid e a linha de comando. Ele não mata nada. Com o aviso na tela,
+espere o outro terminar. A espera por memória livre (`--memoria`, padrão 3 GB) tem fim:
+`--esperar-memoria MIN` (padrão 10 minutos, aceita fração, 0 não espera). O script sai com
+**código 3** (0 ok, 1 falha, 2 uso errado) em 2 casos: a espera passou do tempo, ou o mesmo trecho
+falhou 4 vezes com a memória baixa. A última linha da saída é o comando do `render_partes.sh`
+para o mesmo filme e a mesma saída. Rode esse comando, ou pergunte ao Jose: o script não troca de
+motor sozinho. O
+`render_partes.sh` roda um Chrome por vez, sem cache e sem fixar a GPU, e não tem `--de` nem
+`--ate`. Os pixels saem um pouco diferentes dos do `render-trechos.mjs`. Caso: comercial de 30 s
+em 9:16, com outra sessão renderizando ao mesmo tempo. O trecho falhou 4 vezes, com 1,43 a 1,50 GB
+livres. O `render_partes.sh` terminou em 11 min 43 s.
 Correção depois do render pronto, pelo caminho antigo: `scripts/trocar-trecho.sh` (renderiza só os
 trechos e junta quadro a quadro). Nunca emendar sem recodificar.
 
@@ -234,6 +306,51 @@ linha maior que o limite desse formato (28 caracteres no 9x16; 42 no 16x9), ele 
 opção desconhecida ou resultado sem nenhuma legenda sai com erro. Se o app ocupa só parte do quadro, `--margem-esq` e
 `--margem-dir` põem a legenda embaixo dele.
 
+**Legenda no 9:16 de Reels.** O padrão do 9x16 deixa 260 px embaixo: a legenda de 2 linhas fica
+em y 1530 a 1660. O roteiro de Reels reserva y 250 a 1500, então a legenda cai fora da área
+segura. Suba com `--margem-baixo N`, a distância em pixels inteiros entre o pé da legenda e a
+borda de baixo. Filme 9:16 que vai para Reels ou Stories leva essa opção ou o `legenda.js`
+(abaixo); não deixe a legenda no padrão.
+```bash
+node "$SKILL/scripts/legendar.mjs" film/final-9x16.mp4 film/legenda-9x16.srt film/final-9x16-legendado.mp4 --margem-baixo 420   # pé da legenda em y 1500
+```
+- A unidade é a grade do `.ass`: 1080x1920 no 9x16 e 1920x1080 no 16x9. Num vídeo de outro
+  tamanho, o libass escala a grade. Padrão sem a opção: 30 no 16x9 e 260 no 9x16.
+- Valor decimal (420.5), negativo ou vazio sai com código 1. As margens laterais também só aceitam
+  inteiro.
+- Margem em que o maior bloco do `.srt` não cabe no quadro também sai com código 1, e a mensagem
+  diz o máximo. No 9x16 com contorno, o máximo é 1863 com 1 linha, 1809 com 2 e 1755 com 3. Sem
+  essa recusa, o bloco passaria do topo e a 1ª linha sairia do quadro.
+- Com `--estilo caixa`, a caixa vai uns 14 px abaixo do pé do texto. Some 14 à margem para manter
+  a caixa acima da linha segura.
+
+**Legenda que o filme desenha.** Use quando a legenda pede estilo próprio (fonte da marca,
+animação) ou quando o filme não pode ser recodificado. Grave um `.js` no lugar do `.srt`. A
+extensão `.js` do `--saida` liga o modo; qualquer outra extensão grava `.srt`.
+```bash
+node gerar-legenda.mjs --formato 9x16 --saida film/assets/legenda.js
+```
+O arquivo tem `window.LEGENDA = [{a, b, texto}]`: `a` e `b` em segundos do filme, `texto` com `\n`
+entre as linhas. São os blocos do `.srt` do mesmo formato (o texto da tela, o tempo da fala). Faça
+um `.js` por formato, porque a quebra de linha muda (`legenda-9x16.js` e `legenda-16x9.js`). Rode
+de novo quando o roteiro ou a voz mudar. O comando recusa `--saida` igual ao roteiro ou ao
+`fala.js`. No filme, cada bloco aparece no relógio dele com `M.show`:
+```js
+// CSS: #legenda { position: absolute; left: 80px; right: 80px; bottom: 420px; height: 0 }
+//      .leg { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; white-space: pre-line }
+const host = document.getElementById('legenda');          // dentro do #main; carregue assets/legenda.js antes
+for (const b of window.LEGENDA) {
+  const el = document.createElement('div');
+  el.className = 'leg';
+  el.textContent = b.texto;                               // textContent: o texto da tela nunca vira HTML
+  host.appendChild(el);
+  M.show(el, Math.round(b.a * M.fps), Math.round(b.b * M.fps));
+}
+```
+O `white-space: pre-line` é obrigatório: sem ele o `\n` some. A altura da legenda vem do `bottom`
+do CSS, não do `--margem-baixo`. Cada bloco gera um evento `show` no `.events.json`: o `look.py`
+lê como corte, e isso não é erro. Não queime o `.srt` em cima de um filme que já desenha a legenda.
+
 O padrão é a legenda sem caixa: letra branca com contorno preto fino e sombra suave (`--estilo contorno`).
 O contorno é fino e as letras levam um espaço extra, para as vizinhas não se juntarem.
 Escolha o estilo pelo tipo de vídeo:
@@ -260,8 +377,8 @@ inteira, com acento, sem cobrir o anel de destaque que a voz está nomeando.
 | G5 sem cromo de página | sem rótulo de canto, contador, barra de progresso | `lint.mjs` |
 | T1 texto lido | todo texto do HTML que fica parado na tela é lido pelo OCR no MP4 entregue, acento inclusive; nenhum texto passa a vida inteira debaixo de outra peça | `ler.mjs` |
 | T2 texto inteiro | nenhum texto fica com pedaço fora do quadro o tempo todo | `ler.mjs` |
-| Z1 câmera contida | aproximação máxima até 1,5x o plano-base | `camera.mjs` |
-| Z2 objeto no quadro | metade ou mais do aparelho à vista na mediana | `camera.mjs` |
+| Z1 câmera contida | aproximação máxima até 1,5x o plano-base; não se aplica em filme sem aparelho filmado | `camera.mjs` |
+| Z2 objeto no quadro | metade ou mais do aparelho à vista na mediana; não se aplica em filme sem aparelho filmado | `camera.mjs` |
 | autoteste | 0 divergências entre tocar e saltar | `kit/autoteste.mjs` |
 | tela vazia | nenhum instante com o celular sem foto | `kit/tela-vazia.mjs` |
 | a leitura | sem alerta em frase de impacto, pontuação com pausa | `entonacao.mjs` (o `montar.mjs` já pune) |
@@ -312,6 +429,15 @@ Medido em 20/10/2026 num tutorial de 4 min 37 s em 9:16, com 8 fotos por quadro 
     fundo, com inserção em quadros inteiros. Em teste.
   - Mais de 2 Chromes: com 3, a memória livre foi a 0,01 GB e um Chrome caiu. A GPU Intel usa a
     memória do sistema.
+- **Codificação final: NVENC contra x264, e o x264 ficou** (medido em 28 e 29/10/2026, no mesmo
+  vídeo de 30 s, 2 rodadas):
+  - x264 `-preset medium -crf 18` (o padrão do `render.mjs`): 5,4 s, 7,3 MB, SSIM 0,99832.
+  - NVENC `p7`, `cq 19`: 3,7 s, 29,0 MB, SSIM 0,99911.
+  - Reprova pela regra de adoção do `~/.claude/notas/gpu.md`: SSIM igual ou maior, tempo de até a
+    metade do x264 e tamanho de até o dobro. A qualidade passa. O NVENC levou 0,68 do tempo do
+    x264 e o arquivo saiu 4 vezes maior.
+  - O gargalo é a captura (cada foto leva 67 ms), não a codificação. Trocar o codificador não
+    acelera o render.
 - Regra global do Jose: usar a GPU sempre que der, medindo (`~/.claude/CLAUDE.md`, seção GPU).
 
 ## Comercial, promo, anúncio: o método de direção
@@ -364,6 +490,57 @@ em `~/.claude/skills/motionstudio`, defina a variável `SKILL`. O caminho do mé
 `tts.mjs` direto) gera uma tomada só; o do kit gera várias e escolhe por medida, que é o
 padrão de qualidade deste usuário.
 
+**Cenas de tempo fixo (comercial, promo, anúncio).** O `gerar-fala.mjs` aceita um atraso só, e
+a voz inteira anda junto. Quando cada cena começa num segundo marcado, use o
+`film/posicionar-voz.mjs`. No tutorial, a voz manda no filme e o `gerar-fala.mjs` continua valendo.
+1. Dê um `id` a cada linha do `roteiro.json` (`abertura`, `meio`, `fecho`). Marca difícil de ler
+   leva `fala` fonética (regra "Nome próprio de marca").
+2. Gere e monte a voz: `gerar-tomadas.mjs --tomadas 6` e `montar.mjs` (passo 3).
+3. Crie o `tempos.json` ao lado do `roteiro.json`. A chave é o `id` da linha. O valor é o segundo
+   do filme em que a primeira palavra começa, não a respiração antes dela:
+```json
+{
+  "_nota": "chave que começa com _ é comentário",
+  "abertura": 0.5,
+  "meio": 6,
+  "fecho": { "inicio": 14, "fim": 17 }
+}
+```
+   `{ "inicio", "fim" }` acrescenta o fim da cena: o script para se a fala passar dele. Ponha o
+   início 0,2 a 0,3 s depois da troca de cena, para a fala não colar nela.
+4. Copie `kit/film/posicionar-voz.mjs` para `<projeto>/film/` (o `novo-projeto.mjs` já o copia). Rode,
+   na pasta do projeto: `node film/posicionar-voz.mjs --duracao <duração do filme em s>`.
+   O script corta cada linha no meio do silêncio entre as linhas e a põe no segundo do
+   `tempos.json`. A rampa de 12 ms nas pontas cabe no silêncio e nunca apaga fala. Ele grava:
+   - `film/audio-filme/vo.wav` (com a duração do filme), `vo.lines.json`, `vo.words.json` e
+     `vo.posicao.json` (o plano de cada linha);
+   - `film/assets/fala.js` com `offset: 0`, porque os tempos já são do filme.
+
+   Opções (caminhos relativos à pasta `film/`): `--tempos` (padrão `../tempos.json`), `--audio`
+   (padrão `audio`), `--saida-audio` (padrão `audio-filme`) e `--saida` (padrão `fala.js`). Sem
+   `--duracao`, o filme acaba 1,4 s depois da última fala. `--saida-audio` igual a `--audio` é
+   recusado: sobrescreveria o `vo.wav` montado.
+5. O script recusa: linha sem tempo, tempo sem linha, linha que começa antes de a anterior
+   terminar, fala que passa do fim da cena ou do filme. Ele lista todos os problemas, sai com
+   código 1 e não grava nada. Corrija o `tempos.json` ou encurte a frase.
+6. Em `film/montar-filmes.mjs`, ponha `dur: <s>` na linha do filme em `FILMES`: a duração tirada
+   da última fala não serve em filme de tempo fixo. Rode o `montar-filmes.mjs`.
+7. Som: `node gerar-som.mjs <events.json> --audio audio-filme --total <s> --musica ...`. A
+   mixagem sai em `film/audio-filme/mix.wav`: passe esse caminho ao `render_partes.sh --audio` e
+   ao `?previa&audio=`. Passe `film/audio-filme/sfx-eventos.json` ao `ouvir.py --sfx`. O
+   `--roteiro` do `ouvir.py` continua `film/audio/vo.txt`.
+8. A legenda (`gerar-legenda.mjs`) lê o `fala.js` já posicionado: não some offset. Para medir a
+   entonação, rode `node "$SKILL/scripts/entonacao.mjs" film/audio-filme/vo.wav`: ele acha o
+   `vo.words.json` e o `vo.lines.json` ao lado do áudio.
+9. Rode o `ouvir.py`. Se o S4 acusar variação entre frases, veja o espalhamento que o
+   `montar.mjs` imprimiu.
+
+O `entonacao.mjs` aceita o `--lines` em dois formatos: `{ text, start, end }` (o `montar.mjs` e o
+`voice.py`) e `{ t, a, b }` (os campos de `FALA.linhas`, no `fala.js`). O `--words` aceita
+`{ word, start, end }` (o `voice.py`), `{ w, a, b }` (os campos de `FALA.palavras`) e
+`{ p, ini, fim }`. Campo faltando ou texto vazio: o script sai com código 1. Ele diz o campo e o
+índice do item (a partir de 0) e não decodifica o áudio.
+
 ## Caso de referência
 
 Tutorial de primeiros passos de um app de aprovação (16/10/2026), no repositório do
@@ -376,9 +553,9 @@ chegando no nome.
 
 | arquivo | para |
 |---|---|
-| `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`); `kit/efeitos-gravados/`: 3 sons CC0 em teste |
-| `scripts/` | `render.mjs`, `render_partes.sh`, `render-trechos.mjs` (o render_partes em paralelo, com cache; usa `_pagina.mjs`), `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `erros.mjs` (as exceções da página, antes do autoteste), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `legendar.mjs` (grava o `.srt` no MP4 com o ffmpeg), `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
-| `runtime/` | o motor de animação (`motion.js`, API em `runtime/README.md`) |
+| `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`); `kit/film/posicionar-voz.mjs`: a voz no segundo de cada cena, para filme de tempo fixo; `kit/efeitos-gravados/`: 3 sons CC0 em teste |
+| `scripts/` | `render.mjs`, `render_partes.sh`, `render-trechos.mjs` (o render_partes em paralelo, com cache; usa `_pagina.mjs`), `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `erros.mjs` (as exceções da página, antes do autoteste), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `legendar.mjs` (grava o `.srt` no MP4 com o ffmpeg; `--margem-baixo` sobe a legenda no 9:16), `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
+| `runtime/` | o motor de animação (`motion.js`, API em `runtime/README.md`; `M.render` e o modo `?previa` incluídos) |
 | `library/` | `moments.jsonl` (precedentes de movimento) e `lottie/` (5 ícones animados feitos à mão, `_cor.js` com o `LOTTIE.cor`, `_gerar.mjs` que grava os ícones e `LICENCAS.md`) |
 | `references/` | o método de direção (`metodo.md`) e os guias de ofício, em inglês |
 | `taste/` | os vereditos do Jose e os antes e depois (fora do git) |

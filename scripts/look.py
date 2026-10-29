@@ -58,14 +58,15 @@ def die(msg, code=1):
 
 
 def ff(args, check=True):
-    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-y"] + args, capture_output=True, text=True)
+    # utf-8 on the pipes: text=True alone decodes with the locale (cp1252 on Windows) and dies on an accented path
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-y"] + args, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if check and r.returncode:
         die("ffmpeg failed: " + " ".join(args[:6]) + " ...\n" + r.stderr[-1000:])
     return r
 
 
 def probe(f):
-    r = subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", f], capture_output=True, text=True)
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", f], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode:
         die("ffprobe cannot read %s: %s" % (f, r.stderr.strip()[:300]))
     return json.loads(r.stdout)
@@ -163,8 +164,9 @@ def find_events(film, given):
 
 def events_to_cuts(path, fps, nframes):
     try:
-        # explicit utf-8: on Windows open() defaults to cp1252 and fails on an accented label (the UTF-8 bytes C3 81)
-        with open(path, encoding="utf-8") as f:
+        # explicit utf-8: on Windows open() defaults to cp1252 and fails on an accented label (the UTF-8 bytes C3 81).
+        # utf-8-sig also takes the BOM that PowerShell 5.1 writes.
+        with open(path, encoding="utf-8-sig") as f:
             ev = json.load(f)
     except (OSError, ValueError) as e:
         die("cannot read events %s: %s" % (path, e))

@@ -16,7 +16,10 @@
 // O .lines.json é uma lista de linhas em um destes dois formatos:
 //   montar.mjs   { text, start, end }
 //   fala.js      { t, a, b }
-// Se faltar um campo, o script sai com código 1 e diz qual campo e qual linha
+// O .words.json é uma lista de palavras em um destes formatos:
+//   voice.py     { word, start, end }
+//   fala.js      { w, a, b }  (ou { p, ini, fim })
+// Se faltar um campo, o script sai com código 1 e diz qual campo e qual item
 // (índice a partir de 0), antes de decodificar o áudio.
 //
 // O que os números querem dizer (voz feminina ou masculina, tanto faz: tudo é
@@ -47,34 +50,41 @@ if (!existsSync(arqPalavras)) {
   console.error(`faltou o tempo das palavras (${arqPalavras}). É o arquivo que o voice.py vo grava.`);
   process.exit(2);
 }
-const palavras = JSON.parse(readFileSync(arqPalavras, "utf8")).map((w) => ({ p: w.word ?? w.p, ini: w.start ?? w.ini, fim: w.end ?? w.fim }));
 
-// As linhas do roteiro, nos dois formatos. Valida tudo antes de decodificar o
-// áudio: arquivo errado falha na hora, com o campo e o índice da linha.
-function lerLinhas(arq) {
+// Lê uma lista de { texto, ini, fim } em um dos formatos aceitos. Valida tudo
+// antes de decodificar o áudio: arquivo errado falha na hora, com o campo e o
+// índice do item. Cada campo tem o nome principal e os apelidos dos outros
+// formatos; vale o primeiro que existir.
+function lerLista(arq, item, campos, aceito) {
   const falha = (msg) => { console.error(msg); process.exit(1); };
   let bruto;
   try { bruto = JSON.parse(readFileSync(arq, "utf8")); } catch (e) { falha(`não deu para ler ${arq}: ${e.message}`); }
-  if (!Array.isArray(bruto)) falha(`${arq} tem que ser uma lista de linhas ({ text, start, end } ou { t, a, b }).`);
+  if (!Array.isArray(bruto)) falha(`${arq} tem que ser uma lista (${aceito}).`);
+  const nome = ([principal, ...apelidos]) => `"${principal}" (ou ${apelidos.map((a) => `"${a}"`).join(", ")})`;
   const erros = [];
-  const linhas = bruto.map((l, i) => {
-    const o = l && typeof l === "object" ? l : {};
-    const texto = o.text ?? o.t, ini = o.start ?? o.a, fim = o.end ?? o.b;
+  const lista = bruto.map((v, i) => {
+    const o = v && typeof v === "object" ? v : {};
+    const [texto, ini, fim] = campos.map((nomes) => nomes.map((n) => o[n]).find((x) => x != null));
     const faltam = [];
-    if (typeof texto !== "string" || !texto.trim()) faltam.push('"text" (ou "t")');
-    if (!Number.isFinite(ini)) faltam.push('"start" (ou "a")');
-    if (!Number.isFinite(fim)) faltam.push('"end" (ou "b")');
-    if (faltam.length) erros.push(`linha [${i}]: falta ${faltam.join(", ")}`);
+    if (typeof texto !== "string" || !texto.trim()) faltam.push(nome(campos[0]));
+    if (!Number.isFinite(ini)) faltam.push(nome(campos[1]));
+    if (!Number.isFinite(fim)) faltam.push(nome(campos[2]));
+    if (faltam.length) erros.push(`${item} [${i}]: falta ${faltam.join(", ")}`);
     return { texto, ini, fim };
   });
   if (erros.length) {
     const mostrar = erros.slice(0, 10);
     if (erros.length > mostrar.length) mostrar.push(`... e mais ${erros.length - mostrar.length}`);
-    falha(`${arq} tem linha com campo faltando (aceito: text, start, end do montar.mjs ou t, a, b do fala.js):\n  ${mostrar.join("\n  ")}`);
+    falha(`${arq} tem ${item} com campo faltando (aceito: ${aceito}):\n  ${mostrar.join("\n  ")}`);
   }
-  return linhas;
+  return lista;
 }
-const linhasDoRoteiro = existsSync(arqLinhas) ? lerLinhas(arqLinhas) : null;
+// As palavras: voice.py (word, start, end), fala.js (w, a, b) ou (p, ini, fim).
+const palavras = lerLista(arqPalavras, "palavra", [["word", "p", "w"], ["start", "ini", "a"], ["end", "fim", "b"]],
+  "word, start, end do voice.py; w, a, b do fala.js; ou p, ini, fim").map(({ texto, ini, fim }) => ({ p: texto, ini, fim }));
+// As linhas do roteiro: montar.mjs (text, start, end) ou fala.js (t, a, b).
+const linhasDoRoteiro = existsSync(arqLinhas)
+  ? lerLista(arqLinhas, "linha", [["text", "t"], ["start", "a"], ["end", "b"]], "text, start, end do montar.mjs ou t, a, b do fala.js") : null;
 
 const TAXA = 16000, PASSO = 160, JANELA = 480;
 const bruto = execFileSync("ffmpeg", ["-v", "error", "-i", audio, "-f", "f32le", "-ac", "1", "-ar", String(TAXA), "-"], { maxBuffer: 1 << 28 });

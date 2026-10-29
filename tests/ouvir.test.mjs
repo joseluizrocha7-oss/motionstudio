@@ -171,17 +171,21 @@ const MARCAS = { events: [{ type: "fala", label: "Dois mil", t: 1.05 }, { type: 
 
 // trilha: ruído 24 dB abaixo das palavras, no filme inteiro (no vão, o nível da trilha no lugar do silêncio).
 // vo: o roteiro vai como o vo.txt do montar.mjs (só a fala), sem o texto da tela.
-function ouvirFilme({ trilha = false, vo = false, marcas = MARCAS } = {}) {
+// efeito: instante de um efeito de 0,2 s no vão, no nível da fala, listado no --sfx.
+function ouvirFilme({ trilha = false, vo = false, marcas = MARCAS, efeito = null } = {}) {
   const pasta = mkdtempSync(join(tmpdir(), "ouvir ção "));
   try {
     const wav = join(pasta, "filme.wav"), out = join(pasta, "ouvir"), rot = join(pasta, vo ? "vo.txt" : "roteiro.json"), ev = join(pasta, "filme.events.json");
+    const sfx = join(pasta, "sfx-eventos.json");
     const roteiro = vo ? ROTEIRO_FILME.blocos.map((b) => b.linhas.map((l) => l.fala || l.texto).join(" ")).join("\n") : ROTEIRO_FILME;
+    if (efeito !== null) writeFileSync(sfx, JSON.stringify([{ t: efeito, sfx: "efeito.wav", gain: 0 }]));
     py(`import os, wave, hashlib, numpy as np, ouvir
 sr, rng = 48000, np.random.default_rng(7)
 x = np.zeros(int(7.5 * sr))
 if dados["trilha"]:
     x += rng.normal(0, 0.1 * 10 ** (-24 / 20), len(x))
-for _, de, ate in dados["sons"]:
+sons = dados["sons"] + ([["efeito", dados["efeito"], dados["efeito"] + 0.2]] if dados["efeito"] is not None else [])
+for _, de, ate in sons:
     x[int(de * sr):int(ate * sr)] += rng.normal(0, 0.1, int(ate * sr) - int(de * sr))
 with wave.open(dados["wav"], "wb") as f:
     f.setnchannels(1); f.setsampwidth(2); f.setframerate(sr); f.writeframes((np.clip(x, -1, 1) * 32767).astype("<i2").tobytes())
@@ -194,9 +198,9 @@ marca = hashlib.md5(open(tmp, "rb").read()).hexdigest()[:16]
 os.remove(tmp)
 os.makedirs(dados["out"], exist_ok=True)
 open(os.path.join(dados["out"], "transcricao-whisper-medium-%s.json" % marca), "w", encoding="utf-8").write(json.dumps(dados["pal"], ensure_ascii=False))
-saida(marca)`, { trilha, sons: SONS, pal: TRANSCRITO, wav, out, rot, ev, roteiro, marcas });
+saida(marca)`, { trilha, sons: SONS, pal: TRANSCRITO, wav, out, rot, ev, roteiro, marcas, efeito });
     const r = spawnSync("py", ["-3", join(RAIZ, "scripts", "ouvir.py"), wav, "--roteiro", rot, "--eventos", ev, "--motor", "whisper",
-      "--modelo", "medium", "--out", out, "--json"], { encoding: "utf8", env: AMBIENTE, maxBuffer: 1 << 26 });
+      "--modelo", "medium", "--out", out, "--json", ...(efeito !== null ? ["--sfx", sfx] : [])], { encoding: "utf8", env: AMBIENTE, maxBuffer: 1 << 26 });
     assert.ok(r.status === 0 || r.status === 1, `ouvir.py saiu com ${r.status}:\n${r.stderr}`);
     return JSON.parse(r.stdout);
   } finally {
@@ -380,4 +384,36 @@ for fala, ouv in dados:
     saidas.append([p["word"] for p in alinhar.alinhar(fala.split(" "), ouvidas, x) if p.get("est")])
 saida(saidas)`, CASOS_E);
   CASOS_E.forEach(([fala], k) => assert.deepEqual(res[k], [], fala));
+});
+
+// Nível em dB por janela de 10 ms: fala a -20 dB, vão de 1,00 a 1,81 s, a transcrição começa "Xyra" aos 1,03 s.
+const ENERGIA = `import numpy as np, ouvir
+def env(vao):
+    e = np.full(300, -20.0)
+    e[100:181] = vao
+    return e
+a, b = {"de": 0.2, "ate": 1.0}, {"de": 1.03, "ate": 2.5}
+trilha = np.array([-50.0 if (k // 6) % 2 else -38.0 for k in range(81)])   # 12 dB de oscilação, trechos de 60 ms
+batida = np.full(81, -50.0); batida[40:43] = -35.0                          # 30 ms, 15 dB acima da trilha
+efeito = np.full(81, -50.0); efeito[40:60] = -22.0                          # 0,2 s no nível da fala, aos 1,40 s
+mascara = np.zeros(300, bool); mascara[137:175] = True                      # o --sfx diz: efeito aos 1,40 s
+r = lambda x: None if x is None else [round(v, 2) for v in x]
+saida({"silencio": r(ouvir.inicio_pela_energia(env(-70.0), a, b)),
+       "trilha": r(ouvir.inicio_pela_energia(env(trilha), a, b)),
+       "batida": r(ouvir.inicio_pela_energia(env(batida), a, b)),
+       "efeito": r(ouvir.inicio_pela_energia(env(efeito), a, b, efeito=mascara))})`;
+
+test("inicio_pela_energia: batida curta e trilha que oscila não puxam o começo; efeito do --sfx devolve o tempo da transcrição", () => {
+  const res = py(ENERGIA);
+  assert.deepEqual(res.silencio, [1.81, 0.81]);
+  assert.deepEqual(res.trilha, [1.81, 0.78]);                          // o vão conta do último som longo (a subida da trilha aos 1,03 s)
+  assert.deepEqual(res.batida, [1.81, 0.81]);
+  assert.equal(res.efeito, null);
+});
+
+test("ouvir.py: efeito do --sfx no vão não vira começo da fala", () => {
+  const s = ouvirFilme({ efeito: 5.8 });
+  assert.deepEqual(s.medidas.S2.inicio_pela_energia, []);              // sem medida confiável, fica o tempo da transcrição
+  assert.equal(s.medidas.S3.ligados.find((l) => l.fala === "Zaira").ouvida, 5.43);
+  assert.equal(s.medidas.S4.efeitos, 1);
 });

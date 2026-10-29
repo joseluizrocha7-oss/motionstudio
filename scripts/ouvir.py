@@ -44,9 +44,11 @@ Portões (saída 1 se algum der ALERTA; 2 = erro de uso; 3 = sem transcrição):
   S4 mixagem enxuta       frases no mesmo volume, trilha abaixo da voz, poucos efeitos
 
 S2 e S3 na primeira palavra depois de uma pausa: a transcrição costuma esticar essa
-palavra para trás, por cima do silêncio. Se o começo dela cai num trecho quieto do som,
-o começo passa a ser o fim desse trecho, medido pela energia (com trilha por baixo, o
-trecho quieto é o que fica perto do nível da trilha).
+palavra para trás, por cima do silêncio. Se o começo dela cai num vão, o começo passa
+a ser o primeiro som de fala depois dele, medido pela energia: 50 ms ou mais acima do
+limite e perto do nível da fala. Batida curta e trilha que sobe ficam no vão. Se esse
+som começa num efeito do --sfx, ou se a trilha sobe até perto da fala, fica o tempo da
+transcrição (não dá para medir).
 
 O que este script NÃO enxerga: a trilha abaixando debaixo de cada fala (--duck). Com a voz
 por cima não dá para separar a trilha na mixagem pronta; uma medida pelo grave foi testada e
@@ -317,27 +319,74 @@ def envelope(som, sr, passo=0.01):
     return 10 * np.log10((x ** 2).mean(axis=1) + 1e-12)
 
 
-def inicio_pela_energia(env, a, b, passo=0.01, minimo=0.10):
+SUSTENTA = 5            # janelas de 10 ms: som mais curto que 50 ms acima do limite é batida, não fala
+PERTO_DA_FALA = 14.0    # dB: o trecho de fala chega até 14 dB do nível da fala (percentil 95 do trecho medido)
+ACIMA_DO_RESTO = 12.0   # dB: e fica 12 dB acima da mediana do que está 6 dB ou mais abaixo da fala (trilha e subidas)
+
+
+def inicio_pela_energia(env, a, b, passo=0.01, minimo=0.10, efeito=None):
     """b é a primeira palavra depois de uma pausa; a, a palavra antes dela. A transcrição costuma esticar b para trás,
-    por cima do silêncio. Se o começo de b cai num trecho quieto, devolve (fim do trecho quieto, duração dele) em s;
-    senão, None. Quieto é perto do nível mais baixo entre o começo de a e o fim de b: o silêncio, ou a trilha."""
+    por cima do silêncio. Se o começo de b cai num vão, devolve (começo do som de fala depois dele, duração do vão)
+    em s; senão, None, e fica o tempo da transcrição.
+
+    Entre o começo de a e o fim de b: limite = piso + 35% da distância até a fala (9 dB no mínimo). Som de fala é
+    um trecho acima do limite por 50 ms ou mais que chega perto do nível da fala; batida curta e trilha que sobe
+    ficam no vão. efeito: janelas marcadas pelo --sfx; se o som depois do vão começa num efeito, não dá para medir."""
     import numpy as np
     i0, i1, k = max(0, int(a["de"] / passo)), min(len(env), int(math.ceil(b["ate"] / passo))), int(b["de"] / passo + 1e-6)
     if i1 - i0 < 10 or not (i0 <= k < i1):
         return None
-    piso, fala = float(np.percentile(env[i0:i1], 5)), float(np.percentile(env[i0:i1], 95))
+    trecho = env[i0:i1]
+    piso, fala = float(np.percentile(trecho, 5)), float(np.percentile(trecho, 95))
     if fala - piso < 12:                                   # fala e vão no mesmo nível: não dá para medir
         return None
     # 9 dB no mínimo: a trilha varia uns 8 dB no vão (medido em 28/10, trilha 20 dB abaixo da voz)
     limite = piso + max(9.0, 0.35 * (fala - piso))
-    if env[k] >= limite:                                   # o começo que a transcrição deu já tem som
+    alto = trecho >= limite
+    longos, w = [], 0                                      # trechos acima do limite por 50 ms ou mais
+    while w < len(trecho):
+        z = w
+        while z < len(trecho) and alto[z] == alto[w]:
+            z += 1
+        if alto[w] and z - w >= SUSTENTA:
+            longos.append((w, z))
+        w = z
+    longo = np.zeros(len(trecho), bool)
+    for w, z in longos:
+        longo[w:z] = True
+    # Som de fala chega perto do nível da fala e fica 12 dB acima do nível típico do resto (a trilha com as subidas
+    # dela, e a parte baixa da fala): a trilha que oscila não passa disso, a fala passa.
+    resto = float(np.median(trecho[trecho < fala - 6]))
+    limiar_fala = max(fala - PERTO_DA_FALA, resto + ACIMA_DO_RESTO)
+    if limiar_fala > fala - 3:                             # a trilha sobe até perto da fala: não dá para separar
         return None
-    ini, fim = k, k
-    while ini > i0 and env[ini - 1] < limite:
-        ini -= 1
-    while fim < i1 and env[fim] < limite:
+    trilha = min(resto + 9, fala - 12)                     # até aqui, o som encostado na palavra ainda é trilha
+    de_fala = np.zeros(len(trecho), bool)
+    for w, z in longos:
+        acima = np.nonzero(trecho[w:z] >= limiar_fala)[0]
+        if len(acima):
+            # trilha encostada na palavra: o fim do trecho abaixo da fala por 50 ms ou mais não é fala, nem o
+            # começo que fica no nível da trilha por 50 ms ou mais
+            p = w + acima[0]
+            while p > w and trecho[p - 1] > trilha:
+                p -= 1
+            q = w + acima[-1] + 1
+            de_fala[(p if p - w >= SUSTENTA else w):(q if z - q >= SUSTENTA else z)] = True
+    kk = k - i0
+    if de_fala[kk]:                                        # o começo que a transcrição deu já tem som de fala
+        return None
+    fim = kk
+    while fim < len(trecho) and not de_fala[fim]:
         fim += 1
-    if (fim - ini) * passo < minimo or fim >= i1 - 1 or fim * passo - b["de"] < 0.02:   # vão curto, palavra toda quieta ou nada muda
+    if fim >= len(trecho) - 1:                             # não há som de fala depois do vão
+        return None
+    if efeito is not None and efeito[i0 + fim]:            # o som depois do vão começa num efeito do --sfx
+        return None
+    ini = kk                                               # o vão para trás vai até o último som longo
+    while ini > 0 and not longo[ini - 1]:
+        ini -= 1
+    ini, fim = ini + i0, fim + i0
+    if (fim - ini) * passo < minimo or fim * passo - b["de"] < 0.02:   # vão curto ou nada muda
         return None
     return fim * passo, (fim - ini) * passo
 
@@ -402,6 +451,15 @@ def main():
     # que não casou com o roteiro (a marca com pronúncia diferente).
     mix, sr = amostras(o.arquivo)
     env = envelope(mix, sr)
+    sfx_t, nomes = [], []
+    if o.sfx:
+        lista = json.load(io.open(o.sfx, encoding="utf-8"))
+        sfx_t = [float(x["t"]) for x in lista if "t" in x]
+        nomes = [os.path.basename(str(x.get("sfx", ""))) for x in lista]
+    efeito = [False] * len(env)                            # janelas de 10 ms com efeito: de 0,03 s antes a 0,35 s depois de cada um
+    for t in sfx_t:
+        for w in range(max(0, int((t - 0.03) / 0.01)), min(len(env), int((t + 0.35) / 0.01))):
+            efeito[w] = True
     depois_da_pausa = {pares[i + 1]: pares[i] for i in range(len(rot) - 1) if (rot[i]["pausa"] or rot[i]["sinal"] or rot[i].get("quebra"))
                        and i in pares and i + 1 in pares and pares[i + 1] > pares[i]}
     for j in range(1, len(pal)):
@@ -409,7 +467,7 @@ def main():
             depois_da_pausa.setdefault(j, j - 1)
     pela_energia = {}
     for j, antes in sorted(depois_da_pausa.items()):
-        r = inicio_pela_energia(env, pal[antes], pal[j])
+        r = inicio_pela_energia(env, pal[antes], pal[j], efeito=efeito)
         if r:
             pela_energia[j] = {"palavra": pal[j]["p"], "transcricao": round(pal[j]["de"], 2), "energia": round(r[0], 2), "vao": round(r[1], 2)}
             pal[j]["de"] = r[0]
@@ -486,11 +544,6 @@ def main():
         else:
             falas.append([w["de"], w["ate"]])
     niveis = [(a, b, db(mix[int(a * sr):int(b * sr)])) for a, b in falas if b - a >= 0.40]
-    sfx_t = []
-    if o.sfx:
-        lista = json.load(io.open(o.sfx, encoding="utf-8"))
-        sfx_t = [float(x["t"]) for x in lista if "t" in x]
-        nomes = [os.path.basename(str(x.get("sfx", ""))) for x in lista]
     vaos = [(falas[i][1] + 0.10, falas[i + 1][0] - 0.10) for i in range(len(falas) - 1)]
     vaos = [(a, b) for a, b in vaos if b - a >= 0.20 and not any(a - 0.45 < t < b for t in sfx_t)]
     m4 = {"duracao": round(dur, 2)}

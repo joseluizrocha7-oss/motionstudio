@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Fixture do ler.mjs: títulos em máscara</title>
+<!-- Filme sintético de 960x540 e 1 s (texto inventado) para tests/ler-lint.test.mjs.
+     Sete títulos em máscara (overflow:hidden) e um rodapé, cada um num caso do portão T2 (texto inteiro).
+     Fonte de 70 px nos 5 primeiros: a caixa da fonte tem 85 px (subida 68 e descida 17); a tinta é menor.
+       1 "ATOMO CBS"            só maiúsculas, line-height 60 px: a tinta cabe na máscara, a caixa passa 12 px (não acusa)
+       2 "Mágica jaçã"          acento, cedilha, til e "j": a tinta cabe, a caixa passa 8 px em cima (não acusa)
+       3 "Ágata jaçã"           line-height 70 px: o acento sai 7 px em cima e a descendente 6 px embaixo (acusa)
+       4 "Átomo cortado"        a metade do texto fica fora da máscara (acusa)
+       5 "jaçã agora"           só a descendente sai 4 px embaixo, o resto fica inteiro (acusa)
+     Fonte de 28 px, em 2 linhas:
+       6 "ATOMO CBS AGORA FIM"  maiúsculas, a tinta cabe nas 2 linhas, a caixa passa 3 px (não acusa)
+       7 "ATOMO CBS jaçã agora" a descendente da última linha sai 4 px (acusa)
+     Fora de qualquer overflow, na borda de baixo do quadro:
+       8 "ATOMO FIM"            a caixa da fonte passa do quadro 4 px, a tinta fica dentro (não acusa) -->
+<style>
+  @font-face { font-family: "Teste 4"; src: url("../../runtime/hero3d/fonts/Inter-Bold-Latin.ttf"); font-weight: 700; }
+  html, body { margin: 0; background: #000; }
+  #main { position: relative; width: 960px; height: 540px; overflow: hidden; background: #111; }
+  .mascara { position: absolute; overflow: hidden; background: #333; }
+  .mascara h1 { margin: 0; font: 700 70px "Teste 4"; color: #fff; white-space: nowrap; }
+  .grande { left: 20px; width: 600px; }
+  .pequena { left: 660px; width: 280px; }
+  .pequena h1 { font-size: 28px; white-space: normal; }
+  #m1 { top: 10px;  height: 60px; } #m1 h1 { line-height: 60px; }
+  #m2 { top: 100px; height: 77px; } #m2 h1 { line-height: 85px; margin-top: -8px; }
+  #m3 { top: 200px; height: 70px; } #m3 h1 { line-height: 70px; }
+  #m4 { top: 300px; height: 70px; } #m4 h1 { line-height: 70px; margin-top: 35px; }
+  #m5 { top: 420px; height: 72px; } #m5 h1 { line-height: 85px; margin-top: -8px; }
+  #m6 { top: 10px;  height: 56px; } #m6 h1 { line-height: 28px; }
+  #m7 { top: 100px; height: 48px; } #m7 h1 { line-height: 24px; }
+  #rodape { position: absolute; left: 660px; top: 516px; font: 700 30px/20px "Teste 4"; color: #fff; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="main" data-composition-id="main" data-width="960" data-height="540" data-duration="1">
+  <div class="mascara grande" id="m1"><h1>ATOMO CBS</h1></div>
+  <div class="mascara grande" id="m2"><h1>Mágica jaçã</h1></div>
+  <div class="mascara grande" id="m3"><h1>Ágata jaçã</h1></div>
+  <div class="mascara grande" id="m4"><h1>Átomo cortado</h1></div>
+  <div class="mascara grande" id="m5"><h1>jaçã agora</h1></div>
+  <div class="mascara pequena" id="m6"><h1>ATOMO CBS AGORA FIM</h1></div>
+  <div class="mascara pequena" id="m7"><h1>ATOMO CBS jaçã agora</h1></div>
+</div>
+<div id="rodape">ATOMO FIM</div>
+<script>
+  window.__duration = 1;
+  window.__seek = async () => {};
+  window.__ready = true;
+</script>
+</body>
+</html>

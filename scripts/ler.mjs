@@ -29,7 +29,9 @@
 //                     numa segunda leitura do recorte ampliado). Texto que nunca fica à vista (sempre com outra
 //                     peça por cima, no todo ou em parte) também alerta. Rodar o filme inteiro: com --de/--ate, uma
 //                     camada que apareceu antes do trecho e depois foi coberta acusa sem ser defeito.
-//   T2 texto inteiro  nenhum texto fica com pedaço fora do quadro durante todo o tempo em que aparece
+//   T2 texto inteiro  nenhum texto fica com pedaço fora do quadro durante todo o tempo em que aparece. Conta a tinta
+//                     das letras (acento, cedilha, til e descendente inclusos), não a caixa da fonte, que é maior:
+//                     título em máscara overflow:hidden com a tinta inteira passa; letra cortada de verdade acusa
 //
 // Diz o que o OCR leu; não diz se o texto é bonito, nem se o tamanho é o ideal. Falha é para olhar o recorte
 // (a pasta de saída guarda um por alerta) antes de mexer: o OCR também erra, e o erro dele se prova no
@@ -103,6 +105,36 @@ const LIB = `(() => {
     }
     return n ? { n, de: pts.length, por: [...quem.entries()].sort((a, b) => b[1] - a[1])[0][0] } : null;   // n de 5 pontos cobertos
   };
+  // T2 mede a tinta, não a caixa da fonte. A Range.getClientRects de um texto devolve a caixa da fonte (subida mais
+  // descida das métricas: 1,21 em na Inter, cerca de 1,33 na Source Serif 4), maior que o desenho das letras. Um título em
+  // máscara overflow:hidden com line-height apertado tem a caixa passando da máscara e a tinta inteira (28/10/2026:
+  // 6 falsos alertas). O measureText dá as duas medidas na mesma conta: caixa = fontBoundingBox e tinta = actualBoundingBox
+  // (contorno real das letras do texto, com acento, cedilha, til e a descendente do "j"). A folga da caixa sobre a tinta,
+  // em cima e embaixo, sai dessa diferença, sem número fixo. Tolerância em em (como (caixa - 1 em) / 2) não serve: na
+  // Inter a descendente do "j" usa 0,22 em dos 0,24 de descida, e ela deixaria passar corte de verdade de 0,1 em.
+  // A tinta nunca passa da caixa na conta (folga >= 0): o T2 acusa no máximo o que acusava antes. Só na vertical; na
+  // horizontal a caixa da fonte é a largura do texto e fica como estava.
+  const ctxTinta = document.createElement('canvas').getContext('2d');
+  const folgaDe = (cs, txt, alturaDaCaixa) => {
+    ctxTinta.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+    const m = ctxTinta.measureText(cs.textTransform === 'uppercase' ? txt.toUpperCase() : cs.textTransform === 'lowercase' ? txt.toLowerCase() : txt);
+    const caixa = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
+    const k = caixa > 0 && alturaDaCaixa > 0 ? alturaDaCaixa / caixa : 1;      // escala de um transform no filme
+    const f = (v) => (Number.isFinite(v) ? Math.max(0, v * k) : 0);
+    return { t: f(m.fontBoundingBoxAscent - m.actualBoundingBoxAscent), b: f(m.fontBoundingBoxDescent - m.actualBoundingBoxDescent) };
+  };
+  // Texto da primeira e da última linha de um nó que quebra em várias (cada linha tem a sua tinta).
+  const linhasDe = (n, rs) => {
+    if (rs.length < 2) return [n.data, n.data];
+    const linhas = []; let topo = null;
+    for (let i = 0; i < n.data.length; i++) {
+      const g = document.createRange(); g.setStart(n, i); g.setEnd(n, i + 1);
+      const q = g.getClientRects()[0];
+      if (q && q.width > 0.1 && (topo === null || Math.abs(q.top - topo) > q.height * 0.5)) { linhas.push(''); topo = q.top; }
+      if (linhas.length) linhas[linhas.length - 1] += n.data[i];
+    }
+    return [linhas[0] || n.data, linhas[linhas.length - 1] || n.data];
+  };
   window.__lerTextos = () => {
     const VW = innerWidth, VH = innerHeight, blocos = new Map();
     const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -118,18 +150,29 @@ const LIB = `(() => {
       if (!rs.length) continue;
       let op = 1; for (let e = pai; e; e = e.parentElement) op *= Number(getComputedStyle(e).opacity);
       if (op < 0.02) continue;
-      let x0 = Math.min(...rs.map((r) => r.left)), y0 = Math.min(...rs.map((r) => r.top)), x1 = Math.max(...rs.map((r) => r.right)), y1 = Math.max(...rs.map((r) => r.bottom));
-      let recortado = false;                                       // pedaço escondido por um pai com overflow
-      for (let e = pai.parentElement; e && e !== document.documentElement; e = e.parentElement) {
-        const c = getComputedStyle(e);
-        if (c.overflowX === 'visible' && c.overflowY === 'visible') continue;
-        const b = e.getBoundingClientRect();
-        if (x0 < b.left - 1 || y0 < b.top - 1 || x1 > b.right + 1 || y1 > b.bottom + 1) recortado = true;
-        x0 = Math.max(x0, b.left); y0 = Math.max(y0, b.top); x1 = Math.min(x1, b.right); y1 = Math.min(y1, b.bottom);
-        if (x1 <= x0 || y1 <= y0) break;
-      }
+      const ox0 = Math.min(...rs.map((r) => r.left)), oy0 = Math.min(...rs.map((r) => r.top)), ox1 = Math.max(...rs.map((r) => r.right)), oy1 = Math.max(...rs.map((r) => r.bottom));
+      // anda pelos pais com overflow: se o retângulo passa de algum, "rec"; o resto é o retângulo recortado por eles
+      const recorta = (ay0, ay1) => {
+        let a0 = ox0, b0 = ay0, a1 = ox1, b1 = ay1, rec = false;
+        for (let e = pai.parentElement; e && e !== document.documentElement; e = e.parentElement) {
+          const c = getComputedStyle(e);
+          if (c.overflowX === 'visible' && c.overflowY === 'visible') continue;
+          const b = e.getBoundingClientRect();
+          if (a0 < b.left - 1 || b0 < b.top - 1 || a1 > b.right + 1 || b1 > b.bottom + 1) rec = true;   // pedaço escondido por um pai
+          a0 = Math.max(a0, b.left); b0 = Math.max(b0, b.top); a1 = Math.min(a1, b.right); b1 = Math.min(b1, b.bottom);
+          if (a1 <= a0 || b1 <= b0) break;
+        }
+        return { rec, a0, b0, a1, b1 };
+      };
+      const cx0 = recorta(oy0, oy1);
+      let { a0: x0, b0: y0, a1: x1, b1: y1 } = cx0;
       if (x1 <= x0 || y1 <= y0) continue;
-      const fora = x0 < -1 || y0 < -1 || x1 > VW + 1 || y1 > VH + 1;
+      let recortado = cx0.rec, fora = x0 < -1 || y0 < -1 || x1 > VW + 1 || y1 > VH + 1;
+      if (recortado || fora) {                                     // a caixa da fonte passou: só vale se a tinta também passar
+        const [pri, ult] = linhasDe(n, rs), a = folgaDe(cs, pri, rs[0].height), z = ult === pri ? a : folgaDe(cs, ult, rs[rs.length - 1].height);
+        const k = recorta(oy0 + a.t, oy1 - z.b);
+        recortado = k.rec; fora = k.a0 < -1 || k.b0 < -1 || k.a1 > VW + 1 || k.b1 > VH + 1;
+      }
       if (x1 <= 0 || y1 <= 0 || x0 >= VW || y0 >= VH) continue;
       const cx = caixa(pai), k = idDe(cx);
       const alt = rs.map((r) => r.height).sort((a, b) => a - b)[rs.length >> 1];

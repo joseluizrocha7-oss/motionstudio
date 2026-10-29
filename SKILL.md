@@ -211,14 +211,17 @@ linha maior que o limite desse formato (32 caracteres no 9x16; 42 no 16x9), ele 
 opção desconhecida ou resultado sem nenhuma legenda sai com erro. Se o app ocupa só parte do quadro, `--margem-esq` e
 `--margem-dir` põem a legenda embaixo dele.
 
-O padrão é a legenda sem caixa: letra branca com contorno preto e sombra suave (`--estilo contorno`).
+O padrão é a legenda sem caixa: letra branca com contorno preto fino e sombra suave (`--estilo contorno`).
+O contorno é fino e as letras levam um espaço extra, para as vizinhas não se juntarem.
 Escolha o estilo pelo tipo de vídeo:
 - **contorno (padrão):** tutorial de tela, comercial, promo e vinheta, com fundo de motion design limpo.
 - **caixa (`--estilo caixa`):** filmagem de câmera, fundo com muito detalhe, ou quadro em que o contorno
   não separa a letra do fundo. Olhe os quadros antes de decidir.
 
 `--cor-contorno #RRGGBB` troca a cor da borda e só vale com contorno. `--cor-caixa #RRGGBB` troca a cor
-da faixa e só vale com caixa. O par errado sai com código 1. Olhe 3 ou 4 quadros do legendado: legenda
+da faixa e só vale com caixa. O par errado sai com código 1. `--cor-texto #RRGGBB` troca a cor da letra,
+nos 2 estilos. Em filme claro (app claro, fundo claro), letra escura com contorno branco separa melhor do
+que letra branca: `--cor-texto "#0B2A66" --cor-contorno "#FFFFFF"`. Olhe 3 ou 4 quadros do legendado: legenda
 inteira, com acento, sem cobrir o contorno que a voz está nomeando.
 
 ## Portões

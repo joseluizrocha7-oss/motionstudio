@@ -55,9 +55,9 @@ node $SKILL/scripts/legendar.mjs $P/film/final-9x16.mp4 $P/film/legenda-9x16.srt
 | volume da música e dos efeitos | `gerar-som.mjs --abaixo 20` (a música 20 dB sob a voz, que fica em -16 LUFS) |
 | o texto da legenda | `texto` no `roteiro.json` (a legenda mostra o `texto`, nunca a `fala`); depois `gerar-legenda.mjs` e `legendar.mjs` |
 | o tamanho da linha da legenda | `LIMITES` no `gerar-legenda.mjs` do projeto (16x9 = 42 caracteres por linha, 9x16 = 32) e o mesmo valor no `kit/gerar-legenda.mjs` da skill, porque o `legendar.mjs` recusa linha maior que o `LIMITES` da skill; depois gerar o `.srt` de novo |
-| a fonte, a margem de baixo e a espessura do contorno da legenda no MP4 | `FORMATOS_ASS` no `kit/gerar-legenda.mjs` da skill, não na cópia do projeto: o `legendar.mjs` lê o da skill, e a mudança vale para todos os projetos |
+| a fonte, a margem de baixo, a espessura do contorno e o espaço entre as letras da legenda no MP4 | `FORMATOS_ASS` no `kit/gerar-legenda.mjs` da skill, não na cópia do projeto: o `legendar.mjs` lê o da skill, e a mudança vale para todos os projetos |
 | o estilo da legenda no MP4: com ou sem caixa | `legendar.mjs --estilo contorno` (padrão, sem caixa: tutorial de tela, comercial, promo, vinheta) ou `--estilo caixa` (filmagem de câmera, fundo com muito detalhe, quadro em que o contorno não separa a letra) |
-| a cor do contorno ou da caixa e a posição da legenda no MP4 | `legendar.mjs --cor-contorno #RRGGBB` (só com contorno), `--cor-caixa #RRGGBB` (só com caixa), `--margem-esq N --margem-dir N` (app que ocupa só parte do quadro) |
+| a cor da letra, do contorno ou da caixa e a posição da legenda no MP4 | `legendar.mjs --cor-texto #RRGGBB` (a letra; em filme claro, escura com `--cor-contorno "#FFFFFF"`), `--cor-contorno #RRGGBB` (só com contorno), `--cor-caixa #RRGGBB` (só com caixa), `--margem-esq N --margem-dir N` (app que ocupa só parte do quadro) |
 | o estilo da voz | `estilo` no `roteiro.json` (o dinâmico é o padrão desde 28/10/2026) |
 | toque e sopro gravados no lugar dos sintetizados (em teste) | `gerar-som.mjs --toque pop-hand --ar fast-whoosh`; ver `efeitos-gravados/LEIA-ME.md` |
 | um texto que não precisa ser lido no T1 (ilustrativo) | `data-ler="ignorar"` no elemento; dizer no NOTE.md |

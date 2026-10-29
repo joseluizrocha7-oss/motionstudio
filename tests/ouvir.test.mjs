@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -250,4 +250,72 @@ com_som = ouvir.inicio_pela_energia(env2, a, {"de": 1.85, "ate": 2.5})
 esticada = ouvir.inicio_pela_energia(env2, a, {"de": 1.03, "ate": 2.5})
 saida([curto, com_som, [round(x, 2) for x in esticada]])`);
   assert.deepEqual(res, [null, null, [1.81, 0.81]]);
+});
+
+// ---------------------------------------------------------------- alinhar.py: sigla e número tiram o tempo do Whisper
+// O som: ruído no tempo real de cada palavra (16 kHz), silêncio no resto. As ouvidas: o que o Whisper devolve.
+// "CBS" soa de 0,92 a 1,50 s, mas o Whisper começa a palavra aos 0,62 s, por cima do silêncio depois de "de".
+const SONS_TOMADA = [[0.0, 0.5], [0.5, 0.62], [0.92, 1.5], [1.55, 1.65], [1.65, 1.75], [1.75, 2.4], [2.9, 3.1], [3.1, 3.15], [3.2, 4.4], [4.6, 5.1]];
+const OUVIDAS_TOMADA = [["Pedidos", 0.0, 0.5], ["no", 0.5, 0.62], ["CBS", 0.62, 1.5], ["e", 1.55, 1.65], ["no", 1.65, 1.75], ["CRM.", 1.75, 2.4],
+  ["Meta", 2.9, 3.1], ["de", 3.1, 3.15], ["2033,", 3.2, 4.4], ["fechada.", 4.6, 5.1]].map(([p, ini, fim]) => ({ p, ini, fim }));
+const FALA_TOMADA = "Pedidos no cê bê ésse e no cê érre ême. Meta de dois mil e trinta e três, fechada.";
+const ALINHAR_TOMADA = `import numpy as np, alinhar
+sr, rng = alinhar.SR, np.random.default_rng(3)
+x = np.zeros(int(5.5 * sr), dtype=np.float32)
+for de, ate in dados["sons"]:
+    x[int(de * sr):int(ate * sr)] = rng.normal(0, 0.1, int(ate * sr) - int(de * sr))
+pal = alinhar.alinhar(dados["fala"].split(" "), dados["ouvidas"], x)
+saida([{**p, "start": round(p["start"], 3), "end": round(p["end"], 3)} for p in pal])`;
+
+test("alinhar.py: sigla soletrada e número por extenso tiram o tempo da palavra do Whisper, sem estimar", () => {
+  const pal = py(ALINHAR_TOMADA, { sons: SONS_TOMADA, ouvidas: OUVIDAS_TOMADA, fala: FALA_TOMADA });
+  assert.deepEqual(pal.filter((p) => p.est).map((p) => p.word), []);
+  const w = Object.fromEntries(pal.map((p, k) => [p.word + k, p]));
+  assert.equal(w["cê2"].start, 0.92);                 // o começo da sigla vem do silêncio medido, não da fatia de 0,62 s
+  assert.equal(w["ésse4"].end, 1.5);
+  assert.equal(w["cê2"].end, w["bê3"].start);         // as letras dividem o tempo da palavra, pelo número de sílabas
+  assert.ok(w["ésse4"].end - w["ésse4"].start > w["cê2"].end - w["cê2"].start);
+  assert.equal(w["cê7"].start, 1.75);
+  assert.equal(w["ême.9"].end, 2.4);
+  assert.equal(w["dois12"].start, 3.2);
+  assert.equal(w["três,17"].end, 4.4);
+  assert.deepEqual(pal.map((p) => p.word), FALA_TOMADA.split(" "));
+});
+
+test("alinhar.py: palavra que não casa nem pela forma segue estimada", () => {
+  const ouvidas = OUVIDAS_TOMADA.map((o) => (o.p === "CBS" ? { ...o, p: "Cobras" } : o));
+  const pal = py(ALINHAR_TOMADA, { sons: SONS_TOMADA, ouvidas, fala: FALA_TOMADA });
+  assert.deepEqual(pal.filter((p) => p.est).map((p) => p.word), ["cê", "bê", "ésse"]);
+});
+
+// De onde o alinhar.py importou o normalizar.py, rodando de `pasta` (sem o kit/vozes da skill no caminho).
+function normalizarDe(pasta, env = AMBIENTE) {
+  const r = spawnSync("py", ["-3", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import alinhar, normalizar; print(normalizar.__file__)", join(pasta, "vozes")],
+    { cwd: pasta, encoding: "utf8", env });
+  if (r.status !== 0) throw new Error(r.stderr);
+  return r.stdout.trim();
+}
+
+test("alinhar.py acha o normalizar.py na pasta vozes/ do projeto criado pelo novo-projeto.mjs", () => {
+  const pasta = mkdtempSync(join(tmpdir(), "projeto ção "));
+  try {
+    const r = spawnSync(process.execPath, [join(RAIZ, "kit", "novo-projeto.mjs"), pasta], { encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(normalizarDe(pasta).toLowerCase(), join(pasta, "vozes", "normalizar.py").toLowerCase());
+  } finally {
+    rmSync(pasta, { recursive: true, force: true });
+  }
+});
+
+test("alinhar.py sem o normalizar.py ao lado usa o da skill, pelo motionstudio.json", () => {
+  const pasta = mkdtempSync(join(tmpdir(), "projeto antigo "));
+  try {
+    mkdirSync(join(pasta, "vozes"));
+    copyFileSync(join(RAIZ, "kit", "vozes", "alinhar.py"), join(pasta, "vozes", "alinhar.py"));
+    writeFileSync(join(pasta, "motionstudio.json"), "\uFEFF" + JSON.stringify({ skill: RAIZ }));
+    const { SKILL, ...semSkill } = AMBIENTE;
+    assert.equal(normalizarDe(pasta, semSkill).toLowerCase(), join(RAIZ, "kit", "vozes", "normalizar.py").toLowerCase());
+  } finally {
+    rmSync(pasta, { recursive: true, force: true });
+  }
 });

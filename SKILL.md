@@ -262,8 +262,9 @@ LUFS em 2 passadas. Passe `film/audio/sfx-eventos.json` ao `--sfx` do `ouvir.py`
 `--tom` e `--modo`, ou da medida da faixa pelo `scripts/medir-musica.py` (BPM, fase da batida e tom).
 Com `andamento_incerto: true` ou `incerto: true`, confira de ouvido e force o andamento com
 `--bpm-min` e `--bpm-max` (limites na LEIA-ME). Só sinais sintéticos foram medidos: ninguém ouviu os
-efeitos. Projeto criado antes de 29/10/2026: copie `kit/som-comercial.mjs` e `kit/trilha.mjs` para a
-pasta do projeto.
+efeitos. Projeto criado antes de 29/10/2026: copie `kit/gerar-som.mjs`, `kit/som-comercial.mjs` e
+`kit/trilha.mjs` para a pasta do projeto (o `gerar-som.mjs` antigo ignora `--comercial` e faz a mistura
+de tutorial). Se o projeto for de antes de 28/10/2026, copie também `kit/_skill.mjs`.
 
 **Ver com som antes do render.** Abra o filme no Chrome com `?previa` no endereço
 (`file:///<projeto>/film/index-vertical.html?previa`). Aparecem o quadro reduzido, os controles

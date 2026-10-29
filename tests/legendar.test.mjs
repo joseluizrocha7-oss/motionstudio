@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
+import { paraAss } from "../kit/gerar-legenda.mjs";
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LEGENDAR = join(RAIZ, "scripts", "legendar.mjs");
@@ -93,13 +94,13 @@ test("legendar recusa --formato inválido", () => {
   assert.equal(r.status, 1);
   assert.match(r.stderr, /formato inválido: "4x3"/);
 });
-test("legendar tira o formato do vídeo: linha de 40 caracteres num 1080x1920 sem --formato (limite 32) sai com código 1", () => {
+test("legendar tira o formato do vídeo: linha de 40 caracteres num 1080x1920 sem --formato (limite 28) sai com código 1", () => {
   const longa = "abcdefghij".repeat(4);
   assert.equal(longa.length, 40);
   const r = legendarCom(videoPreto("1080x1920"), srtDe(longa));
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.ok(r.stderr.includes(longa), `a mensagem tem que citar a linha: ${r.stderr}`);
-  assert.match(r.stderr, /32/);
+  assert.match(r.stderr, /limite do 9x16 é 28/);
   assert.match(r.stderr, /9x16/);
   assert.match(r.stderr, /--formato/);
   assert.match(r.stderr, /roteiro/);
@@ -162,6 +163,25 @@ test("legendar recusa cor inválida no --cor-contorno e no --cor-caixa", () => {
 
 // ---------- --cor-texto ----------
 
+// No Git Bash, "--cor-texto #032B6B" sem aspas perde a cor (o # abre um comentário): o argumento fica sem valor.
+test("legendar: cor sem valor (o # sem aspas do Git Bash) manda pôr a cor entre aspas", () => {
+  for (const opcao of ["--cor-texto", "--cor-contorno", "--cor-caixa"]) {
+    const r = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), [opcao]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stderr, new RegExp(`falta o valor de ${opcao}`));
+    assert.ok(r.stderr.includes('ponha a cor entre aspas: "#RRGGBB"'), r.stderr);
+    assert.ok(!existsSync(r.saida), "não pode gravar a saída");
+  }
+  const r = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--cor-texto", "--estilo", "caixa"]);
+  assert.equal(r.status, 1);
+  assert.ok(r.stderr.includes('ponha a cor entre aspas: "#RRGGBB"'), r.stderr);
+  // As outras opções sem valor seguem com a mensagem curta.
+  const m = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--margem-esq"]);
+  assert.equal(m.status, 1);
+  assert.match(m.stderr, /falta o valor de --margem-esq/);
+  assert.ok(!m.stderr.includes("aspas"), m.stderr);
+});
+
 test("legendar recusa --cor-texto inválido", () => {
   const r = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--cor-texto", "azul"]);
   assert.equal(r.status, 1, r.stdout + r.stderr);
@@ -208,4 +228,36 @@ test("legendar grava a legenda num vídeo 1080x1920 quando o --formato 9x16 bate
   const tam = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
     "-of", "csv=s=x:p=0", r.saida], { encoding: "utf8" }).trim();
   assert.equal(tam, "1080x1920");
+});
+
+// ---------- WrapStyle 2: o libass não quebra a linha que o kit já quebrou ----------
+
+// Altura (em pixels) da tinta escura (< 70) do contorno de uma legenda 9x16 desenhada num quadro cinza 1080x1920, pelo libass,
+// do mesmo jeito do legendar.mjs: pasta temporária com o legenda.ass e a fonte, filtro só com nomes relativos.
+function alturaDaTinta9x16(ass) {
+  const pasta = mkdtempSync(join(tmpdir(), "legendar-wrap-"));
+  try {
+    writeFileSync(join(pasta, "legenda.ass"), ass, "utf8");
+    copyFileSync(join(RAIZ, "runtime", "hero3d", "fonts", "Inter-Bold-Latin.ttf"), join(pasta, "Inter-Bold-Latin.ttf"));
+    const bytes = execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=c=0x808080:s=1080x1920:r=1:d=1",
+      "-vf", "ass=legenda.ass:fontsdir=.", "-frames:v", "1", "-pix_fmt", "gray", "-f", "rawvideo", "-"], { cwd: pasta, maxBuffer: 1 << 26 });
+    assert.equal(bytes.length, 1080 * 1920);
+    let y0 = 1920, y1 = -1;
+    for (let y = 0; y < 1920; y++) for (let x = 0; x < 1080; x++) if (bytes[y * 1080 + x] < 70) { if (y < y0) y0 = y; if (y > y1) y1 = y; break; }
+    return y1 - y0 + 1;
+  } finally {
+    rmSync(pasta, { recursive: true, force: true });
+  }
+}
+test("paraAss com WrapStyle 2: o libass mantém 1 linha mesmo quando a linha passa dos 920 px úteis do 9x16 (sem a opção, ela virava 2)", () => {
+  // 38 caracteres largos (M, W, ç, ã): medido em 28/10/2026, passam dos 920 px e o libass, sem WrapStyle 2, quebra em 2 linhas.
+  const larga = "Mamãe Wilma Município Mudança Comissão";
+  const ass = paraAss([{ a: 0, b: 1, texto: larga }], { formato: "9x16" });
+  const com = alturaDaTinta9x16(ass);
+  const sem = alturaDaTinta9x16(ass.replace("WrapStyle: 2\n", ""));
+  assert.ok(sem > 90, `sem WrapStyle 2 o libass devia quebrar a linha larga em 2 (altura ~104): ${sem}`);
+  assert.ok(com < 70, `com WrapStyle 2 a linha devia ficar inteira (altura ~50): ${com}`);
+  // E a quebra que o kit põe continua valendo: o texto com 2 linhas dá 2 linhas.
+  const duas = alturaDaTinta9x16(paraAss([{ a: 0, b: 1, texto: "Primeira linha\nSegunda linha" }], { formato: "9x16" }));
+  assert.ok(duas > 90, `a quebra do kit devia dar 2 linhas: ${duas}`);
 });

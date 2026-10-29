@@ -17,12 +17,10 @@ import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // Limites por formato, em caracteres. maxPedaco = 2 linhas cheias menos 8 de folga da quebra.
-// 16x9: a linha de 42 ocupa cerca de metade dos 1920 px. 9x16: Inter Bold 54 em 1080 px com margens de 80
-// deixa 920 px de texto. Medido com libass (ffmpeg), texto pt-BR com muitos M, W, ç e ã: cabem até 36
-// caracteres numa linha; 32 é isso menos 10% de folga.
+// Medido em 28/10/2026 com libass, no estilo final e WrapStyle 2, em texto pt-BR com muitos M, W, ç e ã: o 9x16 (920 px úteis) tem a tinta entre as margens até 32 caracteres (884 px; com 33 passa 3 px de cada lado), e 28 é isso menos 10% (778 px); o 16x9 com 42 usa 864 px de 1760 (e de 1277 nas margens do CRM, 56 e 587).
 export const LIMITES = {
   "16x9": { maxLinha: 42, maxPedaco: 76 },
-  "9x16": { maxLinha: 32, maxPedaco: 56 },
+  "9x16": { maxLinha: 28, maxPedaco: 48 },
 };
 const CORTE_PONTUACAO = 30;      // só corta na pontuação se o texto até ela tem isto ou mais
 const DESCONTO_PONTUACAO = 6;    // abate do custo da quebra que termina a linha 1 em pontuação
@@ -247,7 +245,8 @@ export function paraAss(blocos, estilo) {
   const falas = blocos.map((b) =>
     `Dialogue: 0,${tempoAss(b.a)},${tempoAss(b.b)},Legenda,,0,0,0,,${desfoque}${b.texto.replace(/\n/g, "\\N")}`);
   return [
-    "[Script Info]", "ScriptType: v4.00+", `PlayResX: ${f.largura}`, `PlayResY: ${f.altura}`, "ScaledBorderAndShadow: yes", "",
+    // WrapStyle 2: o libass só quebra no "\N" que o kit pôs. Sem isso, a linha que passa da largura útil ganha uma 3ª linha.
+    "[Script Info]", "ScriptType: v4.00+", "WrapStyle: 2", `PlayResX: ${f.largura}`, `PlayResY: ${f.altura}`, "ScaledBorderAndShadow: yes", "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
     `Style: ${estiloLegenda}`, "",

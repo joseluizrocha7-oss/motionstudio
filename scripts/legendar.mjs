@@ -3,15 +3,16 @@
 //
 // Comando:
 //   node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--estilo contorno|caixa]
-//                     [--cor-texto #RRGGBB] [--cor-contorno #RRGGBB] [--cor-caixa #RRGGBB] [--margem-esq N] [--margem-dir N]
+//                     [--cor-texto "#RRGGBB"] [--cor-contorno "#RRGGBB"] [--cor-caixa "#RRGGBB"] [--margem-esq N] [--margem-dir N]
 //
-// O estilo padrão é "contorno": letra branca com borda preta e sombra suave, sem caixa. "caixa" põe uma faixa
+// Ponha a cor entre aspas: no Git Bash, o # sem aspas abre um comentário e o shell corta o resto da linha.
+// O estilo padrão é "contorno": letra branca com contorno preto e sombra suave, sem caixa. "caixa" põe uma caixa
 // atrás do texto (para filmagem de câmera ou fundo cheio de detalhe). --cor-contorno só vale com contorno e
 // --cor-caixa só vale com caixa; o par errado sai com código 1. --cor-texto troca a cor da letra (padrão branca) nos 2 estilos.
 //
 // O formato sai do tamanho do vídeo (ffprobe): paisagem = 16x9, retrato = 9x16. O --formato é opcional; se vier
 // e não bater com o vídeo, o comando para. O .srt precisa ter sido gerado para o mesmo formato: o limite de
-// caracteres por linha muda (16x9 = 42; 9x16 = 32). Linha maior que o limite, .srt sem legenda e vídeo
+// caracteres por linha muda (16x9 = 42; 9x16 = 28). Linha maior que o limite, .srt sem legenda e vídeo
 // quadrado saem com código 1.
 //
 // Caminho do Windows: o filtro ass não aceita bem "C:\...", espaço nem acento. Por isso o ffmpeg roda
@@ -27,7 +28,7 @@ import { LIMITES, lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const FONTE = join(AQUI, "..", "runtime", "hero3d", "fonts", "Inter-Bold-Latin.ttf");
-const USO = "uso: node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--estilo contorno|caixa] [--cor-texto #RRGGBB] [--cor-contorno #RRGGBB] [--cor-caixa #RRGGBB] [--margem-esq N] [--margem-dir N]";
+const USO = "uso: node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--estilo contorno|caixa] [--cor-texto \"#RRGGBB\"] [--cor-contorno \"#RRGGBB\"] [--cor-caixa \"#RRGGBB\"] [--margem-esq N] [--margem-dir N]";
 const OPCOES = ["formato", "estilo", "cor-texto", "cor-contorno", "cor-caixa", "margem-esq", "margem-dir"];
 const ESTILOS = ["contorno", "caixa"];
 
@@ -38,7 +39,11 @@ function lerArgumentos(argv) {
     if (!argv[i].startsWith("--")) { posicionais.push(argv[i]); continue; }
     const nome = argv[i].slice(2);
     if (!OPCOES.includes(nome)) throw new Error(`opção desconhecida: ${argv[i]}\n${USO}`);
-    if (argv[i + 1] === undefined || argv[i + 1].startsWith("--")) throw new Error(`falta o valor de ${argv[i]}`);
+    if (argv[i + 1] === undefined || argv[i + 1].startsWith("--")) {
+      // Git Bash: "--cor-texto #032B6B" sem aspas perde a cor, porque o # abre um comentário.
+      const dica = nome.startsWith("cor-") ? '. No Git Bash o # abre um comentário: ponha a cor entre aspas: "#RRGGBB"' : "";
+      throw new Error(`falta o valor de ${argv[i]}${dica}`);
+    }
     opcoes[nome] = argv[++i];
   }
   if (posicionais.length !== 3) throw new Error(USO);
@@ -78,10 +83,10 @@ function legendar(argv) {
   const tipo = opcoes.estilo ?? "contorno";
   if (!ESTILOS.includes(tipo)) throw new Error(`estilo inválido: "${tipo}" (use ${ESTILOS.join(" ou ")})`);
   if (opcoes["cor-caixa"] !== undefined && tipo !== "caixa") {
-    throw new Error("--cor-caixa só vale com --estilo caixa. No estilo contorno (o padrão) a cor da borda é a --cor-contorno.");
+    throw new Error("--cor-caixa só vale com --estilo caixa. No estilo contorno (o padrão) a cor do contorno é a --cor-contorno.");
   }
   if (opcoes["cor-contorno"] !== undefined && tipo !== "contorno") {
-    throw new Error("--cor-contorno só vale com --estilo contorno. No estilo caixa a cor da faixa é a --cor-caixa.");
+    throw new Error("--cor-contorno só vale com --estilo contorno. No estilo caixa a cor da caixa é a --cor-caixa.");
   }
   const blocos = lerSrt(readFileSync(srt, "utf8"));
   if (!blocos.length) throw new Error(`${srt} não tem nenhuma legenda (0 blocos)`);

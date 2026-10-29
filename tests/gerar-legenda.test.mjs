@@ -132,13 +132,22 @@ test("paraAss recusa tipo desconhecido e cor inválida do contorno", () => {
   assert.throws(() => paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9", tipo: "borda" }), /tipo.*"borda".*contorno.*caixa/);
   assert.throws(() => paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "16x9", corContorno: "azul" }), /cor inválida: "azul"/);
 });
+test("paraAss põe WrapStyle 2 no [Script Info] nos 2 formatos e nos 2 tipos (o libass não requebra a linha do kit)", () => {
+  for (const formato of ["16x9", "9x16"]) {
+    for (const tipo of ["contorno", "caixa"]) {
+      const s = paraAss([{ a: 0, b: 1, texto: "a\nb" }], { formato, tipo });
+      const info = s.slice(s.indexOf("[Script Info]"), s.indexOf("[V4+ Styles]"));
+      assert.match(info, /^WrapStyle: 2$/m, `${formato} ${tipo}`);
+    }
+  }
+});
 test("paraAss no 9x16 usa 1080x1920 e margem de 260", () => {
   const s = paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16" });
   assert.match(s, /PlayResX: 1080/); assert.match(s, /PlayResY: 1920/); assert.match(s, /,260,/);
 });
 
 const maiorLinha = (blocos) => Math.max(...blocos.flatMap((b) => b.texto.split("\n").map((l) => l.length)));
-test("quebrarTexto com o limite do 9x16 quebra frase de 41 caracteres em linhas de até 32", () => {
+test("quebrarTexto com o limite do 9x16 quebra frase de 41 caracteres em linhas de até 28", () => {
   const t = "O cliente recebe a proposta e assina hoje";
   assert.equal(t.length, 41);
   assert.deepEqual(quebrarTexto(t), [t]);                                         // 16x9: cabe em 1 linha
@@ -147,7 +156,7 @@ test("quebrarTexto com o limite do 9x16 quebra frase de 41 caracteres em linhas 
   assert.ok(maiorLinha(q.map((texto) => ({ texto }))) <= LIMITES["9x16"].maxLinha);
   assert.equal(q[0].replace("\n", " "), t);                                       // só trocou um espaço por quebra
 });
-test("legendasDoFilme no 9x16 não passa de 32 caracteres por linha e no 16x9 passa de 32", () => {
+test("legendasDoFilme no 9x16 não passa de 28 caracteres por linha e no 16x9 passa de 28", () => {
   const texto = "Para a operadora que não manda arquivo, o Lançar em lote mostra as parcelas do mês e marcamos as que vieram no demonstrativo.";
   const r = { blocos: [{ linhas: [{ id: "l1", texto }] }] };
   const fala = { offset: 0, linhas: [{ l: "l1", a: 1, b: 9, t: texto }], palavras: [] };
@@ -172,11 +181,11 @@ test("quebrarTexto no 16x9 não deixa 1 palavra sozinha no fim da frase", () => 
   for (const p of q) assert.ok(p.split("\n").every((l) => l.length <= LIMITES["16x9"].maxLinha));
 });
 test("quebrarTexto no 9x16 não deixa palavra sozinha no fim da frase", () => {
-  const t = "O aplicativo mostra cada pedido novo e avisa o cliente na entrega.";
-  assert.equal(t.length, 66);                                                      // o corte guloso em 56 deixaria só "na entrega."
+  const t = "O aplicativo mostra cada pedido novo da loja e confirma.";
+  assert.equal(t.length, 56);                                                      // o corte guloso em 48 deixaria só "confirma."
   const q = quebrarTexto(t, LIMITES["9x16"]);
   assert.equal(q.length, 2);
-  for (const p of q) assert.ok(compridoDe(p) >= 18, `pedaço curto: "${p}"`);
+  for (const p of q) assert.ok(compridoDe(p) >= 16, `pedaço curto: "${p}"`);
   assert.deepEqual(palavrasDos(q), t.split(" "));
   for (const p of q) assert.ok(p.split("\n").every((l) => l.length <= LIMITES["9x16"].maxLinha));
 });
@@ -199,8 +208,8 @@ test("quebrarTexto no 16x9 não separa R$ do valor (quebra de linha)", () => {
   assert.deepEqual(palavrasDos(q), t.split(" "));
 });
 test("quebrarTexto no 9x16 não separa R$ do valor (quebra de pedaço)", () => {
-  for (const t of ["Confira o extrato do mês e some o valor total de R$ 600,00 em aberto no sistema.",
-    "A loja recebe o pedido e cobra o valor total de R$ 600,00 em aberto agora."]) {
+  for (const t of ["Confira o extrato do mês e anote o total de R$ 600,00 em aberto no sistema.",
+    "O cliente recebe a proposta e paga o total de R$ 600,00 em aberto no sistema."]) {
     const q = quebrarTexto(t, LIMITES["9x16"]);
     assert.ok(semPrefixoNoFim(q), `R$ ficou no fim: ${JSON.stringify(q)}`);
     assert.ok(q.some((p) => p.includes("R$ 600,00")), `R$ e o valor na mesma linha: ${JSON.stringify(q)}`);
@@ -210,24 +219,27 @@ test("quebrarTexto no 9x16 não separa R$ do valor (quebra de pedaço)", () => {
   }
 });
 test("quebrarTexto une US$, € e nº ao número; prefixo no fim do texto fica como está", () => {
-  const t = "Confira o extrato do mês e some o valor total de US$ 600,00 em aberto no sistema.";
+  const t = "Confira o extrato do mês e anote o total de US$ 600,00 em aberto no sistema.";
   assert.ok(semPrefixoNoFim(quebrarTexto(t, LIMITES["9x16"])));
   assert.ok(quebrarTexto(t, LIMITES["9x16"]).some((p) => p.includes("US$ 600,00")));
-  const u = "Confira o extrato do mês e some o valor total de € 600,00 em aberto no sistema.";
+  const u = "Confira o extrato do mês e anote o total de € 600,00 em aberto no sistema.";
   assert.ok(quebrarTexto(u, LIMITES["9x16"]).some((p) => p.includes("€ 600,00")));
-  const n = "Abra o chamado do cliente da fila de espera e confira o pedido nº 1234 de ontem.";
+  const n = "O cliente recebe a proposta e paga o total de nº 1234 em aberto no sistema.";
   assert.ok(semPrefixoNoFim(quebrarTexto(n, LIMITES["9x16"])));
   assert.ok(quebrarTexto(n, LIMITES["9x16"]).some((p) => p.includes("nº 1234")));
   assert.deepEqual(quebrarTexto("Total em R$"), ["Total em R$"]);
 });
 test("legendasDoFilme com R$ ainda usa o tempo das palavras, não o das letras", () => {
-  const texto = "Confira o extrato do mês e some o valor total de R$ 600,00 em aberto no sistema.";
-  const ws = texto.split(" ");
-  // 1 s por palavra, com um vão de 1 s antes de "em": reparto por letras não daria estes tempos.
-  const palavras = ws.map((w, i) => ({ l: "p1", w, a: 10 + i * 2, b: 11 + i * 2 }));
-  const r = { blocos: [{ linhas: [{ id: "p1", texto }] }] };
-  const fala = { offset: 0, linhas: [{ l: "p1", a: 10, b: 11 + (ws.length - 1) * 2, t: texto }], palavras };
+  // Um texto por formato: nos 2 a quebra sem a união do R$ separaria o prefixo do valor.
+  const textos = { "16x9": "Feche o pedido e anote a dívida de R$ 600,00 em aberto no sistema da loja.",
+    "9x16": "Confira o extrato do mês e anote o total de R$ 600,00 em aberto no sistema." };
   for (const formato of ["16x9", "9x16"]) {
+    const texto = textos[formato];
+    const ws = texto.split(" ");
+    // 1 s por palavra, com um vão de 1 s antes de cada uma: reparto por letras não daria estes tempos.
+    const palavras = ws.map((w, i) => ({ l: "p1", w, a: 10 + i * 2, b: 11 + i * 2 }));
+    const r = { blocos: [{ linhas: [{ id: "p1", texto }] }] };
+    const fala = { offset: 0, linhas: [{ l: "p1", a: 10, b: 11 + (ws.length - 1) * 2, t: texto }], palavras };
     const blocos = legendasDoFilme(r, fala, { formato });
     const ini = new Set(palavras.map((p) => p.a)), fim = new Set(palavras.map((p) => p.b));
     for (const b of blocos) assert.ok(ini.has(b.a) && fim.has(b.b), `${formato}: tempo fora das palavras: ${JSON.stringify(b)}`);

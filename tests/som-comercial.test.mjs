@@ -121,10 +121,16 @@ test("modo de tutorial com efeitos gravados: mesma saída de antes", () => {
 
 const MEDIR = join(RAIZ, "scripts", "medir-musica.py");
 const PY = process.platform === "win32" ? ["py", ["-3"]] : ["python3", []];
+// As tolerâncias ficam aqui, não na saída do script: se o script afrouxar a dele, o teste acusa.
+const TOL_BPM = 0.5, TOL_FASE = 0.015;
 function medir(arq, extra = []) {
   const r = spawnSync(PY[0], [...PY[1], MEDIR, arq, ...extra], { encoding: "utf8" });
   assert.equal(r.status, 0, `medir-musica.py saiu com ${r.status}: ${r.stderr}`);
-  return JSON.parse(r.stdout);
+  const m = JSON.parse(r.stdout);
+  assert.equal(m.tolerancias.bpm, TOL_BPM, "o script declara outra tolerância de andamento");
+  assert.equal(m.tolerancias.primeira_batida_s, TOL_FASE, "o script declara outra tolerância de fase");
+  assert.equal(typeof m.andamento_incerto, "boolean");
+  return m;
 }
 const hzMidi = (m) => 440 * 2 ** ((m - 69) / 12);
 
@@ -180,6 +186,42 @@ function batidaPop({ bpm, primeira, dur = 16, sr = SR }) {
   return x;
 }
 
+// Balada em Ré maior (Ré, Lá, Si m, Sol), arpejo e chimbal em semicolcheia, bumbo no 1, no "a"
+// do 2 e no 3, caixa no 2 e no 4, tudo humanizado (semente fixa). Porte da sonda da revisão.
+function balada({ bpm, primeira, dur = 30, sr = SR }) {
+  const x = new Float32Array(Math.round(dur * sr));
+  let s = 4242;
+  const u = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return (s + 0.5) / 4294967296; };
+  const normal = () => Math.sqrt(-2 * Math.log(u())) * Math.cos(2 * Math.PI * u());
+  const hum = (d) => d * normal();
+  const por = (som, t0, g) => { const i0 = Math.round(t0 * sr); for (let k = Math.max(0, -i0); k < som.length && i0 + k < x.length; k++) x[i0 + k] += g * som[k]; };
+  const tom = (m, d, harm, queda, ataque) => {
+    const f = hzMidi(m), n = Math.round(d * sr), fases = Array.from({ length: harm }, () => u() * 6.28);
+    return Float32Array.from({ length: n }, (_, k) => {
+      const t = k / sr;
+      let v = 0;
+      for (let h = 1; h <= harm; h++) if (f * h < sr / 2) v += Math.sin(2 * Math.PI * f * h * t + fases[h - 1]) / h;
+      return v * Math.min(1, t / ataque) * (queda ? Math.exp(-t / queda) : Math.min(1, (d - t) / 0.05));
+    });
+  };
+  const bumbo = () => Float32Array.from({ length: Math.round(0.35 * sr) }, (_, k) => { const t = k / sr; return Math.sin(2 * Math.PI * (50 * t + 2.8 * (1 - Math.exp(-t / 0.04)))) * Math.exp(-t / 0.15); });
+  const caixa = () => Float32Array.from({ length: Math.round(0.25 * sr) }, (_, k) => { const t = k / sr; return 0.6 * normal() * Math.exp(-t / 0.07) + 0.5 * Math.sin(2 * Math.PI * 190 * t) * Math.exp(-t / 0.05); });
+  const chimbal = () => { let ant = 0; return Float32Array.from({ length: Math.round(0.2 * sr) }, (_, k) => { const r = normal(), d = r - ant; ant = r; return 0.4 * d * Math.exp(-k / sr / 0.02); }); };
+  const acordes = [[62, 66, 69, 74], [57, 61, 64, 69], [59, 62, 66, 71], [55, 59, 62, 67]], raizes = [38, 33, 35, 31];
+  const b = 60 / bpm;
+  for (let k = 0, t = primeira; t < dur - 1; k++, t += b) {
+    const compasso = Math.floor(k / 4) % 4, pos = k % 4;
+    if (pos === 0 || pos === 2) por(bumbo(), t + hum(0.005), 0.9);
+    if (pos === 1) por(bumbo(), t + 0.75 * b + hum(0.005), 0.6);
+    if (pos === 1 || pos === 3) por(caixa(), t + hum(0.006), 0.6);
+    for (let q = 0; q < 4; q++) por(chimbal(), t + (q * b) / 4 + hum(0.004), 0.12 * (q % 2 ? 0.9 : 1.3));
+    for (let q = 0; q < 4; q++) por(tom(acordes[compasso][(pos * 4 + q) % 4], 0.6, 6, 0.25, 0.003), t + (q * b) / 4 + hum(0.004), 0.12);
+    if (pos === 0) por(tom(raizes[compasso], 4 * b, 4, 0, 0.02), t, 0.25);
+  }
+  const pico = x.reduce((a, v) => Math.max(a, Math.abs(v)), 0);
+  return x.map((v) => (v / pico) * 0.8);
+}
+
 function pasta() {
   const p = mkdtempSync(join(tmpdir(), "motionstudio-musica-"));
   temporarias.push(p);
@@ -206,8 +248,8 @@ test("medir-musica: cliques a 112 BPM com a primeira batida em 0,37 s", () => {
   const arq = join(pasta(), "cliques.wav");
   gravarWav(arq, [cliques({ bpm: 112, primeira: 0.37 })]);
   const m = medir(arq);
-  assert.ok(Math.abs(m.bpm - 112) <= m.tolerancias.bpm, `bpm ${m.bpm}`);
-  assert.ok(Math.abs(m.primeira_batida - 0.37) <= m.tolerancias.primeira_batida_s, `primeira batida ${m.primeira_batida}`);
+  assert.ok(Math.abs(m.bpm - 112) <= TOL_BPM, `bpm ${m.bpm}`);
+  assert.ok(Math.abs(m.primeira_batida - 0.37) <= TOL_FASE, `primeira batida ${m.primeira_batida}`);
   assert.ok(m.forca_batida > 0.3, `força da batida ${m.forca_batida}`);
 });
 
@@ -215,25 +257,42 @@ test("medir-musica: cliques a 90 BPM com contratempo mais fraco não dobram o an
   const arq = join(pasta(), "cliques 90.wav");
   gravarWav(arq, [cliques({ bpm: 90, primeira: 0.05, contratempo: 0.5 })]);
   const m = medir(arq);
-  assert.ok(Math.abs(m.bpm - 90) <= m.tolerancias.bpm, `bpm ${m.bpm}`);
-  assert.ok(Math.abs(m.primeira_batida - 0.05) <= m.tolerancias.primeira_batida_s, `primeira batida ${m.primeira_batida}`);
+  assert.ok(Math.abs(m.bpm - 90) <= TOL_BPM, `bpm ${m.bpm}`);
+  assert.ok(Math.abs(m.primeira_batida - 0.05) <= TOL_FASE, `primeira batida ${m.primeira_batida}`);
 });
 
 test("medir-musica: batida pop a 104 BPM em Lá menor (bumbo, palma e chimbal em colcheia)", () => {
   const arq = join(pasta(), "pop.wav");
   gravarWav(arq, [batidaPop({ bpm: 104, primeira: 0.21 })]);
   const m = medir(arq);
-  assert.ok(Math.abs(m.bpm - 104) <= m.tolerancias.bpm, `bpm ${m.bpm}`);
-  assert.ok(Math.abs(m.primeira_batida - 0.21) <= m.tolerancias.primeira_batida_s, `primeira batida ${m.primeira_batida}`);
+  assert.ok(Math.abs(m.bpm - 104) <= TOL_BPM, `bpm ${m.bpm}`);
+  assert.ok(Math.abs(m.primeira_batida - 0.21) <= TOL_FASE, `primeira batida ${m.primeira_batida}`);
   assert.equal(`${m.tom} ${m.modo}`, "A menor");
+});
+
+test("medir-musica: balada a 76 BPM com semicolcheias não sai em 101 (3/4 da batida)", () => {
+  const arq = join(pasta(), "balada.wav");
+  gravarWav(arq, [balada({ bpm: 76, primeira: 0.12 })]);
+  const m = medir(arq);
+  assert.ok(Math.abs(m.bpm - 76) <= TOL_BPM, `bpm ${m.bpm} (rival ${m.rival_bpm}, incerto ${m.andamento_incerto})`);
+  assert.ok(Math.abs(m.primeira_batida - 0.12) <= TOL_FASE, `primeira batida ${m.primeira_batida}`);
+  assert.equal(`${m.tom} ${m.modo}`, "D maior");
+});
+
+test("medir-musica: cliques a 70 BPM com contratempo forte saem certos ou com andamento_incerto", () => {
+  const arq = join(pasta(), "cliques 70.wav");
+  gravarWav(arq, [cliques({ bpm: 70, primeira: 0.13, contratempo: 0.5 })]);
+  const m = medir(arq);
+  const certo = Math.abs(m.bpm - 70) <= TOL_BPM;
+  assert.ok(certo || (m.andamento_incerto && Math.abs(m.rival_bpm - 70) <= 2), `bpm ${m.bpm}, rival ${m.rival_bpm}, incerto ${m.andamento_incerto}`);
 });
 
 test("medir-musica: --inicio conta a fase a partir do trecho medido", () => {
   const arq = join(pasta(), "cliques trecho.wav");
   gravarWav(arq, [cliques({ bpm: 120, primeira: 0.1, dur: 10 })]);
   const m = medir(arq, ["--inicio", "1.3", "--dur", "8"]);       // batidas em 0,1 + 0,5k; contadas de 1,3 s: 0,3
-  assert.ok(Math.abs(m.bpm - 120) <= m.tolerancias.bpm, `bpm ${m.bpm}`);
-  assert.ok(Math.abs(m.primeira_batida - 0.3) <= m.tolerancias.primeira_batida_s, `primeira batida ${m.primeira_batida}`);
+  assert.ok(Math.abs(m.bpm - 120) <= TOL_BPM, `bpm ${m.bpm}`);
+  assert.ok(Math.abs(m.primeira_batida - 0.3) <= TOL_FASE, `primeira batida ${m.primeira_batida}`);
 });
 
 // ---------------------------------------------------------------- modo comercial

@@ -18,6 +18,9 @@ Saída: JSON no stdout.
                    primeiro tempo do compasso.
   forca_batida     0 a 1: quanto a faixa se repete no período da batida. Abaixo de 0,3 a grade
                    não é confiável (faixa sem percussão, por exemplo).
+  andamento_incerto  true quando um rival a 2:1, 1:2, 4:3, 3:4, 3:2 ou 2:3 do andamento chega a
+                   85 % da nota do vencedor (batida dobrada, pela metade ou pontuada)
+  rival_bpm, rival_razao  o rival mais forte e a nota dele sobre a do vencedor (0 a 1)
   tom, modo        a tônica (C, C#, Db, D ... B, com a grafia usual do tom) e "maior" ou "menor"
   nome             o tom em português ("Lá menor", "Si bemol maior")
   tonica_hz        a tônica na 4ª oitava (Lá = 440 Hz)
@@ -28,10 +31,11 @@ Saída: JSON no stdout.
   tolerancias      as tolerâncias abaixo
 
 Método:
-  andamento  envelope de ataques em dB: o espectro em faixas de 1/4 de oitava (40 Hz a 10 kHz),
-             só o que sobe de um quadro para o outro, média das faixas. Em dB, o chimbal baixo
-             conta tanto quanto o bumbo. Autocorrelação desse envelope, com preferência por
-             120 BPM (log-normal, 1 oitava de desvio).
+  andamento  envelope de ataques linear: a magnitude do espectro em faixas de 1/4 de oitava
+             (40 Hz a 10 kHz), só o que sobe de um quadro para o outro, soma das faixas. O golpe
+             forte (bumbo, caixa) pesa mais que a semicolcheia do chimbal e do arpejo.
+             Autocorrelação desse envelope, com preferência por 120 BPM (log-normal, 1 oitava de
+             desvio). O rival mais forte nas razões métricas sai em rival_bpm.
   fase       envelope de ataques linear, em janela curta (23 ms, passo de 2,9 ms), com cada faixa
              dividida pela média dela. Ajuste fino por pente: o período (passos de 0,05 BPM e
              depois 0,005 BPM, até 3 % do aproximado) e a fase (passos de 1 ms) em que a soma do
@@ -42,14 +46,23 @@ Método:
 
 Tolerâncias (medidas com sinais sintéticos nos testes; em música de verdade, confira de ouvido):
   bpm +-0,5; primeira_batida +-0,015 s (meio quadro a 30 fps); tom e modo exatos.
-  Medido em 29/10/2026: batida pop sintética (bumbo, palma, chimbal, acorde) de 84 a 140 BPM,
-  39 casos: erro até 0,011 BPM e 5,0 ms, tom certo em todos. Cliques de 90 a 174 BPM, 40 casos:
-  até 0,01 BPM e 1,7 ms. Acordes de 6 harmônicos em 8 tons: tom e modo certos em todos.
+  Medido em 29/10/2026, só com sinais sintéticos:
+  - batida pop (bumbo, palma, chimbal em colcheia, acorde) de 84 a 140 BPM, 39 casos: todos
+    certos, erro até 0,011 BPM e 5,0 ms, tom certo em todos;
+  - cliques de 84 a 174 BPM (84 e 90 com contratempo a -6 dB), 44 casos: todos certos, até
+    0,01 BPM e 1,7 ms. Saem com andamento_incerto os de 160 e 174 (rival na metade, que também
+    é uma pulsação válida) e 2 dos 4 de 84;
+  - balada a 76 BPM com semicolcheia de chimbal e arpejo, bumbo no 1, no "a" do 2 e no 3:
+    76,0 BPM, rival 101,3 a 0,29. Batida de 124 BPM com bumbo em todo tempo: 124,0;
+  - acordes de 6 harmônicos em 8 tons: tom e modo certos em todos.
 Limites conhecidos:
-  - abaixo de 90 BPM, com colcheia marcada, o andamento pode sair dobrado (84 vira 168):
-    passe --bpm-max menor que o dobro do andamento esperado;
-  - eco pontuado forte (colcheia pontuada) puxa o andamento para 4/3: a trilha de código do kit
-    (100 BPM) mede 133. O tom dela sai certo (Ré maior);
+  - com andamento_incerto: true, confira de ouvido. Para forçar um dos dois, passe --bpm-min e
+    --bpm-max numa faixa que tem o certo e não tem o outro (mediu 140 com rival 70: --bpm-max 100);
+  - pulsação lenta com contratempo forte pode sair dobrada SEM aviso: cliques a 60 BPM com
+    contratempo a -6 dB medem 120 (rival 60 a 0,72). Cliques a 70 medem 140 com aviso. Em música
+    lenta, passe --bpm-max abaixo do dobro do andamento esperado;
+  - eco pontuado forte puxa o andamento para 4/3: a trilha de código do kit (100 BPM) mede 133,
+    com andamento_incerto (o rival apontado é 175, não 100). O tom dela sai certo (Ré maior);
   - música sem percussão: forca_batida baixa e grade sem valor.
 
 Saída 0 = medido; 1 = erro de leitura; 2 = erro de uso.
@@ -70,6 +83,7 @@ ATRASO_FASE = (N_FASE / 4 - HOP_FASE / 2) / SR
 N_TOM, HOP_TOM = 16384, 2048                           # cromagrama: 1,35 Hz por faixa (separa as notas graves), passo de 93 ms
 MEDIANA_TOM = 15                                       # quadros na mediana do cromagrama (1,4 s)
 TOLERANCIAS = {"bpm": 0.5, "primeira_batida_s": 0.015, "tom": "exato", "modo": "exato"}
+RIVAL_PERTO = 0.85                                     # rival com 85 % da nota do vencedor: andamento_incerto
 
 # Grafia usual de cada tom (Si bemol maior, Sol sustenido menor), com o nome em português.
 NOMES = {"maior": ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"],
@@ -128,9 +142,11 @@ def so_o_que_sobe(o, hop):
 
 
 def envelope_andamento(x):
-    B = faixas(x, N_ANDAMENTO, HOP_ANDAMENTO)
-    L = 10 * np.log10(B + B.max() * 1e-8 + 1e-20)
-    o = np.concatenate([[0.0], np.maximum(0.0, np.diff(L, axis=0)).mean(axis=1)])
+    # Magnitude linear, sem igualar as faixas: o golpe forte (bumbo, caixa) pesa mais que o
+    # chimbal e o arpejo. Em dB, a semicolcheia uniforme empatava todos os múltiplos dela, e a
+    # preferência por 120 BPM escolhia 3/4 da batida (76 BPM saía 101).
+    B = np.sqrt(faixas(x, N_ANDAMENTO, HOP_ANDAMENTO))
+    o = np.concatenate([[0.0], np.maximum(0.0, np.diff(B, axis=0)).sum(axis=1)])
     return so_o_que_sobe(o, HOP_ANDAMENTO)
 
 
@@ -148,21 +164,34 @@ def suavizar(o, sigma):
 
 
 def andamento(o, fps, bpm_min, bpm_max):
-    """BPM aproximado e força da batida, pela autocorrelação com preferência por 120 BPM."""
+    """BPM aproximado, força da batida e o rival mais forte numa razão métrica (BPM, nota/nota do vencedor).
+
+    Pela autocorrelação com preferência por 120 BPM. Rival: o melhor candidato em 2, 1/2, 4/3, 3/4,
+    3/2 ou 2/3 vezes o andamento escolhido (batida dobrada, pela metade ou pontuada)."""
     v = o - o.mean()
     n = len(v)
     F = np.fft.rfft(v, 2 * n)
     ac = np.fft.irfft(F * np.conj(F))[:n]
     if ac[0] <= 0:
-        return None, 0.0
+        return None, 0.0, None, 0.0
     ac = ac / ac[0]
     lo, hi = int(np.ceil(60 / bpm_max * fps)), min(n - 1, int(60 / bpm_min * fps))
     if hi <= lo:
-        return None, 0.0
+        return None, 0.0, None, 0.0
     lags = np.arange(lo, hi + 1)
-    peso = np.exp(-0.5 * np.log2(60 * fps / lags / 120) ** 2)
-    k = lags[np.argmax(ac[lo:hi + 1] * peso)]
-    return 60 * fps / k, float(max(0.0, ac[k]))
+    nota = ac[lo:hi + 1] * np.exp(-0.5 * np.log2(60 * fps / lags / 120) ** 2)
+    j = int(np.argmax(nota))
+    k = lags[j]
+    rival, razao = None, 0.0
+    if nota[j] > 0:
+        for r in (2, 1 / 2, 4 / 3, 3 / 4, 3 / 2, 2 / 3):
+            a, b = max(lo, int(np.floor(k / r - 2))), min(hi, int(np.ceil(k / r + 2)))
+            if a > b:
+                continue
+            jr = a - lo + int(np.argmax(nota[a - lo:b - lo + 1]))
+            if nota[jr] / nota[j] > razao:
+                razao, rival = float(nota[jr] / nota[j]), 60 * fps / lags[jr]
+    return 60 * fps / k, float(max(0.0, ac[k])), rival, razao
 
 
 def pente(o, fps, bpms):
@@ -219,17 +248,25 @@ def main():
     x = ler(o.arquivo, o.inicio, o.dur)
     res = {"arquivo": o.arquivo, "inicio": o.inicio, "duracao": round(len(x) / SR, 3)}
 
-    bpm0, forca = andamento(suavizar(envelope_andamento(x), 1.0), SR / HOP_ANDAMENTO, o.bpm_min, o.bpm_max)
+    bpm0, forca, rival0, razao = andamento(suavizar(envelope_andamento(x), 1.0), SR / HOP_ANDAMENTO, o.bpm_min, o.bpm_max)
     if bpm0:
         fps = SR / HOP_FASE
         env = suavizar(envelope_fase(x), 2.0)
-        bpm, _ = pente(env, fps, np.arange(bpm0 * 0.97, bpm0 * 1.03, 0.05))
-        bpm, fase = pente(env, fps, np.arange(bpm - 0.1, bpm + 0.1, 0.005))
+
+        def fino(aprox):
+            b, _ = pente(env, fps, np.arange(aprox * 0.97, aprox * 1.03, 0.05))
+            return pente(env, fps, np.arange(b - 0.1, b + 0.1, 0.005))
+        bpm, fase = fino(bpm0)
         batida = 60 / bpm
+        incerto = razao >= RIVAL_PERTO
         res.update({"bpm": round(bpm, 2), "batida_s": round(batida, 4),
-                    "primeira_batida": round((fase / fps + ATRASO_FASE) % batida, 4), "forca_batida": round(forca, 3)})
+                    "primeira_batida": round((fase / fps + ATRASO_FASE) % batida, 4), "forca_batida": round(forca, 3),
+                    "andamento_incerto": bool(incerto),
+                    "rival_bpm": round(fino(rival0)[0] if incerto else rival0, 2) if rival0 else None,
+                    "rival_razao": round(razao, 3)})
     else:
-        res.update({"bpm": None, "batida_s": None, "primeira_batida": None, "forca_batida": 0.0})
+        res.update({"bpm": None, "batida_s": None, "primeira_batida": None, "forca_batida": 0.0,
+                    "andamento_incerto": True, "rival_bpm": None, "rival_razao": 0.0})
 
     tons, croma = tom(x)
     (c1, r1, m1), (c2, r2, m2) = tons[0], tons[1]

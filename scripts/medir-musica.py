@@ -43,8 +43,8 @@ Método:
 Tolerâncias (medidas com sinais sintéticos nos testes; em música de verdade, confira de ouvido):
   bpm +-0,5; primeira_batida +-0,015 s (meio quadro a 30 fps); tom e modo exatos.
   Medido em 29/10/2026: batida pop sintética (bumbo, palma, chimbal, acorde) de 84 a 140 BPM,
-  39 casos: erro até 0,011 BPM e 5,0 ms, tom certo em todos. Cliques de 90 a 174 BPM: até
-  0,01 BPM e 1,4 ms. Acordes de 6 harmônicos em 8 tons: tom e modo certos em todos.
+  39 casos: erro até 0,011 BPM e 5,0 ms, tom certo em todos. Cliques de 90 a 174 BPM, 40 casos:
+  até 0,01 BPM e 1,7 ms. Acordes de 6 harmônicos em 8 tons: tom e modo certos em todos.
 Limites conhecidos:
   - abaixo de 90 BPM, com colcheia marcada, o andamento pode sair dobrado (84 vira 168):
     passe --bpm-max menor que o dobro do andamento esperado;

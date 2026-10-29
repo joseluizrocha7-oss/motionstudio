@@ -155,6 +155,12 @@ e depois. O número "depois" é o do S4, que acusa acima de 4,0 dB. Trecho "limi
 regrave a tomada ou suba o `--fino`. Projeto criado antes de 29/10/2026 tem o `montar.mjs` antigo
 (o `novo-projeto.mjs` não sobrescreve nada): copie o da skill para `vozes/`.
 
+Sigla soletrada e número por extenso ("cê bê ésse", "dois mil e trinta e três") recebem o tempo da
+palavra do Whisper no `alinhar.py`: deixam de sair como estimados, e o `montar.mjs` deixa de punir
+essas palavras. O tempo de cada letra dentro da sigla continua estimado; só a borda vem do Whisper.
+O `alinhar.py` usa o `vozes/normalizar.py`. Projeto criado antes de 29/10/2026: copie os 2 arquivos
+de `kit/vozes/` da skill para `vozes/`.
+
 **4. Telas.** Fotos do app de verdade, operado num Chromium com a API simulada e dados
 fictícios, cada alvo com a sua caixa (`medidas.js`). Os dois temas do app, se ele tiver.
 Modelo: `capturar.mjs` do caso de referência. Alvo que é uma frase recebe a caixa do
@@ -243,6 +249,22 @@ trilha de código (só se não houver saldo no Gemini). O toque e o sopro gravad
 (`--toque`, `--ar`, sons CC0 em `kit/efeitos-gravados/`) estão em teste. Não use sem o Jose
 aprovar o A/B de 19/10/2026 (`kit/efeitos-gravados/LEIA-ME.md`).
 
+**Som de comercial, promo e vinheta.** Os efeitos do tutorial são toque, gesto e marca de app. No
+comercial, cada efeito fica preso a um evento rotulado do filme (`M.mark(F.abertura, 'som',
+'abertura')`) e se afina no tom da música. Use `--comercial` no lugar do modo de tutorial:
+```bash
+node gerar-som.mjs film/stills/events.json --comercial sons.json --total <s> --musica assets/musica/<faixa>.mp3
+```
+O `sons.json` é um mapa de rótulo para efeito. Cada regra que casa põe um efeito no evento, e cada
+palavra do `M.words` leva um só. O formato, as opções e as saídas estão em `kit/LEIA-ME.md` ("O mapa
+dos efeitos"). A voz fica em -16 LUFS, a música 20 dB abaixo (`--abaixo`) e a mistura fecha em -16
+LUFS em 2 passadas. Passe `film/audio/sfx-eventos.json` ao `--sfx` do `ouvir.py`. O tom vem de
+`--tom` e `--modo`, ou da medida da faixa pelo `scripts/medir-musica.py` (BPM, fase da batida e tom).
+Com `andamento_incerto: true` ou `incerto: true`, confira de ouvido e force o andamento com
+`--bpm-min` e `--bpm-max` (limites na LEIA-ME). Só sinais sintéticos foram medidos: ninguém ouviu os
+efeitos. Projeto criado antes de 29/10/2026: copie `kit/som-comercial.mjs` e `kit/trilha.mjs` para a
+pasta do projeto.
+
 **Ver com som antes do render.** Abra o filme no Chrome com `?previa` no endereço
 (`file:///<projeto>/film/index-vertical.html?previa`). Aparecem o quadro reduzido, os controles
 embaixo (Reproduzir/Pausar, Recomeçar, faixa de tempo, hora e quadro) e o `audio/mix.wav` ao
@@ -316,6 +338,19 @@ razão. Use `line-height` de 1,2 ou mais, ou `padding` na máscara. Título só 
 - Justificação, fonte de reserva na linha e escala diferente nos dois eixos também voltam à regra
   da caixa.
 - Só a vertical é refinada. `text-transform: capitalize` e `font-variant` não entram na conta.
+
+**`ouvir.py` com `fala` diferente do `texto`.** Quando a linha tem `fala` fonética, sigla soletrada
+ou número por extenso, passe o `roteiro.json` (o mesmo do `montar.mjs`) em `--roteiro`, no lugar do
+`vo.txt`. O S1 casa "dois mil e trinta e três" com "2033" e "cê bê ésse" com "CBS" (também R$ e
+decimal). O S3 aceita a grafia da tela na marca `M.mark(quadro, 'fala', '...')`. Na primeira palavra
+depois de uma pausa, S2 e S3 medem o começo pela energia do áudio (linha "começo pela energia").
+A transcrição estica essa palavra para trás. Limites:
+- Com `--sfx`, um efeito que toca na primeira palavra depois de uma pausa faz o `ouvir.py` ficar
+  com o tempo da transcrição. Um alerta S3 "tela atrasada" nessa palavra pode ser falso: confira de
+  ouvido e no quadro. Sem `--sfx`, o efeito dentro do vão conta como fala.
+- Batida ou subida da música a uns 10 dB da voz, dentro do vão, ainda pode adiantar o começo.
+- Escreva o nome da letra com acento na `fala` ("tê", "pê", "ésse"). "te pe" sem acento não é lido
+  como sigla. O que não casa (ordinal, fração, centavos, hora, "4G") está em `kit/vozes/normalizar.py`.
 
 **10. Entrega.** `film/NOTE.md` com os números de cada portão (e o que é real e o que é
 ilustrativo), `LEIA-ME.md` do projeto (o que sai, como refazer, onde mexer), entrada em
@@ -555,8 +590,8 @@ a voz inteira anda junto. Quando cada cena começa num segundo marcado, use o
    código 1 e não grava nada. Corrija o `tempos.json` ou encurte a frase.
 6. Em `film/montar-filmes.mjs`, ponha `dur: <s>` na linha do filme em `FILMES`: a duração tirada
    da última fala não serve em filme de tempo fixo. Rode o `montar-filmes.mjs`.
-7. Som: `node gerar-som.mjs <events.json> --audio audio-filme --total <s> --musica ...`. A
-   mixagem sai em `film/audio-filme/mix.wav`: passe esse caminho ao `render_partes.sh --audio` e
+7. Som: `node gerar-som.mjs <events.json> --audio audio-filme --total <s> --musica ...` (no
+   comercial, com `--comercial sons.json`). A mixagem sai em `film/audio-filme/mix.wav`: passe esse caminho ao `render_partes.sh --audio` e
    ao `?previa&audio=`. Passe `film/audio-filme/sfx-eventos.json` ao `ouvir.py --sfx`. O
    `--roteiro` do `ouvir.py` continua `film/audio/vo.txt`.
 8. A legenda (`gerar-legenda.mjs`) lê o `fala.js` já posicionado: não some offset. Para medir a
@@ -583,8 +618,8 @@ chegando no nome.
 
 | arquivo | para |
 |---|---|
-| `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`); `kit/film/posicionar-voz.mjs`: a voz no segundo de cada cena, para filme de tempo fixo; `kit/efeitos-gravados/`: 3 sons CC0 em teste |
-| `scripts/` | `render.mjs`, `render_partes.sh`, `render-trechos.mjs` (o render_partes em paralelo, com cache; usa `_pagina.mjs`), `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `erros.mjs` (as exceções da página, antes do autoteste), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `legendar.mjs` (grava o `.srt` no MP4 com o ffmpeg; `--margem-baixo` sobe a legenda no 9:16), `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
+| `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`); `kit/film/posicionar-voz.mjs`: a voz no segundo de cada cena, para filme de tempo fixo; `kit/som-comercial.mjs`: o modo `--comercial` do `gerar-som.mjs`; `kit/efeitos-gravados/`: 3 sons CC0 em teste |
+| `scripts/` | `render.mjs`, `render_partes.sh`, `render-trechos.mjs` (o render_partes em paralelo, com cache; usa `_pagina.mjs`), `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `erros.mjs` (as exceções da página, antes do autoteste), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `medir-musica.py` (BPM, fase da batida e tom da faixa), `legendar.mjs` (grava o `.srt` no MP4 com o ffmpeg; `--margem-baixo` sobe a legenda no 9:16), `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
 | `runtime/` | o motor de animação (`motion.js`, API em `runtime/README.md`; `M.render` e o modo `?previa` incluídos) |
 | `library/` | `moments.jsonl` (precedentes de movimento) e `lottie/` (5 ícones animados feitos à mão, `_cor.js` com o `LOTTIE.cor`, `_gerar.mjs` que grava os ícones e `LICENCAS.md`) |
 | `references/` | o método de direção (`metodo.md`) e os guias de ofício, em inglês |

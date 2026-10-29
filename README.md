@@ -37,6 +37,7 @@ O que é igual em todos:
 - **Filme em HTML.** Cada animação fica presa a uma palavra da voz. O render é quadro a quadro, pelo Chrome e pelo ffmpeg. `M.render(fn)` põe um desenho próprio (arco, gráfico, canvas) no mesmo relógio. `?previa` no endereço do filme abre quadro reduzido, controles e o `audio/mix.wav` no mesmo relógio, sem renderizar; o render nunca abre esse modo.
 - **Uma fonte, várias versões.** Longo e curto, modo escuro e claro, 9:16 e 16:9 saem da mesma fonte, só por configuração.
 - **Trilha e efeitos por código.** Por padrão, nada de banco de música ou de efeitos.
+- **Som de comercial.** O `gerar-som.mjs --comercial sons.json` prende cada efeito a um evento rotulado do filme (`M.mark`) e afina os efeitos tonais no tom da música. A música fica 20 dB sob a voz, e a mistura fecha em -16 LUFS em 2 passadas. O `scripts/medir-musica.py` mede BPM, fase da batida e tom da faixa. O formato do mapa está em [`kit/LEIA-ME.md`](kit/LEIA-ME.md).
 - **Legenda, quando a voz sai do kit.** O `kit/gerar-legenda.mjs` faz o `.srt` com o texto do `roteiro.json` e o tempo do `fala.js` (`film/legenda-16x9.srt` ou `film/legenda-9x16.srt`). O `scripts/legendar.mjs` grava esse `.srt` num segundo MP4, legendado, para quem assiste sem som. Ele tira o formato do tamanho do vídeo; no 9x16 a linha é mais curta, então gere o `.srt` com o `--formato` do vídeo. A legenda sai sem caixa, com contorno preto e sombra suave: serve para tutorial de tela, comercial, promo e vinheta com fundo limpo. Em filmagem de câmera ou fundo com muito detalhe, use `--estilo caixa` e `--cor-caixa`; em filme claro, `--cor-texto` escuro com `--cor-contorno` branco separa melhor. As cores vão entre aspas (`--cor-texto "#0B2A66"`), porque o `#` abre um comentário no Git Bash. No 9x16 de Reels, `--margem-baixo 420` sobe a legenda para a área segura (o pé fica em y 1500; o padrão deixa 260 px embaixo). Para o filme desenhar a legenda no estilo dele, use `--saida film/assets/legenda.js` no `gerar-legenda.mjs`: ele grava `window.LEGENDA` no lugar do `.srt`.
 - **Conferência no arquivo entregue.** Imagem, texto, câmera, som e tela vazia são medidos por script. O agente nunca certifica o filme só pelo olho.
 
@@ -49,7 +50,8 @@ Toda narração da skill sai do modelo `gemini-3.8-flash-tts`, pela Interactions
 |---|---|
 | [`kit/vozes/tts.mjs`](kit/vozes/tts.mjs) | Um pedido ao Gemini TTS: texto, voz e estilo de leitura. Grava um WAV. |
 | [`kit/vozes/gerar-tomadas.mjs`](kit/vozes/gerar-tomadas.mjs) | N tomadas por bloco do roteiro. A voz recebe o bloco inteiro: assim sabe de onde a frase vem e para onde vai. |
-| [`kit/vozes/alinhar.py`](kit/vozes/alinhar.py) | O tempo de cada palavra. O Gemini não devolve esse tempo; o Whisper local mede, e o texto que vale é o do roteiro. |
+| [`kit/vozes/alinhar.py`](kit/vozes/alinhar.py) | O tempo de cada palavra. O Gemini não devolve esse tempo; o Whisper local mede, e o texto que vale é o do roteiro. Sigla soletrada e número por extenso pegam o tempo da palavra do Whisper. |
+| [`kit/vozes/normalizar.py`](kit/vozes/normalizar.py) | Dá a mesma forma a "dois mil e trinta e três" e "2033", e a "cê bê ésse" e "CBS". Cobre também "R$" e decimal. O `alinhar.py` e o `ouvir.py` usam o mesmo módulo. |
 | [`kit/vozes/montar.mjs`](kit/vozes/montar.mjs) | Escolhe a melhor tomada de cada frase, guarda a respiração, nivela em -20 LUFS e emenda com as pausas do roteiro. Depois ajusta o volume de cada trecho de fala até a mediana (a régua do portão S4). |
 | [`kit/film/posicionar-voz.mjs`](kit/film/posicionar-voz.mjs) | Filme de tempo fixo: põe cada linha da voz montada no segundo do `tempos.json` e corta no meio do silêncio entre as linhas. Grava o `vo.wav` do filme e o `fala.js` com offset 0. |
 | [`kit/vozes/listar-vozes.mjs`](kit/vozes/listar-vozes.mjs) | Lista as vozes pt-BR disponíveis. Só leitura, não gera áudio. |
@@ -117,7 +119,7 @@ Um portão que falha se corrige. Um alerta que vem de erro da transcrição se p
 | autoteste | 0 divergências entre tocar e saltar para um quadro | `kit/autoteste.mjs` |
 | tela vazia | Nenhum instante com o celular sem foto | `kit/tela-vazia.mjs` |
 | leitura | Sem alerta em frase de impacto e pausa onde há pontuação | `entonacao.mjs` |
-| S1 a S4 | Fala inteira, pausas no lugar, fala e tela juntas, mistura enxuta | `ouvir.py` |
+| S1 a S4 | Fala inteira (número por extenso, sigla soletrada, R$ e decimal casam com a transcrição; `--roteiro roteiro.json` aceita o texto da tela), pausas no lugar, fala e tela juntas, mistura enxuta | `ouvir.py` |
 
 ## Requisitos
 
@@ -205,7 +207,7 @@ O que você recebe:
 | [`SKILL.md`](SKILL.md) | As regras que o agente segue, o passo a passo e os portões |
 | [`kit/`](kit/) | O projeto de tutorial de app: roteiro, voz, filme por fonte única, som, autoteste e tela vazia. Para filme de tempo fixo, `kit/film/posicionar-voz.mjs` |
 | [`kit/vozes/`](kit/vozes/) | A voz: Gemini TTS 3.8 Flash, alinhamento e montagem frase a frase |
-| [`scripts/`](scripts/) | Render, portões e ferramentas: `render.mjs`, `render_partes.sh`, `render-trechos.mjs`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs`, `erros.mjs`, `entonacao.mjs`, `pausas.mjs`, `mix.py`, `sync.mjs`, `brand.mjs`, `legendar.mjs`, `providers.sh` |
+| [`scripts/`](scripts/) | Render, portões e ferramentas: `render.mjs`, `render_partes.sh`, `render-trechos.mjs`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs`, `erros.mjs`, `entonacao.mjs`, `pausas.mjs`, `mix.py`, `medir-musica.py`, `sync.mjs`, `brand.mjs`, `legendar.mjs`, `providers.sh` |
 | [`runtime/`](runtime/) | O motor de animação que volta a qualquer quadro (`motion.js`; API em `runtime/README.md`, com `M.render` e o modo `?previa`) |
 | [`references/`](references/) | O método de direção e os guias de ofício (movimento, tipografia, mundo, som, câmera), em inglês |
 | [`library/`](library/) | Precedentes de movimento por tipo de momento (`moments.jsonl`) e ícones animados feitos à mão para as peças do painel (`lottie/`, com `LICENCAS.md`) |
@@ -215,7 +217,8 @@ O que você recebe:
 
 ## Limites conhecidos
 
-- **Ninguém ouviu.** A fala é conferida por transcrição e medida. Pronúncia de nome próprio e tom só o ouvido humano valida.
+- **Ninguém ouviu.** A fala é conferida por transcrição e medida. Pronúncia de nome próprio e tom só o ouvido humano valida. Os efeitos do comercial e a medida da música foram testados só com sinais sintéticos.
+- **O S3 pode errar na primeira palavra depois de uma pausa.** Com `--sfx`, um efeito que toca nessa palavra faz o `ouvir.py` ficar com o tempo da transcrição. Um alerta "tela atrasada" ali pode ser falso. Batida da música a uns 10 dB da voz, dentro do vão, ainda pode adiantar o começo. Sigla sem acento ("te pe") não é lida como sigla.
 - **O render é lento.** A captura tira uma foto por vez, e a GPU não acelera esse passo. Medido: 36 s para 60 quadros com 8 fotos cada. Um filme de 4 minutos leva cerca de 1 h 10 min. Na codificação final, o NVENC também não compensa. Num filme de 30 s ele levou 0,68 do tempo do x264, e o arquivo saiu 4 vezes maior (29,0 MB contra 7,3 MB).
 - **Um formato por vez.** Dois Chromes de render juntos esgotam uma máquina de 16 GB. Outro render vivo na máquina também derruba o Chrome. O `render-trechos.mjs` avisa no início e espera a memória por até 10 minutos. Depois sai com código 3 e escreve o comando do `render_partes.sh`.
 - **O `ler.mjs` só roda no Windows.** Em outro sistema, o T1 e o T2 ficam sem conferência, e o `NOTE.md` diz isso.

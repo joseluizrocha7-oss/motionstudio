@@ -227,20 +227,24 @@ const corAss = (cor, opacidade = 1) =>
   `&H${Math.round((1 - opacidade) * 255).toString(16).toUpperCase().padStart(2, "0")}${bgr(cor)}`;
 
 // estilo.tipo: "contorno" (padrão) ou "caixa". Só vale a cor do tipo escolhido (corContorno ou corCaixa).
+// estilo.margemBaixo: pixels entre a legenda e a borda de baixo do vídeo (MarginV); sem ela vale o padrão do formato (30 no 16x9, 260 no 9x16).
 export function paraAss(blocos, estilo) {
   const f = FORMATOS_ASS[estilo?.formato];
   if (!f) throw new Error(`formato inválido: "${estilo?.formato}" (use 16x9 ou 9x16)`);
   const { tipo = "contorno", corTexto = "#FFFFFF", corContorno = "#000000", corCaixa = "#111111", opacidadeCaixa = 0.85,
-    margemEsq = MARGEM_LATERAL, margemDir = MARGEM_LATERAL } = estilo;
+    margemEsq = MARGEM_LATERAL, margemDir = MARGEM_LATERAL, margemBaixo = f.margemV } = estilo;
   if (!TIPOS_ASS.includes(tipo)) throw new Error(`tipo de legenda inválido: "${tipo}" (use ${TIPOS_ASS.join(" ou ")})`);
   if (!(opacidadeCaixa >= 0 && opacidadeCaixa <= 1)) throw new Error(`opacidadeCaixa fora de 0 a 1: ${opacidadeCaixa}`);
+  if (typeof margemBaixo !== "number" || !Number.isFinite(margemBaixo) || margemBaixo < 0) {
+    throw new Error(`margemBaixo inválida: ${JSON.stringify(margemBaixo)} (use um número de pixels, 0 ou mais)`);
+  }
   // caixa: BorderStyle 3 desenha a caixa com OutlineColour; Outline 14 é a folga dela em volta do texto.
   // contorno: BorderStyle 1 desenha a borda com OutlineColour (opaca) e a sombra com BackColour.
   const [corBorda, corFundo, borda, espessura, sombra, espaco, desfoque] = tipo === "caixa"
     ? [corAss(corCaixa, opacidadeCaixa), corAss(corCaixa, opacidadeCaixa), 3, 14, 0, 0, ""]
     : [corAss(corContorno), corAss("#000000", OPACIDADE_SOMBRA), 1, f.contorno, f.sombra, f.espaco, `{\\blur${f.desfoque}}`];
   const estiloLegenda = ["Legenda", "Inter Variable", f.fonte, corAss(corTexto), corAss(corTexto), corBorda, corFundo,
-    -1, 0, 0, 0, 100, 100, espaco, 0, borda, espessura, sombra, 2, margemEsq, margemDir, f.margemV, 1].join(",");
+    -1, 0, 0, 0, 100, 100, espaco, 0, borda, espessura, sombra, 2, margemEsq, margemDir, margemBaixo, 1].join(",");
   // O {\blur} no começo de cada fala suaviza a borda do contorno (a caixa não leva).
   const falas = blocos.map((b) =>
     `Dialogue: 0,${tempoAss(b.a)},${tempoAss(b.b)},Legenda,,0,0,0,,${desfoque}${b.texto.replace(/\n/g, "\\N")}`);

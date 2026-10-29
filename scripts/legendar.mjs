@@ -4,11 +4,17 @@
 // Comando:
 //   node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--estilo contorno|caixa]
 //                     [--cor-texto "#RRGGBB"] [--cor-contorno "#RRGGBB"] [--cor-caixa "#RRGGBB"] [--margem-esq N] [--margem-dir N]
+//                     [--margem-baixo N]
 //
 // Ponha a cor entre aspas: no Git Bash, o # sem aspas abre um comentário e o shell corta o resto da linha.
 // O estilo padrão é "contorno": letra branca com contorno preto e sombra suave, sem caixa. "caixa" põe uma caixa
 // atrás do texto (para filmagem de câmera ou fundo cheio de detalhe). --cor-contorno só vale com contorno e
 // --cor-caixa só vale com caixa; o par errado sai com código 1. --cor-texto troca a cor da letra (padrão branca) nos 2 estilos.
+//
+// Margens em pixels do tamanho do vídeo (1080x1920 no 9x16). --margem-baixo é a distância entre o pé da legenda e a borda
+// de baixo: o padrão é 30 no 16x9 e 260 no 9x16 (a legenda de 2 linhas fica em y 1530 a 1660). Roteiro de Reels reserva
+// y 250 a 1500: com --margem-baixo 420 o pé da legenda sobe para y 1500. Valor que não é número, é negativo ou é a
+// altura do vídeo ou mais sai com código 1.
 //
 // O formato sai do tamanho do vídeo (ffprobe): paisagem = 16x9, retrato = 9x16. O --formato é opcional; se vier
 // e não bater com o vídeo, o comando para. O .srt precisa ter sido gerado para o mesmo formato: o limite de
@@ -28,8 +34,8 @@ import { LIMITES, lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const FONTE = join(AQUI, "..", "runtime", "hero3d", "fonts", "Inter-Bold-Latin.ttf");
-const USO = "uso: node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--estilo contorno|caixa] [--cor-texto \"#RRGGBB\"] [--cor-contorno \"#RRGGBB\"] [--cor-caixa \"#RRGGBB\"] [--margem-esq N] [--margem-dir N]";
-const OPCOES = ["formato", "estilo", "cor-texto", "cor-contorno", "cor-caixa", "margem-esq", "margem-dir"];
+const USO = "uso: node legendar.mjs <video.mp4> <legenda.srt> <saida.mp4> [--formato 16x9|9x16] [--estilo contorno|caixa] [--cor-texto \"#RRGGBB\"] [--cor-contorno \"#RRGGBB\"] [--cor-caixa \"#RRGGBB\"] [--margem-esq N] [--margem-dir N] [--margem-baixo N]";
+const OPCOES = ["formato", "estilo", "cor-texto", "cor-contorno", "cor-caixa", "margem-esq", "margem-dir", "margem-baixo"];
 const ESTILOS = ["contorno", "caixa"];
 
 // Separa os 3 caminhos (sem --) das opções (--nome valor).
@@ -50,9 +56,9 @@ function lerArgumentos(argv) {
   return { posicionais, opcoes };
 }
 
-// Margem lateral em pixels: número maior ou igual a 0.
+// Margem em pixels: número maior ou igual a 0. Texto vazio ou só de espaço não vale (o Number("") dá 0).
 function margem(nome, valor) {
-  const n = Number(valor);
+  const n = String(valor).trim() === "" ? NaN : Number(valor);
   if (!Number.isFinite(n) || n < 0) throw new Error(`--${nome} inválido: "${valor}" (use um número de pixels, 0 ou mais)`);
   return n;
 }
@@ -68,7 +74,7 @@ function formatoDoVideo(video) {
   const { width: l, height: a } = fluxo ?? {};
   if (!(l > 0 && a > 0)) throw new Error(`${video} não tem trilha de vídeo com largura e altura`);
   if (l === a) throw new Error(`o vídeo é quadrado (${l}x${a}): a legenda só existe para 16x9 (paisagem) e 9x16 (retrato)`);
-  return { tamanho: `${l}x${a}`, formato: l > a ? "16x9" : "9x16" };
+  return { tamanho: `${l}x${a}`, altura: a, formato: l > a ? "16x9" : "9x16" };
 }
 
 function legendar(argv) {
@@ -91,7 +97,7 @@ function legendar(argv) {
   const blocos = lerSrt(readFileSync(srt, "utf8"));
   if (!blocos.length) throw new Error(`${srt} não tem nenhuma legenda (0 blocos)`);
 
-  const { tamanho, formato } = formatoDoVideo(video);
+  const { tamanho, altura, formato } = formatoDoVideo(video);
   if (opcoes.formato !== undefined && opcoes.formato !== formato) {
     throw new Error(`o --formato ${opcoes.formato} não bate com o vídeo: ele tem ${tamanho} (${formato}). Tire o --formato: o legendar.mjs tira o formato do tamanho do vídeo.`);
   }
@@ -111,6 +117,11 @@ function legendar(argv) {
   if (opcoes["cor-caixa"] !== undefined) estilo.corCaixa = opcoes["cor-caixa"];
   if (opcoes["margem-esq"] !== undefined) estilo.margemEsq = margem("margem-esq", opcoes["margem-esq"]);
   if (opcoes["margem-dir"] !== undefined) estilo.margemDir = margem("margem-dir", opcoes["margem-dir"]);
+  if (opcoes["margem-baixo"] !== undefined) {
+    estilo.margemBaixo = margem("margem-baixo", opcoes["margem-baixo"]);
+    // Margem de baixo do tamanho do vídeo (ou mais) empurra a legenda para fora do quadro.
+    if (estilo.margemBaixo >= altura) throw new Error(`--margem-baixo ${opcoes["margem-baixo"]} não cabe no vídeo de ${tamanho}: use menos que a altura (${altura} px)`);
+  }
   const ass = paraAss(blocos, estilo);
 
   const pasta = mkdtempSync(join(tmpdir(), "legendar-"));

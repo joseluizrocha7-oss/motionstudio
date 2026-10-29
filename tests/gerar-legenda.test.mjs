@@ -145,6 +145,25 @@ test("paraAss no 9x16 usa 1080x1920 e margem de 260", () => {
   const s = paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16" });
   assert.match(s, /PlayResX: 1080/); assert.match(s, /PlayResY: 1920/); assert.match(s, /,260,/);
 });
+test("paraAss: margemBaixo chega ao MarginV da linha Style, nos 2 formatos e nos 2 tipos; sem ela o padrão fica (30 e 260)", () => {
+  for (const [formato, padrao] of [["16x9", "30"], ["9x16", "260"]]) {
+    for (const tipo of ["contorno", "caixa"]) {
+      const b = [{ a: 0, b: 1, texto: "a" }];
+      assert.equal(campos(paraAss(b, { formato, tipo, margemBaixo: 500 })).MarginV, "500", `${formato} ${tipo}`);
+      assert.equal(campos(paraAss(b, { formato, tipo })).MarginV, padrao, `${formato} ${tipo}: o padrão não muda`);
+    }
+  }
+  // 0 é margem válida (texto colado na borda) e não cai no padrão.
+  assert.equal(campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16", margemBaixo: 0 })).MarginV, "0");
+  // A margem de baixo não mexe nas outras: lateral, fonte e alinhamento seguem iguais.
+  const c = campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16", margemBaixo: 420 }));
+  assert.equal(c.MarginL, "80"); assert.equal(c.MarginR, "80"); assert.equal(c.Fontsize, "54"); assert.equal(c.Alignment, "2");
+});
+test("paraAss recusa margemBaixo que não é número de pixels (0 ou mais)", () => {
+  for (const ruim of [-1, NaN, Infinity, "500", "", null]) {
+    assert.throws(() => paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16", margemBaixo: ruim }), /margemBaixo inválida/, String(ruim));
+  }
+});
 
 const maiorLinha = (blocos) => Math.max(...blocos.flatMap((b) => b.texto.split("\n").map((l) => l.length)));
 test("quebrarTexto com o limite do 9x16 quebra frase de 41 caracteres em linhas de até 28", () => {

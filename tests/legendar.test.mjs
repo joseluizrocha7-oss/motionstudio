@@ -261,3 +261,68 @@ test("paraAss com WrapStyle 2: o libass mantém 1 linha mesmo quando a linha pas
   const duas = alturaDaTinta9x16(paraAss([{ a: 0, b: 1, texto: "Primeira linha\nSegunda linha" }], { formato: "9x16" }));
   assert.ok(duas > 90, `a quebra do kit devia dar 2 linhas: ${duas}`);
 });
+
+// ---------- --margem-baixo: a legenda do 9x16 sobe para dentro da área segura ----------
+
+// Faixa vertical (y0 a y1) e horizontal (x0 a x1) da tinta branca (> 128) de um quadro 1080x1920 do vídeo no instante t.
+// Em fundo preto o contorno e a sombra (pretos) não aparecem: sobra só a letra.
+function tintaBranca(video, t) {
+  const bytes = execFileSync("ffmpeg", ["-v", "error", "-ss", String(t), "-i", video, "-frames:v", "1",
+    "-f", "rawvideo", "-pix_fmt", "gray", "-"], { maxBuffer: 1 << 26 });
+  assert.equal(bytes.length, 1080 * 1920, "o quadro tem que ter 1080x1920 bytes em cinza");
+  let y0 = Infinity, y1 = -1, x0 = Infinity, x1 = -1;
+  for (let y = 0; y < 1920; y++) for (let x = 0; x < 1080; x++) {
+    if (bytes[y * 1080 + x] > 128) { y0 = Math.min(y0, y); y1 = Math.max(y1, y); x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+  }
+  assert.ok(y1 >= 0, "o quadro não tem nenhuma tinta branca: a legenda não apareceu");
+  return { y0, y1, x0, x1 };
+}
+
+test("legendar --margem-baixo 500 num 1080x1920: a tinta da legenda sobe 240 px e fica na faixa pedida (y 1312 a 1420), dentro da área segura 250 a 1500", () => {
+  const srt = srtDe("Legenda na área segura");   // 1 linha, 22 caracteres
+  const padrao = legendarCom(videoPreto("1080x1920"), srt);
+  const alta = legendarCom(videoPreto("1080x1920"), srt, ["--margem-baixo", "500"]);
+  assert.equal(padrao.status, 0, padrao.stdout + padrao.stderr);
+  assert.equal(alta.status, 0, alta.stdout + alta.stderr);
+  const a = tintaBranca(padrao.saida, 0.4), b = tintaBranca(alta.saida, 0.4);
+  // Sem a opção a legenda fica onde sempre ficou: a caixa de texto acaba em y 1660 (1920 - 260), fora da área de 250 a 1500.
+  assert.ok(a.y1 <= 1660 && a.y1 > 1500, `padrão: a tinta devia acabar entre 1500 e 1660: ${a.y1}`);
+  // Com 500, a caixa de texto acaba em y 1420 (1920 - 500). Uma linha tem menos de 2 vezes a fonte (54 px) de altura.
+  assert.ok(b.y1 <= 1420, `--margem-baixo 500: a tinta não pode passar de y 1420: ${b.y1}`);
+  assert.ok(b.y0 >= 1420 - 2 * 54, `--margem-baixo 500: a tinta devia começar abaixo de y 1312: ${b.y0}`);
+  assert.ok(b.y0 >= 250 && b.y1 <= 1500, `a legenda tem que caber na área segura 250 a 1500: ${b.y0} a ${b.y1}`);
+  // Só a margem mudou: a mesma legenda subiu 500 - 260 = 240 px (±1 de arredondamento do libass), no mesmo lugar na horizontal.
+  assert.ok(Math.abs((a.y1 - b.y1) - 240) <= 1, `a tinta devia subir 240 px: ${a.y1 - b.y1}`);
+  assert.ok(Math.abs((a.y0 - b.y0) - 240) <= 1, `o topo da tinta devia subir 240 px: ${a.y0 - b.y0}`);
+  assert.equal(a.x0, b.x0); assert.equal(a.x1, b.x1);
+  assert.ok(Math.abs((a.x0 + a.x1) / 2 - 540) <= 2, `a legenda segue centrada: ${(a.x0 + a.x1) / 2}`);
+});
+
+test("legendar --margem-baixo recusa valor que não é número de pixels (código 1, nada gravado)", () => {
+  for (const ruim of ["abc", "-5", "", "  ", "1e999", "NaN"]) {
+    const r = legendarCom(videoPreto("1080x1920"), srtDe("Teste curto"), ["--margem-baixo", ruim]);
+    assert.equal(r.status, 1, `${JSON.stringify(ruim)}: ${r.stdout}${r.stderr}`);
+    assert.match(r.stderr, /^legendar: /);
+    assert.ok(r.stderr.includes(`--margem-baixo inválido: "${ruim}"`), `${JSON.stringify(ruim)}: ${r.stderr}`);
+    assert.ok(!existsSync(r.saida), "não pode gravar a saída");
+  }
+});
+test("legendar --margem-baixo recusa margem que empurra a legenda para fora do quadro (altura do vídeo ou mais)", () => {
+  const r = legendarCom(videoPreto("1080x1920"), srtDe("Teste curto"), ["--margem-baixo", "1920"]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /--margem-baixo 1920 não cabe/);
+  assert.match(r.stderr, /1080x1920/);
+  assert.ok(!existsSync(r.saida), "não pode gravar a saída");
+  const p = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--margem-baixo", "1080"]);
+  assert.equal(p.status, 1);
+  assert.match(p.stderr, /1920x1080/);
+});
+test("legendar --margem-baixo sem valor sai com código 1 (e a opção aparece no uso)", () => {
+  const r = legendarCom(videoPreto("1080x1920"), srtDe("Teste curto"), ["--margem-baixo"]);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /falta o valor de --margem-baixo/);
+  assert.ok(!r.stderr.includes("aspas"), r.stderr);
+  const sem = spawnSync(process.execPath, [LEGENDAR], { encoding: "utf8" });
+  assert.equal(sem.status, 1);
+  assert.match(sem.stderr, /\[--margem-baixo N\]/);
+});

@@ -359,6 +359,68 @@ test("comercial: o mapa com erro diz qual regra e qual campo", async () => {
   assert.throws(() => validarMapa({ efeitos: [{ rotulo: "x", efeito: "sino" }], pausa: { dur: 0.2 } }), /pausa/);
 });
 
+test("comercial: palavra do M.words (enter e word no mesmo quadro) leva um efeito só, e o subir anda uma vez", async () => {
+  const { planoComercial } = await comercial();
+  // runtime/motion.js grava, para cada palavra, enter e word com o mesmo rótulo e o mesmo quadro.
+  const ev = [
+    { t: 1, frame: 30, type: "enter", label: "Átomo" }, { t: 1, frame: 30, type: "word", label: "Átomo" },
+    { t: 2, frame: 60, type: "word", label: "Ágata" }, { t: 2, frame: 60, type: "enter", label: "Ágata" },
+    { t: 3, frame: 90, type: "exit", label: "Átomo" },                                    // outro quadro: outro efeito
+  ];
+  const { efeitos } = planoComercial(ev, { efeitos: [{ rotulo: "^(atomo|agata)$", efeito: "sino", graus: [1], subir: 1 }] }, { classe: 9, modo: "menor" });
+  assert.deepEqual(efeitos.map((e) => [e.t, e.evento, e.notas.join(" ")]), [[1, "enter Átomo", "A5"], [2, "enter Ágata", "B5"], [3, "exit Átomo", "C6"]]);
+});
+
+test("comercial: arpejo longo não é cortado na faixa curta do efeito", async () => {
+  const { planoComercial, sintetizar } = await comercial();
+  const graus = Array.from({ length: 16 }, (_, i) => i + 1);
+  const { efeitos } = planoComercial([{ t: 0.5, type: "a", label: "" }], { efeitos: [{ tipo: "a", efeito: "pinca", graus, arpejo: 0.5 }] }, { classe: 2, modo: "maior" });
+  const fx = sintetizar(efeitos, 10);
+  const pico = (a, b) => { let m = 0; for (let i = Math.round(a * SR); i < Math.round(b * SR); i++) m = Math.max(m, Math.abs(fx.e[i])); return m; };
+  assert.ok(pico(8.0, 8.2) > 0.01, `a 16ª nota (8,0 s) sumiu: pico ${pico(8.0, 8.2)}`);
+});
+
+test("comercial: nota abaixo de 20 Hz é recusada com a regra e o conserto", async () => {
+  const { planoComercial } = await comercial();
+  const ev = [{ t: 1, type: "a", label: "" }];
+  const la = { classe: 9, modo: "menor" };
+  assert.throws(() => planoComercial(ev, { efeitos: [{ tipo: "a", efeito: "assinatura", oitava: 3 }] }, la), /regra 1.*20 Hz.*oitava/);
+  assert.throws(() => planoComercial(ev, { efeitos: [{ tipo: "a", efeito: "impacto", oitava: 1 }] }, la), /regra 1.*20 Hz/);
+  assert.throws(() => planoComercial(ev, { efeitos: [{ tipo: "a", efeito: "sino", graus: [-40] }] }, la), /regra 1.*20 Hz/);      // 14,6 Hz
+  assert.throws(() => planoComercial(ev, { efeitos: [{ tipo: "a", efeito: "sino", graus: [40] }] }, la), /regra 1.*12000 Hz/);
+  assert.equal(planoComercial(ev, { efeitos: [{ tipo: "a", efeito: "impacto", oitava: 2 }] }, la).efeitos[0].notas[0], "A1");   // 55 Hz descendo a 27,5
+});
+
+test("comercial: projeto antigo (sem som-comercial.mjs ou com o trilha.mjs sem export) recebe o que copiar", () => {
+  for (const estrago of ["sem módulo", "trilha antigo"]) {
+    const p = projeto({ voz: false });
+    if (estrago === "sem módulo") rmSync(join(p, "som-comercial.mjs"));
+    else writeFileSync(join(p, "trilha.mjs"), readFileSync(join(p, "trilha.mjs"), "utf8").replace(/\nexport \{[^}]*\};\s*$/, "\n"));
+    writeFileSync(join(p, "sons.json"), JSON.stringify({ efeitos: [{ rotulo: "x", efeito: "sino" }] }));
+    const r = spawnSync("node", [join(p, "gerar-som.mjs"), "--comercial", "sons.json", "--total", "5", "--sem-voz"], { encoding: "utf8" });
+    assert.equal(r.status, 1, `${estrago}: saiu com ${r.status}`);
+    assert.match(r.stderr, /som-comercial\.mjs.*trilha\.mjs/s, `${estrago}: ${r.stderr}`);
+    assert.doesNotMatch(r.stderr, /at .*node:internal|ERR_MODULE_NOT_FOUND|SyntaxError/, `${estrago}: erro cru do Node`);
+  }
+});
+
+test("comercial: opção numérica inválida sai com 1 e diz qual", () => {
+  const p = projeto({ voz: false });
+  writeFileSync(join(p, "eventos.json"), "[]");
+  writeFileSync(join(p, "sons.json"), JSON.stringify({ efeitos: [{ rotulo: "x", efeito: "sino" }] }));
+  const casos = [
+    [["--total", "abc"], /--total/], [["--total", "-3"], /--total/], [["--total", "5", "--fps", "0"], /--fps/],
+    [["--total", "5", "--abaixo", "dez"], /--abaixo/], [["--total", "5", "--musica-inicio", "-1"], /--musica-inicio/],
+    [["--total", "5", "--pausa", "9"], /--pausa/], [["--total", "5", "--pausa", "2", "--pausa-dur", "3"], /--pausa-dur/],
+    [["--total", "5", "--voz-inicio", "x"], /--voz-inicio/],
+  ];
+  for (const [extra, erro] of casos) {
+    const r = spawnSync("node", [join(p, "gerar-som.mjs"), join(p, "eventos.json"), "--comercial", "sons.json", "--sem-voz", ...extra], { encoding: "utf8" });
+    assert.equal(r.status, 1, `${extra.join(" ")}: saiu com ${r.status}`);
+    assert.match(r.stderr, erro, `${extra.join(" ")}: ${r.stderr}`);
+  }
+});
+
 // Lê um WAV (16 bits) e devolve a média dos canais por amostra.
 function lerWav(arq) {
   const b = execFileSync("ffmpeg", ["-v", "error", "-i", arq, "-ac", "1", "-f", "f32le", "-"], { maxBuffer: 1 << 28 });

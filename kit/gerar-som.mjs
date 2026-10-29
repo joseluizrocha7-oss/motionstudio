@@ -42,7 +42,16 @@ import { gerarAudio } from "./trilha.mjs";
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const opcao = (n, p) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : p; };
 if (process.argv.includes("--comercial")) {
-  const { modoComercial } = await import("./som-comercial.mjs");
+  let modoComercial;
+  try { ({ modoComercial } = await import("./som-comercial.mjs")); }
+  catch (e) {
+    // Projeto criado antes de 29/10/2026: sem som-comercial.mjs, ou com o trilha.mjs sem a linha de export.
+    if (e.code !== "ERR_MODULE_NOT_FOUND" && !/does not provide an export/.test(e.message)) throw e;
+    let kit = "a pasta kit/ da skill";
+    try { kit = join((await import("./_skill.mjs")).acharSkill(AQUI), "kit"); } catch { /* projeto sem _skill.mjs */ }
+    console.error(`erro: o modo comercial precisa de som-comercial.mjs e do trilha.mjs novo (com a linha de export) na pasta do projeto. Copie os 2 arquivos de ${kit} para ${AQUI}. O modo de tutorial funciona sem eles. (${e.message.split("\n")[0]})`);
+    process.exit(1);
+  }
   try { await modoComercial(AQUI, process.argv.slice(2)); }
   catch (e) { console.error(`erro: ${e.message}`); process.exit(1); }
   process.exit(0);

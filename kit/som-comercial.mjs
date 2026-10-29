@@ -16,7 +16,9 @@
 // sfx-eventos.json (a lista do --sfx do ouvir.py) e mix.wav (48 kHz, estéreo).
 //
 // O mapa (JSON, UTF-8). Toda regra que casa com um evento põe um efeito nele; duas regras no
-// mesmo evento somam dois efeitos. Campo que começa com "_" é comentário.
+// mesmo evento somam dois efeitos. Eventos com o mesmo rótulo no mesmo quadro contam como um só
+// (o M.words grava enter e word para cada palavra; vale o enter), então o "subir" anda uma vez
+// por palavra. Campo que começa com "_" é comentário.
 //   {
 //     "efeitos": [
 //       { "rotulo": "^abertura$", "efeito": "impacto" },
@@ -37,7 +39,9 @@
 //   Só nos tonais:
 //   graus   graus da escala do tom: 1 = tônica, 3 = terça, 5 = quinta, 8 = tônica uma oitava
 //           acima. Em tom menor, a escala é a menor natural.
-//   oitava  o registro: 5 = a tônica mais perto do Ré 5 (de Sol sustenido 4 a Sol 5).
+//   oitava  o registro: 5 = a tônica mais perto do Ré 5 (de Sol sustenido 4 a Sol 5). A nota
+//           que soa fica entre 20 Hz e 12 kHz (o impacto e o grave da assinatura descem até a
+//           metade da frequência); fora disso o mapa dá erro com a regra.
 //   subir   a cada evento seguinte da mesma regra, os graus sobem esse número de passos.
 //   arpejo  segundos entre uma nota e a seguinte.
 //   dur     duração de cada nota, em segundos.
@@ -54,6 +58,7 @@ const VOZ_LUFS = -16, LUFS_FINAL = -16, PICO_REAL = -1.5;
 const EFEITOS_POR_10S = 12;                            // o limite do S4 no ouvir.py
 const DESCIDA = 1.6;                                   // a música desce nos últimos 1,6 s
 const RAMPA = 0.015;                                   // a pausa entra e sai em 15 ms, sem estalo
+const FREQ_MIN = 20, FREQ_MAX = 12000;                 // nota de efeito tonal: dentro do que se ouve e longe de 24 kHz (metade de 48 kHz)
 export const TOM_DA_TRILHA = { classe: 2, modo: "maior" };   // a trilha de código: Ré maior, 100 BPM, ritmo desde 1,2 s
 
 // Os tonais repetem os timbres do trilha.mjs, que é afinado em Ré maior: em Ré maior, "sino" e
@@ -161,14 +166,16 @@ export function validarMapa(mapa) {
 function listaDeEventos(eventos, fps) {
   const lista = Array.isArray(eventos) ? eventos : eventos?.events;
   if (!Array.isArray(lista)) throw new Error("o arquivo de eventos não tem uma lista de eventos");
-  return lista.filter((e) => e && typeof e === "object").map((e) => ({ ...e, t: e.t ?? e.frame / fps })).filter((e) => Number.isFinite(e.t)).sort((a, b) => a.t - b.t);
+  const primeiroEnter = (e) => (e.type === "enter" ? 0 : 1);
+  return lista.filter((e) => e && typeof e === "object").map((e) => ({ ...e, t: e.t ?? e.frame / fps })).filter((e) => Number.isFinite(e.t))
+    .sort((a, b) => a.t - b.t || primeiroEnter(a) - primeiroEnter(b));
 }
 function casa(r, e) {
   if (r.tipo != null && e.type !== r.tipo) return false;
   return r.rotulo == null || new RegExp(semAcento(r.rotulo), "i").test(semAcento(e.label || e.type || ""));
 }
 
-// Um efeito por evento que casa com cada regra, em ordem de tempo.
+// Um efeito por instante que casa com cada regra, em ordem de tempo.
 // tom = { classe: 0..11, modo: "maior" | "menor" }. Devolve { efeitos, semEvento } (semEvento: índices das regras sem evento).
 export function planoComercial(eventos, mapa, tom, { fps = 30 } = {}) {
   validarMapa(mapa);
@@ -176,15 +183,24 @@ export function planoComercial(eventos, mapa, tom, { fps = 30 } = {}) {
   const efeitos = [], semEvento = [];
   mapa.efeitos.forEach((r, ri) => {
     let k = 0;
+    const vistos = new Set();                          // quadro + rótulo: o enter e o word da mesma palavra
     for (const e of lista) {
       if (!casa(r, e)) continue;
+      const chave = `${e.frame ?? Math.round(e.t * fps)}|${e.label || e.type || ""}`;
+      if (vistos.has(chave)) continue;
+      vistos.add(chave);
       const ef = { t: +(e.t + (r.desvio ?? 0)).toFixed(4), efeito: r.efeito, ganho: r.ganho ?? 0, evento: [e.type, e.label].filter(Boolean).join(" "), regra: ri, notas: [], hz: [] };
       const padrao = TONAIS[r.efeito];
       if (padrao) {
         const oitava = r.oitava ?? padrao.oitava;
         const midis = (r.graus ?? padrao.graus).map((g) => midiDoGrau(tom, g + (r.subir ?? 0) * k, oitava));
         if (r.efeito === "assinatura") midis.unshift(midiDoGrau(tom, 5, oitava - 3));    // o grave que desce: a quinta, como no tutorial
-        Object.assign(ef, { notas: midis.map((m) => nomeDaNota(m, tom)), hz: midis.map(hzMidi), arpejo: r.arpejo ?? padrao.arpejo, dur: r.dur ?? padrao.dur });
+        const hz = midis.map(hzMidi);
+        // impacto e o grave da assinatura descem até a metade da frequência
+        const soando = r.efeito === "impacto" ? hz.map((f) => f / 2) : r.efeito === "assinatura" ? [hz[0] / 2, ...hz.slice(1)] : hz;
+        if (Math.min(...soando) < FREQ_MIN) throw new Error(`regra ${ri + 1}: a nota mais grave fica em ${br(Math.min(...soando))} Hz, abaixo de ${FREQ_MIN} Hz, em ${nomeDoTom(tom)}: suba "oitava" ou os "graus"`);
+        if (Math.max(...hz) > FREQ_MAX) throw new Error(`regra ${ri + 1}: a nota mais aguda fica em ${br(Math.max(...hz), 0)} Hz, acima de ${FREQ_MAX} Hz: desça "oitava", "graus" ou "subir"`);
+        Object.assign(ef, { notas: midis.map((m) => nomeDaNota(m, tom)), hz, arpejo: r.arpejo ?? padrao.arpejo, dur: r.dur ?? padrao.dur });
       }
       efeitos.push(ef);
       k++;
@@ -258,7 +274,8 @@ export function sintetizar(efeitos, total) {
   const ANTES = 0.5;                                   // a assinatura sopra 0,25 s antes do instante
   efeitos.forEach((e, i) => {
     const ini = Math.floor((e.t - ANTES) * SR);
-    const loc = novaFaixa(ANTES + Math.max(6, (e.dur ?? 0) + 8 * (e.arpejo ?? 0) + 1));
+    const cauda = (e.dur ?? 0) + (e.arpejo ?? 0) * Math.max(0, e.hz.length - 1) + 0.12;   // última nota (a assinatura entra 0,12 s depois) mais a duração dela
+    const loc = novaFaixa(ANTES + Math.max(6, cauda + 1));
     tocar(loc, e.t - ini / SR, e, i);
     const g = 10 ** (e.ganho / 20);
     for (let k = 0; k < loc.n; k++) {
@@ -349,10 +366,28 @@ export async function modoComercial(pastaDoProjeto, args) {
   const AUDIO = join(FILM, opcao("audio", "audio"));
   mkdirSync(AUDIO, { recursive: true });
   const lerJson = (arq, o) => {
-    if (!existsSync(arq)) throw new Error(`${o} n\u00E3o encontrado: ${arq}`);
+    if (!existsSync(arq)) throw new Error(`${o} não encontrado: ${arq}`);
     try { return JSON.parse(readFileSync(arq, "utf8").replace(/^\uFEFF/, "")); }
-    catch (e) { throw new Error(`${o} n\u00E3o \u00E9 um JSON v\u00E1lido (${arq}): ${e.message}`); }
+    catch (e) { throw new Error(`${o} não é um JSON válido (${arq}): ${e.message}`); }
   };
+
+  // Opção numérica: ausente = padrão; texto que não é número ou fora da faixa = erro com o nome dela.
+  const numero = (n, padrao, min, max, faixa) => {
+    const bruto = opcao(n);
+    if (bruto == null) return padrao;
+    const v = Number(bruto);
+    if (bruto.trim() === "" || !Number.isFinite(v) || v < min || v > max) throw new Error(`--${n} "${bruto}" inválido: use um número ${faixa}`);
+    return v;
+  };
+  if (opcao("total") == null) throw new Error("--total <s> é obrigatório no modo comercial (a duração do filme)");
+  const TOTAL = numero("total", null, 0.1, 3600, "de 0,1 a 3600 (a duração do filme, em segundos)");
+  const FPS = numero("fps", 30, 1, 240, "de 1 a 240");
+  const ABAIXO = numero("abaixo", 20, 0, 60, "de 0 a 60 (dB da música sob a voz)");
+  const INICIO_MUSICA = numero("musica-inicio", 0, 0, 36000, "de 0 em diante (segundos)");
+  const PAUSA = numero("pausa", null, 0, TOTAL, `de 0 a ${br(TOTAL)} (o instante em que a música volta, dentro do filme)`);
+  const PAUSA_DUR = numero("pausa-dur", null, 0.001, 2, "maior que 0 e até 2 (segundos, o mesmo limite do mapa)");
+  const INICIO_VOZ = numero("voz-inicio", null, -TOTAL, TOTAL, `de -${br(TOTAL)} a ${br(TOTAL)} (segundos)`);
+  const N = Math.round(TOTAL * SR);
 
   const argMapa = opcao("comercial");
   if (!argMapa || argMapa.startsWith("--")) throw new Error("--comercial pede o arquivo do mapa (JSON): --comercial sons.json");
@@ -360,19 +395,17 @@ export async function modoComercial(pastaDoProjeto, args) {
   const mapa = validarMapa(lerJson(arqMapa, "o mapa"));
   const arqEventos = args[0] && !args[0].startsWith("--") ? args[0] : join(FILM, "stills", "events.json");
   const eventos = lerJson(arqEventos, "o arquivo de eventos");
-  const TOTAL = Number(opcao("total", "NaN"));
-  if (!(TOTAL > 0)) throw new Error("--total <s> é obrigatório no modo comercial (a duração do filme)");
-  const FPS = Number(opcao("fps", "30"));
-  const ABAIXO = Number(opcao("abaixo", "20"));
-  const N = Math.round(TOTAL * SR);
+  const tPausa = PAUSA ?? (mapa.pausa ? instanteDaPausa(mapa.pausa, eventos, FPS) : null);
+  if (tPausa != null && (tPausa < 0 || tPausa > TOTAL)) throw new Error(`pausa: o instante ${br(tPausa, 2)} s fica fora do filme (0 a ${br(TOTAL)} s)`);
+  const dPausa = PAUSA_DUR ?? mapa.pausa?.dur ?? 0.2;
 
   // 1. A música e o tom
   const MUSICA = opcao("musica");
   let cama, tom, fonte, medida = null;
   if (MUSICA) {
     cama = join(AUDIO, "musica.wav");
-    const { dur, vezes } = montarMusica(join(FILM, MUSICA), Number(opcao("musica-inicio", "0")), TOTAL, cama);
-    console.log(`música: ${MUSICA}, ${br(dur)} s, ${vezes} vez(es), desde ${br(Number(opcao("musica-inicio", "0")), 2)} s`);
+    const { dur, vezes } = montarMusica(join(FILM, MUSICA), INICIO_MUSICA, TOTAL, cama);
+    console.log(`música: ${MUSICA}, ${br(dur)} s, ${vezes} vez(es), desde ${br(INICIO_MUSICA, 2)} s`);
     try {
       medida = medirMusica(cama, pastaDoProjeto);
       writeFileSync(join(AUDIO, "musica-medida.json"), JSON.stringify(medida, null, 1));
@@ -413,15 +446,13 @@ export async function modoComercial(pastaDoProjeto, args) {
   if (!tem("sem-voz")) {
     const voz = opcao("voz") ? join(FILM, opcao("voz")) : join(AUDIO, "vo.wav");
     if (!existsSync(voz)) throw new Error(`sem a voz ${voz}: passe --voz <arquivo dentro de film/> ou --sem-voz`);
-    const inicio = opcao("voz-inicio") != null ? Number(opcao("voz-inicio")) : offsetDaFala(join(FILM, "assets", opcao("fala", "fala.js")));
+    const inicio = INICIO_VOZ ?? offsetDaFala(join(FILM, "assets", opcao("fala", "fala.js")));
     const medidaVoz = lufsDe(voz), gv = 10 ** ((VOZ_LUFS - medidaVoz) / 20), i0 = Math.round(inicio * SR);
     const v = ler(voz, 1);
     for (let k = Math.max(0, -i0); k < v.length && i0 + k < N; k++) { mix[2 * (i0 + k)] += v[k] * gv; mix[2 * (i0 + k) + 1] += v[k] * gv; }
     console.log(`voz: ${relative(pastaDoProjeto, voz)} desde ${br(inicio, 2)} s, ${br(medidaVoz)} LUFS, levada a ${VOZ_LUFS}`);
   }
   const m = ler(cama, 2, N), medidaMusica = lufsDe(cama), gm = 10 ** ((VOZ_LUFS - ABAIXO - medidaMusica) / 20);
-  const tPausa = opcao("pausa") != null ? Number(opcao("pausa")) : mapa.pausa ? instanteDaPausa(mapa.pausa, eventos, FPS) : null;
-  const dPausa = Number(opcao("pausa-dur", mapa.pausa?.dur ?? 0.2));
   const [a, b] = tPausa != null ? [tPausa - dPausa, tPausa] : [Infinity, Infinity];
   const desce = TOTAL - DESCIDA;
   for (let i = 0; i < N; i++) {

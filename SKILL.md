@@ -208,9 +208,18 @@ node "$SKILL/scripts/legendar.mjs" film/final-16x9.mp4 film/legenda-16x9.srt fil
 O `legendar.mjs` tira o formato do tamanho do vídeo (paisagem = 16x9, retrato = 9x16). Se o `.srt` tem
 linha maior que o limite desse formato (32 caracteres no 9x16; 42 no 16x9), ele para com erro: gere o
 `.srt` com o `--formato` do vídeo. As opções do `gerar-legenda.mjs` vão com espaço (`--formato 9x16`);
-opção desconhecida ou resultado sem nenhuma legenda sai com erro. Se o app ocupa só parte do quadro, `--cor-caixa`, `--margem-esq` e `--margem-dir` põem a
-legenda embaixo dele. Olhe 3 ou 4 quadros do legendado: legenda inteira, com acento, sem cobrir o
-contorno que a voz está nomeando.
+opção desconhecida ou resultado sem nenhuma legenda sai com erro. Se o app ocupa só parte do quadro, `--margem-esq` e
+`--margem-dir` põem a legenda embaixo dele.
+
+O padrão é a legenda sem caixa: letra branca com contorno preto e sombra suave (`--estilo contorno`).
+Escolha o estilo pelo tipo de vídeo:
+- **contorno (padrão):** tutorial de tela, comercial, promo e vinheta, com fundo de motion design limpo.
+- **caixa (`--estilo caixa`):** filmagem de câmera, fundo com muito detalhe, ou quadro em que o contorno
+  não separa a letra do fundo. Olhe os quadros antes de decidir.
+
+`--cor-contorno #RRGGBB` troca a cor da borda e só vale com contorno. `--cor-caixa #RRGGBB` troca a cor
+da faixa e só vale com caixa. O par errado sai com código 1. Olhe 3 ou 4 quadros do legendado: legenda
+inteira, com acento, sem cobrir o contorno que a voz está nomeando.
 
 ## Portões
 

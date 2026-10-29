@@ -50,8 +50,10 @@ test("ler T2: título em máscara com a tinta inteira não acusa; corte de verda
     assert.ok(!cortados.includes(inteiro), `"${inteiro}" tem a tinta inteira e foi acusado: ${cortados}`);
   }
   // Corte de verdade: acento e descendente fora, metade fora, só a descendente fora (4 px) e a descendente da última de 2 linhas.
-  assert.deepEqual(cortados, ["jaçã agora", "Ágata jaçã", "Átomo cortado", "ATOMO CBS jaçã agora"].sort(),
-    `os 4 cortes de verdade têm que ser acusados: ${cortados}`);
+  // Texto girado: com giro a refinação pela tinta não vale (a folga de cima e a de baixo trocam de lugar, a escala sai
+  // errada) e o T2 volta à regra da caixa. Girado 180 graus a descendente sai 3 px em cima; a refinação dava falso negativo.
+  assert.deepEqual(cortados, ["jaçã agora", "Ágata jaçã", "Átomo cortado", "ATOMO CBS jaçã agora", "Mágica jaçã 180", "ATOMO CBS 90"].sort(),
+    `os 6 cortes de verdade (4 em pé, 2 girados) têm que ser acusados: ${cortados}`);
   assert.equal(saida.portoes.T2, "ALERTA");
 });
 

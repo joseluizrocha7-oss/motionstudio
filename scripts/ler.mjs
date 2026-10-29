@@ -114,12 +114,37 @@ const LIB = `(() => {
   // Inter a descendente do "j" usa 0,22 em dos 0,24 de descida, e ela deixaria passar corte de verdade de 0,1 em.
   // A tinta nunca passa da caixa na conta (folga >= 0): o T2 acusa no máximo o que acusava antes. Só na vertical; na
   // horizontal a caixa da fonte é a largura do texto e fica como estava.
+  // A conta só vale quando a caixa da fonte e a tinta andam juntas no eixo vertical da tela e na mesma escala. Fora
+  // disso o T2 volta à regra antiga (a caixa), que pode acusar demais mas nunca acusa de menos:
+  //   - rotate (qualquer ângulo), inclinação, espelho vertical, 3D ou writing-mode vertical num pai: a folga de cima e a de
+  //     baixo trocam de lugar ou de eixo, e o retângulo do Range vira a caixa envolvente do texto girado (a escala sairia
+  //     em 6,8 vezes para texto girado 90 graus e a tinta estimada entraria 5 px na máscara);
+  //   - largura do retângulo da linha fora do que o measureText prevê para a escala da altura (escala diferente nos dois
+  //     eixos, justificação, ou fonte de reserva na linha, cuja caixa é maior que a da primeira fonte).
   const ctxTinta = document.createElement('canvas').getContext('2d');
-  const folgaDe = (cs, txt, alturaDaCaixa) => {
+  const semGiro = (pai) => {
+    for (let e = pai; e && e.nodeType === 1; e = e.parentElement) {
+      const c = getComputedStyle(e);
+      if (e === pai && c.writingMode && c.writingMode !== 'horizontal-tb') return false;
+      if (c.rotate && c.rotate !== 'none') return false;
+      if (c.scale && c.scale !== 'none' && c.scale.indexOf('-') >= 0) return false;
+      if (c.transform && c.transform !== 'none') {
+        const m = new DOMMatrix(c.transform);
+        if (!m.is2D || Math.abs(m.b) > 0.001 || Math.abs(m.c) > 0.001 || m.d < 0) return false;
+      }
+    }
+    return true;
+  };
+  const folgaDe = (cs, txt, r) => {                                // r: retângulo da linha; null = não dá para confiar
     ctxTinta.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
-    const m = ctxTinta.measureText(cs.textTransform === 'uppercase' ? txt.toUpperCase() : cs.textTransform === 'lowercase' ? txt.toLowerCase() : txt);
+    ctxTinta.letterSpacing = cs.letterSpacing === 'normal' ? '0px' : cs.letterSpacing;
+    ctxTinta.wordSpacing = cs.wordSpacing === 'normal' ? '0px' : cs.wordSpacing;
+    const ajusta = (s) => (cs.textTransform === 'uppercase' ? s.toUpperCase() : cs.textTransform === 'lowercase' ? s.toLowerCase() : s);
+    const m = ctxTinta.measureText(ajusta(txt.trim())), espaco = ctxTinta.measureText(' ').width;
     const caixa = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
-    const k = caixa > 0 && alturaDaCaixa > 0 ? alturaDaCaixa / caixa : 1;      // escala de um transform no filme
+    if (!(caixa > 0 && r.height > 0 && m.width > 0)) return null;
+    const k = r.height / caixa;                                    // escala de um transform no filme
+    if (r.width < m.width * k * 0.96 || r.width > (m.width + 2 * espaco) * k * 1.04) return null;   // o retângulo pode levar um espaço em cada ponta
     const f = (v) => (Number.isFinite(v) ? Math.max(0, v * k) : 0);
     return { t: f(m.fontBoundingBoxAscent - m.actualBoundingBoxAscent), b: f(m.fontBoundingBoxDescent - m.actualBoundingBoxDescent) };
   };
@@ -169,9 +194,11 @@ const LIB = `(() => {
       if (x1 <= x0 || y1 <= y0) continue;
       let recortado = cx0.rec, fora = x0 < -1 || y0 < -1 || x1 > VW + 1 || y1 > VH + 1;
       if (recortado || fora) {                                     // a caixa da fonte passou: só vale se a tinta também passar
-        const [pri, ult] = linhasDe(n, rs), a = folgaDe(cs, pri, rs[0].height), z = ult === pri ? a : folgaDe(cs, ult, rs[rs.length - 1].height);
-        const k = recorta(oy0 + a.t, oy1 - z.b);
-        recortado = k.rec; fora = k.a0 < -1 || k.b0 < -1 || k.a1 > VW + 1 || k.b1 > VH + 1;
+        const [pri, ult] = linhasDe(n, rs), a = semGiro(pai) ? folgaDe(cs, pri, rs[0]) : null, z = a && (rs.length < 2 ? a : folgaDe(cs, ult, rs[rs.length - 1]));
+        if (a && z) {                                              // sem a e z (giro, escala torta) fica a regra da caixa
+          const k = recorta(oy0 + a.t, oy1 - z.b);
+          recortado = k.rec; fora = k.a0 < -1 || k.b0 < -1 || k.a1 > VW + 1 || k.b1 > VH + 1;
+        }
       }
       if (x1 <= 0 || y1 <= 0 || x0 >= VW || y0 >= VH) continue;
       const cx = caixa(pai), k = idDe(cx);

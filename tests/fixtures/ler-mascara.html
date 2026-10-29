@@ -15,7 +15,12 @@
        6 "ATOMO CBS AGORA FIM"  maiúsculas, a tinta cabe nas 2 linhas, a caixa passa 3 px (não acusa)
        7 "ATOMO CBS jaçã agora" a descendente da última linha sai 4 px (acusa)
      Fora de qualquer overflow, na borda de baixo do quadro:
-       8 "ATOMO FIM"            a caixa da fonte passa do quadro 4 px, a tinta fica dentro (não acusa) -->
+       8 "ATOMO FIM"            a caixa da fonte passa do quadro 4 px, a tinta fica dentro (não acusa)
+     Texto girado dentro da máscara. Com giro a caixa da fonte e a tinta não andam no eixo vertical da tela, e o T2 volta
+     à regra da caixa (a refinação pela tinta daria falso negativo: a folga de cima e a de baixo trocam de lugar):
+       9 "Mágica jaçã 180"     girado 180 graus, tinta inteira se estivesse em pé; de cabeça para baixo a descendente
+                               sai 3 px em cima (acusa)
+      10 "ATOMO CBS 90"        girado 90 graus numa máscara de 150 px para um texto de 213 px: sai 31 px em cada ponta (acusa) -->
 <style>
   @font-face { font-family: "Teste 4"; src: url("../../runtime/hero3d/fonts/Inter-Bold-Latin.ttf"); font-weight: 700; }
   html, body { margin: 0; background: #000; }
@@ -32,6 +37,11 @@
   #m5 { top: 420px; height: 72px; } #m5 h1 { line-height: 85px; margin-top: -8px; }
   #m6 { top: 10px;  height: 56px; } #m6 h1 { line-height: 28px; }
   #m7 { top: 100px; height: 48px; } #m7 h1 { line-height: 24px; }
+  /* 9: em pé a tinta cabe (folga de cima 5 px, de baixo 1 px); girado 180 graus a descendente passa da máscara em cima */
+  #m9 { top: 180px; height: 30px; } #m9 h1 { line-height: 34px; margin-top: -4px; transform: rotate(180deg); }
+  /* 10: o texto girado 90 graus, centrado numa máscara de 150 px de altura (o texto tem 213 px de comprimento) */
+  #m10 { top: 240px; left: 800px; width: 90px; height: 150px; }
+  #m10 h1 { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(90deg); line-height: 34px; white-space: nowrap; }
   #rodape { position: absolute; left: 660px; top: 516px; font: 700 30px/20px "Teste 4"; color: #fff; white-space: nowrap; }
 </style>
 </head>
@@ -44,6 +54,8 @@
   <div class="mascara grande" id="m5"><h1>jaçã agora</h1></div>
   <div class="mascara pequena" id="m6"><h1>ATOMO CBS AGORA FIM</h1></div>
   <div class="mascara pequena" id="m7"><h1>ATOMO CBS jaçã agora</h1></div>
+  <div class="mascara pequena" id="m9"><h1>Mágica jaçã 180</h1></div>
+  <div class="mascara pequena" id="m10"><h1>ATOMO CBS 90</h1></div>
 </div>
 <div id="rodape">ATOMO FIM</div>
 <script>

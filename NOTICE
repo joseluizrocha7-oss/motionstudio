@@ -84,11 +84,18 @@ dotlottie-web 0.81.0   (runtime/vendor/dotlottie-web/)
   index.js is the package's dist/index.js, unchanged. dotlottie-player.wasm.js
   holds the package's dist/dotlottie-player.wasm as gzip + base64. The npm
   package ships only the LottieFiles license, but the wasm also compiles
-  dotlottie-rs (MIT), ThorVG (MIT) and code that ThorVG bundles: libwebp
-  (BSD-3-Clause, with a patent grant), LodePNG (zlib), jpgd (public domain),
-  RapidJSON (MIT) and JerryScript (Apache-2.0), plus Rust crates and the Rust
-  standard library (MIT, Apache-2.0, Zlib, 0BSD, Blue Oak 1.0.0, BSD).
-  Sources (repository and commit), copyright lines and full license texts:
+  dotlottie-rs (MIT), ThorVG (MIT; one file, tvgLottieInterpolator.cpp, under
+  MPL-2.0) and code that ThorVG bundles or derives from: FreeType (The FreeType
+  Project LICENSE), libwebp (BSD-3-Clause, with a patent grant), LodePNG
+  (zlib), jpgd (public domain), RapidJSON (MIT) and JerryScript (Apache-2.0,
+  with Errol code under MIT), plus Rust crates and the Rust standard library
+  (MIT, Apache-2.0, Zlib, 0BSD, Blue Oak 1.0.0, BSD).
+  The wasm's CPU rasterizer (ThorVG's src/renderer/cpu_engine/tvgSwRle.cpp) is
+  based in part on the work of the FreeType Team. Portions of this software
+  are copyright © 1996-2002, 2006 The FreeType Project (www.freetype.org).
+  All rights reserved.
+  Sources (repository and commit), copyright lines, full license texts and
+  where to get the MPL-2.0 source file:
   runtime/vendor/dotlottie-web/LICENCAS-TERCEIROS.md
 
 --------------------------------------------------------------------------------

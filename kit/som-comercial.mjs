@@ -9,8 +9,9 @@
 // <mp4>.events.json ou film/stills/events.json), escolhidos por um mapa de rótulo para efeito.
 // Os efeitos tonais tocam notas da escala do tom da música: o tom vem de --tom, da medida da
 // faixa (scripts/medir-musica.py) ou, sem --musica, da trilha de código (Ré maior).
-// Mixagem: voz em -16 LUFS; música 20 dB abaixo (--abaixo), com uma pausa curta opcional e
-// descida nos últimos 1,6 s; efeitos no volume do mapa; a mistura em -16 LUFS em 2 passadas
+// Mixagem: voz em -16 LUFS; música 20 dB abaixo (--abaixo), com uma pausa curta opcional;
+// música e efeitos descem nos últimos 1,6 s (o efeito que ainda soa no fim não é cortado) e a
+// mistura toda fecha em 30 ms; efeitos no volume do mapa; a mistura em -16 LUFS em 2 passadas
 // (loudnorm do ffmpeg: a 1ª mede, a 2ª aplica), pico real até -1,5 dBTP.
 // Grava em film/<audio>/: efeitos.wav, musica.wav ou trilha.wav, musica-medida.json,
 // sfx-eventos.json (a lista do --sfx do ouvir.py) e mix.wav (48 kHz, estéreo).
@@ -56,7 +57,8 @@ import { SR, novaFaixa, somar, gravarWav, nota, sopro, trilha, EFEITO, trocaDe, 
 
 const VOZ_LUFS = -16, LUFS_FINAL = -16, PICO_REAL = -1.5;
 const EFEITOS_POR_10S = 12;                            // o limite do S4 no ouvir.py
-const DESCIDA = 1.6;                                   // a música desce nos últimos 1,6 s
+const DESCIDA = 1.6;                                   // a música e os efeitos descem nos últimos 1,6 s
+const FADE_FIM = 0.03;                                 // a mistura toda fecha em 30 ms: nada (voz, cauda de efeito) é cortado seco no último quadro
 const RAMPA = 0.015;                                   // a pausa entra e sai em 15 ms, sem estalo
 const FREQ_MIN = 20, FREQ_MAX = 12000;                 // nota de efeito tonal: dentro do que se ouve e longe de 24 kHz (metade de 48 kHz)
 export const TOM_DA_TRILHA = { classe: 2, modo: "maior" };   // a trilha de código: Ré maior, 100 BPM, ritmo desde 1,2 s
@@ -198,8 +200,9 @@ export function planoComercial(eventos, mapa, tom, { fps = 30 } = {}) {
         const hz = midis.map(hzMidi);
         // impacto e o grave da assinatura descem até a metade da frequência
         const soando = r.efeito === "impacto" ? hz.map((f) => f / 2) : r.efeito === "assinatura" ? [hz[0] / 2, ...hz.slice(1)] : hz;
-        if (Math.min(...soando) < FREQ_MIN) throw new Error(`regra ${ri + 1}: a nota mais grave fica em ${br(Math.min(...soando))} Hz, abaixo de ${FREQ_MIN} Hz, em ${nomeDoTom(tom)}: suba "oitava" ou os "graus"`);
-        if (Math.max(...hz) > FREQ_MAX) throw new Error(`regra ${ri + 1}: a nota mais aguda fica em ${br(Math.max(...hz), 0)} Hz, acima de ${FREQ_MAX} Hz: desça "oitava", "graus" ou "subir"`);
+        const onde = `regra ${ri + 1}, evento "${ef.evento}" em ${br(ef.t, 2)} s (nº ${k + 1} da regra)`;   // com "subir", só um evento da regra pode sair do alcance
+        if (Math.min(...soando) < FREQ_MIN) throw new Error(`${onde}: a nota mais grave fica em ${br(Math.min(...soando))} Hz, abaixo de ${FREQ_MIN} Hz, em ${nomeDoTom(tom)}: suba "oitava" ou os "graus"`);
+        if (Math.max(...hz) > FREQ_MAX) throw new Error(`${onde}: a nota mais aguda fica em ${br(Math.max(...hz), 0)} Hz, acima de ${FREQ_MAX} Hz: desça "oitava", "graus" ou "subir"`);
         Object.assign(ef, { notas: midis.map((m) => nomeDaNota(m, tom)), hz, arpejo: r.arpejo ?? padrao.arpejo, dur: r.dur ?? padrao.dur });
       }
       efeitos.push(ef);
@@ -359,6 +362,23 @@ function offsetDaFala(arq) {
 
 // ---------------------------------------------------------------- o modo comercial
 
+// As linhas do log sobre o andamento medido (scripts/medir-musica.py): a medida e, se não vale, o aviso.
+export function linhasDoAndamento(medida) {
+  const linhas = [];
+  if (!medida) return linhas;
+  if (!medida.bpm) {
+    linhas.push("aviso: andamento não medido (a música não tem batida que o medir-musica.py ache): a grade de batidas não existe");
+    return linhas;
+  }
+  linhas.push(`andamento: ${br(medida.bpm, 2)} BPM; batidas em ${br(medida.primeira_batida, 3)} + k × ${br(medida.batida_s, 3)} s (força ${br(medida.forca_batida, 2)})`);
+  if (medida.andamento_incerto) {
+    const rival = medida.rival_bpm ? `o rival é ${br(medida.rival_bpm, 2)} BPM, com ${br((medida.rival_razao ?? 0) * 100, 0)} % da nota do escolhido` : "há um rival métrico (dobro, metade ou pontuado)";
+    linhas.push(`aviso: andamento incerto: ${rival}; confira de ouvido ou meça de novo com medir-musica.py --bpm-min e --bpm-max numa faixa que tenha só o certo`);
+  }
+  if (medida.forca_batida < 0.3) linhas.push(`aviso: a grade de batidas é fraca (força ${br(medida.forca_batida, 2)}, abaixo de 0,3): não confie nos instantes das batidas`);
+  return linhas;
+}
+
 export async function modoComercial(pastaDoProjeto, args) {
   const opcao = (n, p) => { const i = args.indexOf(`--${n}`); return i >= 0 && args[i + 1] != null ? args[i + 1] : p; };
   const tem = (n) => args.includes(`--${n}`);
@@ -419,7 +439,7 @@ export async function modoComercial(pastaDoProjeto, args) {
   else { tom = TOM_DA_TRILHA; fonte = "a trilha de código"; }
   console.log(`tom: ${nomeDoTom(tom)} (${fonte})`);
   if (medida && !opcao("tom") && medida.incerto) console.log(`aviso: tom incerto, o 2º é ${medida.segundo.nome} (${br(medida.segundo.correlacao, 2)}): confira de ouvido ou passe --tom e --modo`);
-  if (medida?.bpm) console.log(`andamento: ${br(medida.bpm, 2)} BPM; batidas em ${br(medida.primeira_batida, 3)} + k × ${br(medida.batida_s, 3)} s (força ${br(medida.forca_batida, 2)})`);
+  for (const l of linhasDoAndamento(medida)) console.log(l);
 
   // 2. Os efeitos
   const { efeitos, semEvento } = planoComercial(eventos, mapa, tom, { fps: FPS });
@@ -455,17 +475,30 @@ export async function modoComercial(pastaDoProjeto, args) {
   const m = ler(cama, 2, N), medidaMusica = lufsDe(cama), gm = 10 ** ((VOZ_LUFS - ABAIXO - medidaMusica) / 20);
   const [a, b] = tPausa != null ? [tPausa - dPausa, tPausa] : [Infinity, Infinity];
   const desce = TOTAL - DESCIDA;
+  const descida = (t) => (t > desce ? Math.cos((Math.PI / 2) * Math.min(1, (t - desce) / DESCIDA)) ** 2 : 1);
   for (let i = 0; i < N; i++) {
     const t = i / SR;
     let g = gm;
     if (t > a - RAMPA && t < b + RAMPA) g *= t < a ? (a - t) / RAMPA : t > b ? (t - b) / RAMPA : 0;
-    if (t > desce) g *= Math.cos((Math.PI / 2) * Math.min(1, (t - desce) / DESCIDA)) ** 2;
+    g *= descida(t);
     mix[2 * i] += m[2 * i] * g;
     mix[2 * i + 1] += m[2 * i + 1] * g;
   }
   console.log(`música: ${br(medidaMusica)} LUFS, ganho ${br(20 * Math.log10(gm))} dB (${ABAIXO} dB sob a voz)${tPausa != null ? `; pausa de ${br(a, 2)} a ${br(b, 2)} s` : ""}`);
   const f = ler(arqEfeitos, 2, N);
-  for (let i = 0; i < N * 2; i++) mix[i] += f[i];
+  for (let i = 0; i < N; i++) {
+    const g = descida(i / SR);                         // o efeito perto do fim desce com a música
+    mix[2 * i] += f[2 * i] * g;
+    mix[2 * i + 1] += f[2 * i + 1] * g;
+  }
+  // Fade de 30 ms na mistura toda, antes do loudnorm: a voz ou a cauda de um efeito que chega ao último quadro não estala.
+  const nFade = Math.min(N, Math.round(FADE_FIM * SR));
+  for (let k = 0; k < nFade; k++) {
+    const g = Math.cos((Math.PI / 2) * (k / nFade)) ** 2;   // 1 no começo do fade, 0 depois do último quadro
+    const i = N - nFade + k;
+    mix[2 * i] *= g;
+    mix[2 * i + 1] *= g;
+  }
 
   // 4. -16 LUFS em 2 passadas
   const arqMix = join(AUDIO, "mix.wav");

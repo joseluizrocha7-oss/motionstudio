@@ -391,15 +391,16 @@ test("comercial: nota abaixo de 20 Hz é recusada com a regra e o conserto", asy
   assert.equal(planoComercial(ev, { efeitos: [{ tipo: "a", efeito: "impacto", oitava: 2 }] }, la).efeitos[0].notas[0], "A1");   // 55 Hz descendo a 27,5
 });
 
-test("comercial: projeto antigo (sem som-comercial.mjs ou com o trilha.mjs sem export) recebe o que copiar", () => {
-  for (const estrago of ["sem módulo", "trilha antigo"]) {
+test("comercial: projeto antigo (sem som-comercial.mjs, sem _skill.mjs ou com o trilha.mjs sem export) recebe o que copiar", () => {
+  for (const estrago of ["sem módulo", "sem _skill", "trilha antigo"]) {
     const p = projeto({ voz: false });
     if (estrago === "sem módulo") rmSync(join(p, "som-comercial.mjs"));
+    else if (estrago === "sem _skill") rmSync(join(p, "_skill.mjs"));
     else writeFileSync(join(p, "trilha.mjs"), readFileSync(join(p, "trilha.mjs"), "utf8").replace(/\nexport \{[^}]*\};\s*$/, "\n"));
     writeFileSync(join(p, "sons.json"), JSON.stringify({ efeitos: [{ rotulo: "x", efeito: "sino" }] }));
     const r = spawnSync("node", [join(p, "gerar-som.mjs"), "--comercial", "sons.json", "--total", "5", "--sem-voz"], { encoding: "utf8" });
     assert.equal(r.status, 1, `${estrago}: saiu com ${r.status}`);
-    assert.match(r.stderr, /som-comercial\.mjs.*trilha\.mjs/s, `${estrago}: ${r.stderr}`);
+    assert.match(r.stderr, /som-comercial\.mjs.*_skill\.mjs.*trilha\.mjs/s, `${estrago}: ${r.stderr}`);
     assert.doesNotMatch(r.stderr, /at .*node:internal|ERR_MODULE_NOT_FOUND|SyntaxError/, `${estrago}: erro cru do Node`);
   }
 });
@@ -513,4 +514,77 @@ test("comercial: sem --musica usa a trilha de código em Ré maior", () => {
   assert.deepEqual(sfx.map((e) => e.notas.join(" ")), ["D6 F#6 A6", "A2 D5 A5 D6 F#6"]);
   const lufs = sonoridade(join(audio, "mix.wav"));
   assert.ok(Math.abs(lufs + 16) <= 1, `mix.wav em ${lufs} LUFS`);
+});
+
+test("comercial: efeito que toca perto do fim desce com a música e a mistura fecha em silêncio", () => {
+  const p = projeto({ voz: false });
+  const ev = join(p, "film", "eventos.json");
+  writeFileSync(ev, JSON.stringify([{ t: 6.9, frame: 207, type: "enter", label: "selo" }]));
+  writeFileSync(join(p, "sons.json"), JSON.stringify({ efeitos: [{ rotulo: "^selo$", efeito: "assinatura" }] }));
+  // Música inventada: 200 Hz parados, fora das notas da assinatura em Ré maior, 9 s.
+  const musica = Float32Array.from({ length: 9 * SR }, (_, i) => 0.3 * Math.sin((2 * Math.PI * 200 * i) / SR));
+  gravarWav(join(p, "film", "assets", "musica", "tom.wav"), [musica, musica]);
+  rodar(p, [ev, "--comercial", "sons.json", "--total", "8", "--sem-voz", "--musica", "assets/musica/tom.wav", "--tom", "D", "--modo", "maior"]);
+  const audio = join(p, "film", "audio");
+  const x = lerWav(join(audio, "mix.wav"));
+  assert.ok(rmsDb(x, 8 - 0.02, 8) < -60, `os últimos 20 ms do mix.wav: ${rmsDb(x, 8 - 0.02, 8)} dB`);
+  // O efeito continua lá: a quinta da assinatura (Lá 5, 880 Hz) soa antes da descida acabar, longe do ruído de antes dele.
+  const depois = potencia(x, 6.95, 7.15, 880), antes = potencia(x, 5.0, 5.2, 880);
+  assert.ok(depois > 100 * antes, `880 Hz em 6,95 a 7,15 s: ${depois.toExponential(2)} contra ${antes.toExponential(2)} sem efeito`);
+});
+
+test("comercial: voz que vai até o último quadro fecha em 30 ms, sem corte seco", () => {
+  const p = projeto({ voz: false });
+  const ev = join(p, "film", "eventos.json");
+  writeFileSync(ev, JSON.stringify([{ t: 0.5, frame: 15, type: "enter", label: "abre" }]));
+  writeFileSync(join(p, "sons.json"), JSON.stringify({ efeitos: [{ rotulo: "^abre$", efeito: "pop" }] }));
+  gravarWav(join(p, "film", "audio", "vo.wav"), [vozSintetica(6, [[0.1, 6]])]);       // a voz passa do fim do filme (5 s)
+  rodar(p, [ev, "--comercial", "sons.json", "--total", "5", "--voz-inicio", "0"]);
+  const x = lerWav(join(p, "film", "audio", "mix.wav"));
+  assert.ok(rmsDb(x, 4.0, 4.5) > -35, `a voz antes do fim: ${rmsDb(x, 4.0, 4.5)} dB`);
+  assert.ok(rmsDb(x, 5 - 0.001, 5) < -60, `o último milissegundo do mix.wav: ${rmsDb(x, 5 - 0.001, 5)} dB`);
+});
+
+test("comercial: o erro de nota fora do alcance diz qual evento da regra o provocou", async () => {
+  const { planoComercial } = await comercial();
+  const ev = [{ t: 1, frame: 30, type: "enter", label: "Átomo" }, { t: 2.5, frame: 75, type: "enter", label: "Ágata" }, { t: 4, frame: 120, type: "enter", label: "Cálice" }];
+  // pinca no 5º grau, subindo 14 graus (2 oitavas) a cada evento: Lá 5 e Lá 7 cabem; o 3º, Lá 9 (14 kHz), passa de 12 kHz.
+  const mapa = { efeitos: [{ tipo: "enter", efeito: "pinca", graus: [5], subir: 14 }] };
+  assert.throws(() => planoComercial(ev, mapa, { classe: 2, modo: "maior" }), /regra 1.*enter Cálice.*4,00 s.*nº 3 da regra.*12000 Hz/);
+  const grave = { efeitos: [{ rotulo: "^c", efeito: "impacto", oitava: 1 }] };
+  assert.throws(() => planoComercial(ev, grave, { classe: 9, modo: "menor" }), /regra 1.*enter Cálice.*4,00 s.*nº 1 da regra.*20 Hz/);
+});
+
+test("comercial: linhasDoAndamento avisa andamento incerto, grade fraca e andamento não medido", async () => {
+  const { linhasDoAndamento } = await comercial();
+  const bom = { bpm: 112, batida_s: 0.5357, primeira_batida: 0.37, forca_batida: 0.8, andamento_incerto: false, rival_bpm: null, rival_razao: 0.2 };
+  assert.deepEqual(linhasDoAndamento(bom), ["andamento: 112,00 BPM; batidas em 0,370 + k × 0,536 s (força 0,80)"]);
+  const incerto = linhasDoAndamento({ ...bom, andamento_incerto: true, rival_bpm: 84, rival_razao: 0.94 });
+  assert.equal(incerto.length, 2);
+  assert.match(incerto[1], /^aviso: andamento incerto.*84,00 BPM.*94 %/);
+  const fraca = linhasDoAndamento({ ...bom, forca_batida: 0.12 });
+  assert.match(fraca.at(-1), /^aviso: a grade de batidas é fraca.*0,12/);
+  assert.match(linhasDoAndamento({ bpm: null, andamento_incerto: true, forca_batida: 0 })[0], /^aviso: andamento não medido/);
+  assert.deepEqual(linhasDoAndamento(null), []);
+});
+
+test("comercial: música sem batida firme sai com aviso de andamento incerto e de grade fraca no log", () => {
+  const p = projeto({ voz: false });
+  const ev = join(p, "film", "eventos.json");
+  writeFileSync(ev, JSON.stringify([{ t: 0.5, frame: 15, type: "enter", label: "abre" }]));
+  writeFileSync(join(p, "sons.json"), JSON.stringify({ efeitos: [{ rotulo: "^abre$", efeito: "pop" }] }));
+  const m = acorde([45, 57, 60, 64], 7);                           // acorde parado: o medir-musica.py acha 89 BPM com força 0,28 e rival a 180
+  gravarWav(join(p, "film", "assets", "musica", "parado.wav"), [m]);
+  const saida = rodar(p, [ev, "--comercial", "sons.json", "--total", "5", "--sem-voz", "--musica", "assets/musica/parado.wav"]);
+  assert.match(saida, /^aviso: andamento incerto: o rival é [\d,]+ BPM/m);
+  assert.match(saida, /^aviso: a grade de batidas é fraca \(força 0,\d+, abaixo de 0,3\)/m);
+});
+
+test("gerar-som: opção desconhecida sai com 1 e lista as opções; as válidas seguem iguais", () => {
+  const p = projeto({ voz: false });
+  writeFileSync(join(p, "eventos.json"), "[]");
+  const r = spawnSync("node", [join(p, "gerar-som.mjs"), join(p, "eventos.json"), "--total", "5", "--musca", "assets/musica/x.mp3"], { encoding: "utf8" });
+  assert.equal(r.status, 1, `saiu com ${r.status}`);
+  assert.match(r.stderr, /--musca.*desconhecida.*--musica.*--comercial/s);
+  assert.equal(r.stdout, "", "não devia gerar nada");
 });

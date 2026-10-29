@@ -41,15 +41,23 @@ import { gerarAudio } from "./trilha.mjs";
 // Versão curta: node gerar-som.mjs <eventos> --audio audio-curto --fala fala-curto.js --total 59.4
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const opcao = (n, p) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : p; };
+// Opção que o script não conhece (erro de digitação, ou do modo comercial num gerar-som.mjs antigo) sai com 1; antes era ignorada.
+const OPCOES = ["audio", "fala", "total", "toque", "ar", "musica", "abaixo",                                    // tutorial
+  "comercial", "musica-inicio", "tom", "modo", "pausa", "pausa-dur", "voz", "voz-inicio", "sem-voz", "fps"];   // comercial
+const desconhecida = process.argv.slice(2).find((a) => a.startsWith("--") && !OPCOES.includes(a.slice(2)));
+if (desconhecida) {
+  console.error(`erro: opção ${desconhecida} desconhecida. Opções: ${OPCOES.map((o) => "--" + o).join(", ")}`);
+  process.exit(1);
+}
 if (process.argv.includes("--comercial")) {
   let modoComercial;
   try { ({ modoComercial } = await import("./som-comercial.mjs")); }
   catch (e) {
-    // Projeto criado antes de 29/10/2026: sem som-comercial.mjs, ou com o trilha.mjs sem a linha de export.
+    // Projeto criado antes de 29/10/2026: sem som-comercial.mjs, com o trilha.mjs sem a linha de export, ou (antes de 28/10) sem _skill.mjs.
     if (e.code !== "ERR_MODULE_NOT_FOUND" && !/does not provide an export/.test(e.message)) throw e;
     let kit = "a pasta kit/ da skill";
     try { kit = join((await import("./_skill.mjs")).acharSkill(AQUI), "kit"); } catch { /* projeto sem _skill.mjs */ }
-    console.error(`erro: o modo comercial precisa de som-comercial.mjs e do trilha.mjs novo (com a linha de export) na pasta do projeto. Copie os 2 arquivos de ${kit} para ${AQUI}. O modo de tutorial funciona sem eles. (${e.message.split("\n")[0]})`);
+    console.error(`erro: o modo comercial precisa de som-comercial.mjs, de _skill.mjs e do trilha.mjs novo (com a linha de export) na pasta do projeto. Copie os 3 arquivos de ${kit} para ${AQUI}. O modo de tutorial funciona sem eles. (${e.message.split("\n")[0]})`);
     process.exit(1);
   }
   try { await modoComercial(AQUI, process.argv.slice(2)); }

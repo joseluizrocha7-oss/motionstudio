@@ -16,9 +16,9 @@
 //
 //   {
 //     "_nota": "chave que começa com _ é comentário e o script ignora",
-//     "a1": 0.2,
-//     "a2": 3.45,
-//     "z1": { "inicio": 25.95, "fim": 29.5 }
+//     "abertura": 0.5,
+//     "meio": 6,
+//     "fecho": { "inicio": 14, "fim": 17 }
 //   }
 //
 //   - número: o segundo em que a linha começa a falar.
@@ -28,7 +28,8 @@
 //
 // O corte de cada linha fica no meio do silêncio entre ela e as vizinhas (a montagem já deixou a
 // respiração antes e a cauda depois de cada frase). Dentro de uma linha com 2 frases, a pausa
-// entre elas não muda.
+// entre elas não muda. A rampa de 12 ms nas pontas do corte cabe no silêncio de cada lado: com as
+// linhas coladas ela encolhe, e a fala não é apagada.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -155,10 +156,13 @@ export function posicionar({ entrada, saidaAudio, arquivoTempos, saidaFala, dura
   for (const x of plano) {
     const a = Math.round((x.ini - x.antes) * SR), b = Math.round((x.fim + x.depois) * SR);
     const destino = Math.round((x.inicio - x.antes) * SR);
+    // A rampa nunca passa do silêncio que a janela tem de cada lado: com as linhas coladas ela encolhe
+    // (ou some) em vez de apagar o começo ou o fim da fala.
+    const entra = Math.min(rampa, Math.round(x.ini * SR) - a), sai = Math.min(rampa, b - Math.round(x.fim * SR));
     for (let i = a; i < b; i++) {
       const k = i - a, n = b - a, j = destino + k;
       if (j < 0 || j >= saida.length || i < 0 || i >= fonte.length) continue;
-      const g = Math.min(1, k / rampa, (n - 1 - k) / rampa);
+      const g = Math.min(1, entra > 0 ? k / entra : 1, sai > 0 ? (n - 1 - k) / sai : 1);
       saida[j] = Math.max(-32768, Math.min(32767, saida[j] + Math.round(fonte[i] * g)));
     }
   }

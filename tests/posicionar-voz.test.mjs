@@ -17,7 +17,7 @@ after(() => rmSync(base, { recursive: true, force: true }));
 //   a1  440 Hz   0,50 a 1,28 s   uma frase
 //   a2  660 Hz   2,28 a 4,72 s   duas frases, com 0,30 s de silêncio entre elas
 //   a3  880 Hz   5,72 a 6,32 s   uma frase
-function criarVoz() {
+function criarVoz(rampa = 0.005) {
   const partes = [], linhas = [], palavras = [];
   let t = 0;
   const sil = (s) => { partes.push(silencio(s)); t += s; };
@@ -26,7 +26,7 @@ function criarVoz() {
     texto.split(" ").forEach((w, i) => {
       if (i) sil(0.08);
       palavras.push({ word: w, start: +t.toFixed(3), end: +(t + duracoes[i]).toFixed(3), linha, bloco: "b" });
-      partes.push(tom(freq, duracoes[i])); t += duracoes[i];
+      partes.push(tom(freq, duracoes[i], 0.3, SR, rampa)); t += duracoes[i];
     });
     linhas.push({ text: texto, start: +ini.toFixed(3), end: +t.toFixed(3), linha, bloco: "b" });
   };
@@ -38,12 +38,12 @@ function criarVoz() {
 }
 
 // Projeto no formato do novo-projeto.mjs: <pasta>/film/posicionar-voz.mjs e <pasta>/film/audio/.
-function criarProjeto(nome, tempos) {
+function criarProjeto(nome, tempos, rampa) {
   const pasta = join(base, nome);
   mkdirSync(join(pasta, "film", "audio"), { recursive: true });
   mkdirSync(join(pasta, "film", "assets"), { recursive: true });
   copyFileSync(SCRIPT, join(pasta, "film", "posicionar-voz.mjs"));
-  const voz = criarVoz();
+  const voz = criarVoz(rampa);
   escreverWav(join(pasta, "film", "audio", "vo.wav"), voz.x);
   writeFileSync(join(pasta, "film", "audio", "vo.lines.json"), JSON.stringify(voz.linhas));
   writeFileSync(join(pasta, "film", "audio", "vo.words.json"), JSON.stringify(voz.palavras));
@@ -148,3 +148,17 @@ test("planejar: corte no meio do silêncio entre as linhas, limitado pelo vão d
   const apertado = plano({ a1: 0.2, a2: 1.38, a3: 7 });
   assert.deepEqual(apertado.slice(0, 2).map((x) => [+x.antes.toFixed(3), +x.depois.toFixed(3)]), [[0.2, 0.2], [0.2, 0.5]]);
 });
+
+// Tom de 0,3 de amplitude: RMS de -13,5 dB. Pontas cheias (sem rampa própria) mostram se o corte apaga fala.
+for (const [rotulo, a2] of [["encostadas", 0.98], ["10 ms uma da outra", 0.99]]) {
+  test(`a rampa de 12 ms não apaga fala quando as linhas estão ${rotulo}`, () => {
+    const { pasta } = criarProjeto(`rampa-${a2}`, { a1: 0.2, a2, a3: 7 }, 0);
+    const r = rodar(pasta, "--duracao", "10");
+    assert.equal(r.status, 0, r.stderr);
+    const { amostras } = lerWav(join(pasta, "film", "audio-filme", "vo.wav"));
+    const alvo = 20 * Math.log10(0.3 / Math.SQRT2);
+    const fimA1 = rmsDb(amostras, 0.97, 0.98), inicioA2 = rmsDb(amostras, a2, a2 + 0.01);
+    assert.ok(Math.abs(fimA1 - alvo) < 0.3, `últimos 10 ms de a1: ${fimA1.toFixed(2)} dB, esperado ${alvo.toFixed(2)} dB`);
+    assert.ok(Math.abs(inicioA2 - alvo) < 0.3, `primeiros 10 ms de a2: ${inicioA2.toFixed(2)} dB, esperado ${alvo.toFixed(2)} dB`);
+  });
+}

@@ -36,9 +36,9 @@ export function lerWav(arquivo) {
 
 export const silencio = (seg, sr = SR) => new Float32Array(Math.round(seg * sr));
 
-// Tom com rampa de 5 ms nas pontas (sem clique).
-export function tom(freq, seg, amp = 0.3, sr = SR) {
-  const n = Math.round(seg * sr), r = Math.round(0.005 * sr), x = new Float32Array(n);
+// Tom com rampa de 5 ms nas pontas (sem clique); `rampa` em segundos (0 = pontas cheias).
+export function tom(freq, seg, amp = 0.3, sr = SR, rampa = 0.005) {
+  const n = Math.round(seg * sr), r = Math.max(1, Math.round(rampa * sr)), x = new Float32Array(n);
   for (let i = 0; i < n; i++) x[i] = amp * Math.sin((2 * Math.PI * freq * i) / sr) * Math.min(1, i / r, (n - 1 - i) / r);
   return x;
 }

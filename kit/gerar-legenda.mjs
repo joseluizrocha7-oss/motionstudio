@@ -11,9 +11,16 @@
 // A saída padrão leva o formato no nome (film/legenda-16x9.srt, film/legenda-9x16.srt): os 2 formatos
 // não se sobrescrevem. As opções vão com espaço (--formato 9x16), nunca com "=". Opção desconhecida,
 // opção sem valor e resultado com 0 blocos saem com código 1.
+//
+// Legenda que o filme desenha (em vez de queimar o .srt no MP4 com o scripts/legendar.mjs): ponha a extensão .js no --saida.
+//   node gerar-legenda.mjs --formato 9x16 --saida film/assets/legenda.js
+// grava `window.LEGENDA = [{a, b, texto}]` (a e b em segundos do filme, texto com "\n" entre as linhas), os mesmos blocos do
+// .srt do mesmo formato. O filme carrega o arquivo com <script src="assets/legenda.js"> e mostra cada bloco entre a e b.
+// Cada formato tem o seu arquivo (a quebra de linha muda): use --saida film/assets/legenda-9x16.js e legenda-16x9.js.
+// A extensão é o único gatilho; qualquer outra grava .srt. Saída igual ao roteiro ou ao fala.js sai com código 1.
 
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // Limites por formato, em caracteres. maxPedaco = 2 linhas cheias menos 8 de folga da quebra.
@@ -194,6 +201,16 @@ export function lerSrt(texto) {
   });
 }
 
+// ---------- .js (o filme desenha a legenda) ----------
+
+// film/assets/legenda.js: `window.LEGENDA = [{a, b, texto}]`, os mesmos blocos do .srt. a e b em segundos do filme;
+// o texto leva "\n" entre as linhas. Um bloco por linha do arquivo. O JSON.stringify já escapa aspas, barra e "\n".
+export function paraJs(blocos, { formato }) {
+  return `// Gerado por gerar-legenda.mjs (formato ${formato}). Não edite: rode o comando de novo.\n` +
+    `// a e b: segundos do filme. texto: as linhas da legenda separadas por "\\n".\n` +
+    `window.LEGENDA = [\n${blocos.map((b) => `  ${JSON.stringify({ a: b.a, b: b.b, texto: b.texto })}`).join(",\n")}\n];\n`;
+}
+
 // ---------- .ass ----------
 
 // Por formato: resolução do vídeo, tamanho da fonte, margem de baixo e, para o tipo "contorno", espessura da borda,
@@ -271,7 +288,7 @@ export function lerFala(arquivo) {
 }
 
 const OPCOES = ["roteiro", "fala", "saida", "formato"];
-const USO = "uso: node gerar-legenda.mjs [--roteiro roteiro.json] [--fala film/assets/fala.js] [--saida film/legenda-<formato>.srt] [--formato 16x9|9x16]";
+const USO = "uso: node gerar-legenda.mjs [--roteiro roteiro.json] [--fala film/assets/fala.js] [--saida film/legenda-<formato>.srt | film/assets/legenda.js] [--formato 16x9|9x16]";
 
 // Só aceita `--nome valor` (com espaço). Opção desconhecida, `--nome=valor`, valor que falta e argumento solto dão erro.
 function lerArgumentos(argv) {
@@ -293,6 +310,11 @@ function comando(argv) {
   if (!LIMITES[formato]) throw new Error(`formato inválido: "${formato}" (use ${Object.keys(LIMITES).join(" ou ")})`);
   const arqRoteiro = opcoes.roteiro ?? "roteiro.json", arqFala = opcoes.fala ?? "film/assets/fala.js";
   const saida = opcoes.saida ?? `film/legenda-${formato}.srt`;
+  // O .js vai ao lado do fala.js: um erro de digitação no --saida não pode apagar a entrada.
+  const mesmoArquivo = (x, y) => (process.platform === "win32" ? resolve(x).toLowerCase() === resolve(y).toLowerCase() : resolve(x) === resolve(y));
+  for (const [nome, arq] of [["roteiro", arqRoteiro], ["fala", arqFala]]) {
+    if (mesmoArquivo(saida, arq)) throw new Error(`--saida ${saida} é o mesmo arquivo do ${nome} e sobrescreveria a entrada. Nada foi gravado. Use outro nome, por exemplo film/assets/legenda.js.`);
+  }
   const roteiro = JSON.parse(readFileSync(arqRoteiro, "utf8").replace(/^\uFEFF/, ""));
   const fala = lerFala(arqFala);
   const blocos = legendasDoFilme(roteiro, fala, { formato });
@@ -300,7 +322,7 @@ function comando(argv) {
     throw new Error(`0 blocos: nenhuma linha de ${arqRoteiro} tem fala em ${arqFala}. Confira se o "l" da fala é o "id" da linha do roteiro. Nada foi gravado.`);
   }
   mkdirSync(dirname(saida), { recursive: true });
-  writeFileSync(saida, paraSrt(blocos), "utf8");
+  writeFileSync(saida, extname(saida).toLowerCase() === ".js" ? paraJs(blocos, { formato }) : paraSrt(blocos), "utf8");
   console.log(`legenda: ${blocos.length} blocos em ${saida}`);
 }
 

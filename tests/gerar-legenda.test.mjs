@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { quebrarTexto, temposDosPedacos, ajustarDuracoes, legendasDoFilme, LIMITES, paraSrt, lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
+import vm from "node:vm";
+import { quebrarTexto, temposDosPedacos, ajustarDuracoes, legendasDoFilme, LIMITES, paraSrt, lerSrt, paraAss, paraJs, lerFala } from "../kit/gerar-legenda.mjs";
 
 test("quebrarTexto equilibra 2 linhas", () => {
   assert.deepEqual(quebrarTexto("Boas-vindas ao fluxo completo do sistema da empresa!"),
@@ -336,5 +337,122 @@ test("gerar-legenda sai com código 1 e não grava nada quando a fala não casa 
     assert.match(r.stderr, /0 blocos/);
     assert.ok(!existsSync(join(pasta, "film", "legenda-16x9.srt")), "não pode gravar .srt vazio");
     assert.doesNotMatch(r.stdout, /blocos em/);
+  } finally { rmSync(pasta, { recursive: true, force: true }); }
+});
+
+// ---------- modo .js: o filme desenha a legenda (--saida film/assets/legenda.js) ----------
+
+// Roda o conteúdo de um legenda.js como o navegador roda: devolve o window que o arquivo preencheu.
+// O objeto vem de outro contexto do vm (outro Object e outro Array): a cópia por JSON deixa o deepEqual comparar.
+function janelaDe(codigo) {
+  new vm.Script(codigo);                                   // erro de sintaxe estoura aqui
+  const window = {};
+  vm.runInNewContext(codigo, { window });
+  assert.ok(Array.isArray(window.LEGENDA), "o arquivo tem que pôr uma lista em window.LEGENDA");
+  return { LEGENDA: JSON.parse(JSON.stringify(window.LEGENDA)) };
+}
+
+test("paraJs grava window.LEGENDA com a, b e texto (\"\\n\" entre as linhas), em JS válido", () => {
+  const blocos = [{ a: 1.5, b: 3.25, texto: "Olá, \"mundo\"\nda legenda \\ barra" }, { a: 4, b: 5.125, texto: "Fim." }];
+  const codigo = paraJs(blocos, { formato: "9x16" });
+  assert.ok(codigo.endsWith("\n"), "termina com quebra de linha");
+  assert.match(codigo, /^\/\/ Gerado por gerar-legenda\.mjs \(formato 9x16\)/);
+  assert.deepEqual(janelaDe(codigo).LEGENDA, blocos);       // o mesmo conteúdo, com a quebra "\n" de verdade no texto
+  assert.ok(codigo.includes('"texto":"Olá, \\"mundo\\"\\nda legenda'), "a quebra de linha vai escapada, 1 bloco por linha do arquivo");
+  assert.equal(codigo.split("\n").filter((l) => l.startsWith("  {")).length, 2);
+});
+
+// Projeto inventado com 2 linhas: a 1ª tem texto longo (vira vários pedaços e muda de formato para formato) e palavras com tempo; a 2ª tem "fala" própria.
+function projetoComTexto() {
+  const pasta = mkdtempSync(join(tmpdir(), "legenda-js-"));
+  mkdirSync(join(pasta, "film", "assets"), { recursive: true });
+  const texto = "Para quem manda a fatura, o painel mostra \"cada\" parcela do mês, e marca as que vieram no extrato do banco.";
+  const roteiro = { blocos: [{ linhas: [{ id: "p1", texto }, { id: "p2", texto: "A CBS entra em 2033.", fala: "A cê bê ésse entra em dois mil e trinta e três." }] }] };
+  const palavras = texto.split(" ").map((w, i) => ({ l: "p1", w, a: 2 + i * 0.5, b: 2.4 + i * 0.5 }));
+  const fala = { offset: 0, linhas: [{ l: "p1", a: 2, b: 2.4 + (palavras.length - 1) * 0.5, t: texto }, { l: "p2", a: 30, b: 34, t: "A cê bê ésse entra em dois mil e trinta e três." }], palavras };
+  writeFileSync(join(pasta, "roteiro.json"), JSON.stringify(roteiro));
+  writeFileSync(join(pasta, "film", "assets", "fala.js"), `window.FALA = ${JSON.stringify(fala)};\n`);
+  return pasta;
+}
+
+test("gerar-legenda --saida film/assets/legenda.js grava o .js com os mesmos blocos do .srt do mesmo formato", () => {
+  const pasta = projetoComTexto();
+  try {
+    const porFormato = {};
+    for (const formato of ["9x16", "16x9"]) {
+      const js = rodar(pasta, ["--formato", formato, "--saida", `film/assets/legenda-${formato}.js`]);
+      assert.equal(js.status, 0, js.stderr);
+      const srt = rodar(pasta, ["--formato", formato]);
+      assert.equal(srt.status, 0, srt.stderr);
+      const doJs = janelaDe(readFileSync(join(pasta, "film", "assets", `legenda-${formato}.js`), "utf8")).LEGENDA;
+      const doSrt = lerSrt(readFileSync(join(pasta, "film", `legenda-${formato}.srt`), "utf8"));
+      assert.deepEqual(doJs, doSrt, `${formato}: o .js e o .srt têm que ter os mesmos blocos`);
+      assert.match(js.stdout, new RegExp(`legenda: ${doJs.length} blocos em film/assets/legenda-${formato}\\.js`));
+      porFormato[formato] = doJs;
+    }
+    // O 9x16 quebra em linhas de até 28 caracteres e em mais pedaços; o 16x9 em até 42. Cada formato tem o seu .js.
+    const b9 = porFormato["9x16"], b16 = porFormato["16x9"];
+    assert.ok(b9.length > b16.length, `o 9x16 devia ter mais pedaços (${b9.length}) que o 16x9 (${b16.length})`);
+    assert.ok(maiorLinha(b9) <= LIMITES["9x16"].maxLinha && maiorLinha(b16) > LIMITES["9x16"].maxLinha);
+    assert.ok(b9.some((b) => b.texto.includes("\n")), "o 9x16 tem pedaço de 2 linhas: texto com \\n");
+    // Texto da tela (CBS e 2033), não a fala soletrada, e tempo da linha sem palavras (1 pedaço).
+    const ultimo = b9.at(-1);
+    assert.equal(ultimo.texto, "A CBS entra em 2033.");
+    assert.deepEqual([ultimo.a, ultimo.b], [30, 34]);
+    // Tempo pelas palavras da fala: o 1º pedaço começa na 1ª palavra (2 s).
+    assert.equal(b9[0].a, 2);
+    assert.ok(b9[0].texto.startsWith("Para quem manda a fatura,"));
+    assert.ok(b9.some((b) => b.texto.includes('"cada"')), "as aspas do roteiro chegam ao .js");
+  } finally { rmSync(pasta, { recursive: true, force: true }); }
+});
+
+test("gerar-legenda --saida .js: o formato padrão é 16x9, a extensão vale em maiúscula e cria a pasta", () => {
+  const pasta = projetoComTexto();
+  try {
+    const r = rodar(pasta, ["--saida", "novo/dir/LEGENDA.JS"]);
+    assert.equal(r.status, 0, r.stderr);
+    const codigo = readFileSync(join(pasta, "novo", "dir", "LEGENDA.JS"), "utf8");
+    assert.match(codigo, /\(formato 16x9\)/);
+    assert.deepEqual(janelaDe(codigo).LEGENDA, legendasDoFilme(
+      JSON.parse(readFileSync(join(pasta, "roteiro.json"), "utf8")), lerFala(join(pasta, "film", "assets", "fala.js")), { formato: "16x9" }));
+    assert.ok(!existsSync(join(pasta, "film", "legenda-16x9.srt")), "no modo .js não grava o .srt");
+  } finally { rmSync(pasta, { recursive: true, force: true }); }
+});
+
+test("gerar-legenda no modo .js: 0 blocos sai com código 1 e não grava nada", () => {
+  const pasta = projetoInventado({ falaIds: ["outro-id"] });
+  try {
+    const r = rodar(pasta, ["--saida", "film/assets/legenda.js"]);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /^legenda: /);
+    assert.match(r.stderr, /0 blocos/);
+    assert.ok(!existsSync(join(pasta, "film", "assets", "legenda.js")), "não pode gravar .js vazio");
+    assert.doesNotMatch(r.stdout, /blocos em/);
+  } finally { rmSync(pasta, { recursive: true, force: true }); }
+});
+
+test("gerar-legenda recusa --saida que seria o próprio fala.js ou roteiro.json (o modo .js grava ao lado do fala.js)", () => {
+  const pasta = projetoComTexto();
+  try {
+    const fala = readFileSync(join(pasta, "film", "assets", "fala.js"), "utf8");
+    const roteiro = readFileSync(join(pasta, "roteiro.json"), "utf8");
+    for (const saida of ["film/assets/fala.js", "./film/assets/../assets/fala.js", "roteiro.json"]) {
+      const r = rodar(pasta, ["--saida", saida]);
+      assert.equal(r.status, 1, `${saida}: ${r.stdout}${r.stderr}`);
+      assert.match(r.stderr, /^legenda: /);
+      assert.match(r.stderr, /é o mesmo arquivo do (roteiro|fala) e sobrescreveria a entrada/);
+    }
+    assert.equal(readFileSync(join(pasta, "film", "assets", "fala.js"), "utf8"), fala, "o fala.js não pode mudar");
+    assert.equal(readFileSync(join(pasta, "roteiro.json"), "utf8"), roteiro, "o roteiro.json não pode mudar");
+  } finally { rmSync(pasta, { recursive: true, force: true }); }
+});
+
+test("gerar-legenda não tem opção --js: o modo vem da extensão do --saida (opção desconhecida sai com código 1)", () => {
+  const pasta = projetoComTexto();
+  try {
+    const r = rodar(pasta, ["--js", "film/assets/legenda.js"]);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /opção desconhecida: --js/);
+    assert.ok(!existsSync(join(pasta, "film", "assets", "legenda.js")));
   } finally { rmSync(pasta, { recursive: true, force: true }); }
 });

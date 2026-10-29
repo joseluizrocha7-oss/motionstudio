@@ -10,6 +10,7 @@
  * M.hero3d(canvas|container, {objects|build, state}) adds a Three.js layer that is redrawn by the same clock (module loaded from ./hero3d/, see README "3D").
  * M.lottie(canvas|container, {data|src, at}) plays a Lottie animation on the same clock (LOCAL CHANGE: dotlottie-web from ./vendor/dotlottie-web/, see README "Lottie").
  * M.render((t, frame) => ..., {heavy}) puts your own drawing on the same clock (LOCAL CHANGE, see README "M.render").
+ * Opened with ?previa, the page becomes a player: stage fitted to the window, controls under it, audio/mix.wav on the same clock (LOCAL CHANGE, see README "?previa").
  * Frames are the unit (fps default 30). On a clock:'twos' film onsets are quantised to even frames and __seek() holds each
  * pose for two frames. Eases are copied from the measured-ease library (12 curves fitted to 53 human-made films).
  */
@@ -593,8 +594,95 @@ function film(cfg) {
     R.push(o && o.heavy ? (t, fr) => { if (root.__mdSnap !== false) fn(t, fr); } : fn);
   };
 
-  return (root.Motion.last = { tl, fps, duration, width: W, height: H, clock: cfg.clock || 'smooth', ease: EASE, f: F, q, twos: f => f - (f % 2), mark, seek, kf, show, hide, cut, wrap, enter, exit,
-    words, cadence: (s, o) => cadence(s, Object.assign({ fps }, o)), type, cursor, press, camera, snap, whip, dive, drift, count, cascade, hero3d, lottie, render });
+  const api = root.Motion.last = { tl, fps, duration, width: W, height: H, clock: cfg.clock || 'smooth', ease: EASE, f: F, q, twos: f => f - (f % 2), mark, seek, kf, show, hide, cut, wrap, enter, exit,
+    words, cadence: (s, o) => cadence(s, Object.assign({ fps }, o)), type, cursor, press, camera, snap, whip, dive, drift, count, cascade, hero3d, lottie, render };
+  // ?previa (LOCAL CHANGE 2026-10-29): built once per page, for the last film, after Motion.loaded() and window.__ready (a failed load still gets the controls)
+  if (root.location && new URLSearchParams(root.location.search).has('previa')) {
+    PV.M = api; PV.stage = main; PV.opt = cfg.preview;
+    if (!PV.queued) { PV.queued = true; loaded().catch(() => {}).then(() => root.__ready).catch(() => {}).then(() => { try { preview(PV.M, PV.stage, PV.opt); } catch (e) { console.error('[Motion] ?previa: ' + e.message); } }); }
+  }
+  return api;
+}
+
+/* ---------- LOCAL CHANGE (2026-10-29): ?previa, a player inside the film page ----------
+   Only with ?previa in the address: render.mjs, autoteste.mjs and erros.mjs never add it, so none of this exists in a render or a selfTest. The stage (#main, moved
+   into a wrapper so the film's own transforms on it stay untouched) is scaled down to fit the window; under it: play/pause, restart, a time slider, the current time
+   and an <audio> on the same clock. While the audio plays, its currentTime IS the film time; the page clock takes over when there is no audio, it fails or it ends
+   before the film. Every seek (slider, arrows, restart) moves both. Audio: Motion.film({ preview: { audio } }), default 'audio/mix.wav' (relative to the page),
+   false = none; ?previa&audio=x.wav wins. Keys: Space play/pause, Left/Right one frame (Shift: one second), Home/End.
+   It lives in the film page because a page that holds the film in an iframe on file:// cannot reach its __seek in Chrome. */
+const PV = { queued: false, M: null, stage: null, opt: null };
+const PREVIEW_CSS = 'html,body{width:100%!important;height:100%!important;margin:0!important;overflow:hidden!important;background:#1b1d22!important}' +
+  '#md-previa-quadro{position:fixed;left:0;top:0;transform-origin:0 0;overflow:hidden;box-shadow:0 0 0 1px #3a3d45}' +
+  '#md-previa{position:fixed;left:0;right:0;bottom:0;height:56px;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:0 16px;background:#111317;color:#e6e7ea;font:500 14px/1.2 system-ui,sans-serif;z-index:2147483647}' +
+  '#md-previa button{flex:none;background:#2a2d35;color:#fff;border:0;border-radius:6px;padding:8px 14px;font:inherit;cursor:pointer}#md-previa button:hover{background:#383c46}' +
+  '#md-previa input{flex:1;min-width:60px;margin:0}#md-previa-hora{flex:none;font-variant-numeric:tabular-nums;white-space:nowrap}' +
+  '#md-previa-som{flex:none;max-width:28%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#9a9da6;font-size:12px}';
+function preview(M, stage, o) {
+  const qs = new URLSearchParams(root.location.search), D = M.duration, fps = M.fps, W = M.width, H = M.height, BAR = 56, PAD = 12;
+  const src = qs.has('audio') ? qs.get('audio') : o && o.audio !== undefined ? o.audio : 'audio/mix.wav';
+  const css = document.createElement('style'); css.id = 'md-previa-css'; css.textContent = PREVIEW_CSS; document.head.appendChild(css);
+  let box = null;
+  if (stage) { box = document.createElement('div'); box.id = 'md-previa-quadro'; box.style.width = W + 'px'; box.style.height = H + 'px'; stage.parentNode.insertBefore(box, stage); box.appendChild(stage); }
+  const bar = document.createElement('div'); bar.id = 'md-previa';
+  bar.innerHTML = '<button id="md-previa-tocar" type="button">Reproduzir</button><button id="md-previa-recomecar" type="button">Recomeçar</button>' +
+    '<input id="md-previa-tempo" type="range" min="0" max="' + D + '" step="any" value="0" aria-label="Tempo"><span id="md-previa-hora"></span><span id="md-previa-som"></span>';
+  document.body.appendChild(bar);
+  const byId = id => document.getElementById(id), btn = byId('md-previa-tocar'), range = byId('md-previa-tempo'), readout = byId('md-previa-hora'), info = byId('md-previa-som');
+  const num = v => v.toFixed(2).replace('.', ','), say = s => { info.textContent = s; info.title = s; };   // title: the whole line when a narrow window cuts it
+  let audio = null, hasAudio = false;
+  if (src) {
+    audio = document.createElement('audio'); audio.id = 'md-previa-audio'; audio.preload = 'auto'; audio.src = src; bar.appendChild(audio);
+    hasAudio = true; say('áudio: ' + src);
+    audio.addEventListener('error', () => { hasAudio = false; say('sem áudio: ' + src + ' não carregou'); });
+  } else say('sem áudio');
+  let playing = false, t = 0, base = 0, t0 = 0, onAudio = false, raf = 0;
+  const show = v => {                                               // seek the film; slider and readout follow
+    t = Math.max(0, Math.min(D, v)); M.seek(t); range.value = t;
+    readout.textContent = num(t) + ' / ' + num(D) + ' s · quadro ' + Math.floor(t * fps + 1e-6);
+  };
+  const pause = () => { playing = false; cancelAnimationFrame(raf); if (audio) audio.pause(); btn.textContent = 'Reproduzir'; };
+  const tick = () => {
+    if (!playing) return;
+    const a = hasAudio && !audio.paused && !audio.ended;
+    if (!a && onAudio) { base = t; t0 = performance.now(); }       // the audio stopped (ended or failed): the page clock goes on from here
+    onAudio = a;
+    const v = a ? audio.currentTime : base + (performance.now() - t0) / 1000;
+    if (v >= D) { pause(); show(D); return; }
+    show(v); raf = requestAnimationFrame(tick);
+  };
+  const play = () => {
+    if (t >= D - 1e-6) show(0);
+    playing = true; onAudio = false; base = t; t0 = performance.now(); btn.textContent = 'Pausar';
+    if (hasAudio && !(t >= audio.duration)) {                       // past the end of a shorter audio: page clock only (play() on an ended element restarts it at 0)
+      audio.currentTime = t;
+      const p = audio.play();                                       // AbortError = paused again before it started (a seek while playing): not a failure
+      if (p) p.catch(e => { if (!hasAudio || (e && e.name === 'AbortError')) return; hasAudio = false; say('sem áudio: ' + src + ' (' + (e && e.name) + ')'); });
+    }
+    raf = requestAnimationFrame(tick);
+  };
+  const jump = v => { const was = playing; if (was) pause(); show(v); if (hasAudio) audio.currentTime = t; if (was) play(); };
+  const toggle = () => (playing ? pause() : play());
+  btn.addEventListener('click', toggle);
+  byId('md-previa-recomecar').addEventListener('click', () => { jump(0); if (!playing) play(); });
+  range.addEventListener('input', () => jump(Math.round(+range.value * fps) / fps));
+  root.addEventListener('keydown', e => {
+    const k = e.code;
+    if ((k === 'Space' || k === 'Enter') && e.target && e.target.closest && e.target.closest('button')) return;   // a focused button activates itself
+    if (k === 'Space') toggle();
+    else if (k === 'ArrowRight' || k === 'ArrowLeft') jump((Math.round(t * fps) + (k === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? fps : 1)) / fps);
+    else if (k === 'Home') jump(0);
+    else if (k === 'End') jump(D);
+    else return;
+    e.preventDefault();
+  });
+  const fit = () => {
+    if (!box) return;
+    const aw = root.innerWidth - 2 * PAD, ah = root.innerHeight - BAR - 2 * PAD, k = Math.max(0.01, Math.min(1, aw / W, ah / H));
+    box.style.transform = 'translate(' + Math.round((root.innerWidth - W * k) / 2) + 'px,' + Math.round(PAD + (ah - H * k) / 2) + 'px) scale(' + k + ')';
+  };
+  root.addEventListener('resize', fit); fit();
+  jump(0);
 }
 
 /* ---------- self test: play sequentially, then jump around (incl. backwards); every element's state must be identical ---------- */

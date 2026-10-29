@@ -159,6 +159,15 @@ computed transform and own text, **and the pixels of every `<canvas>`** (see "Ca
 `Motion.loaded()` also waits for every `M.hero3d` scene (module + fonts + env + shader compile) and every `M.lottie` player (module + wasm + animation), so `window.__ready = Motion.loaded()...` is all a 3D or Lottie film needs.
 `examples/selftest/index.html` is the regression page for this runtime (visibility composition, per-word options, multi-line styled typing, origin claims, `kf` steps); it must print `PASS` and `[asserts] PASS`.
 
+## Preview with controls (?previa), LOCAL CHANGE (2026-10-29)
+Open any film with `?previa` in the address (`file:///C:/.../film/index.html?previa`) to watch it with its sound. No code in the film: `Motion.film()` builds it.
+* **What you get.** The stage (`#main`) scaled down to fit the window (never up), centred, and a bar under it: Reproduzir/Pausar, Recomeçar, a time slider (snaps to frames), the current time (`2,50 / 4,00 s · quadro 75`) and the audio status. Keys: Space (play/pause), Left/Right (one frame), Shift + Left/Right (one second), Home, End.
+* **One clock.** An `<audio>` plays `audio/mix.wav` (relative to the page, so `film/audio/mix.wav` for `film/index.html`). While it plays, its `currentTime` is the film time: every animation frame calls `__seek(audio.currentTime)`, so picture and sound cannot drift. Every seek (slider, keys, Recomeçar) moves both. With no audio, a file that does not load, or past the end of a shorter audio, the page clock (`performance.now`) drives the film and the bar says `sem áudio: ...`.
+* **Choose the audio.** `Motion.film({ ..., preview: { audio: 'audio/mix-v2.wav' } })`, or `false` for none. `?previa&audio=x.wav` wins over both (try another mix without editing the film).
+* **Never in a render.** `render.mjs`, `autoteste.mjs`, `erros.mjs` and the other scripts never add `?previa`, so the page they open is unchanged: no bar, no `<audio>`, `#main` unscaled at (0, 0) (checked in `tests/runtime-previa.test.mjs`). With `?previa`, `#main` is moved into a wrapper (`#md-previa-quadro`) that carries the scale, so the film's own transforms on `#main` stay untouched; every id it adds starts with `md-previa`.
+* **Why inside the film.** A viewer page that holds the film in an `<iframe>` on `file://` cannot reach the frame's `__seek` in Chrome (each file is its own origin). The preview runs in the film page itself, after `Motion.loaded()` and `window.__ready`.
+* A 3D or Lottie film still needs Chrome started with `--allow-file-access-from-files`, or a local server (see "3D" and "Lottie"). Example: `examples/relogio/index.html?previa` (a beep on every whole second, with the pulse ring).
+
 ## 3D (hero3d)
 Real light and depth for ONE hero object: Three.js r186 vendored in `runtime/hero3d/` (no CDN, no importmap, no build), seek-safe. `M.hero3d` puts it on the film clock; the timeline stays the single clock.
 ```html

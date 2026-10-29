@@ -91,6 +91,7 @@ const ACCENT = getComputedStyle(document.documentElement).getPropertyValue('--ac
    M.enter('#lockup', { at: 188, frames: 20, ease: 'snapSettle', from: { scale: 3.5, blur: 12 } });
    M.drift('#lockup', { prop: 'scale', from: 1, to: .9, start: 208, end: 450 }); */
 
+// Watch it with sound: open the file with ?previa (stage fitted to the window, play/pause/restart/time slider, audio/mix.wav on the same clock; runtime/README.md "?previa").
 // Optional: prove seek-safety while developing (open the file with ?selftest, result lands in window.__seekcheck and the console)
 window.__ready = Motion.loaded().then(() => { if (/selftest/.test(location.search)) Motion.selfTest(M, { samples: 24 }); });
 </script>

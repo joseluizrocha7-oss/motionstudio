@@ -6,7 +6,9 @@
 <meta name="viewport" content="width=1920, height=1080">
 <!-- Um relógio desenhado por M.render: o arco enche em 4 s, o ponto dá uma volta por segundo e um anel pulsa em cada segundo inteiro.
      A leitura no centro mostra o quadro (fr / fps); o desenho usa o t contínuo, então um sub-quadro do --shutter vê o seu próprio desenho.
-     Autoteste: node kit/autoteste.mjs examples/relogio/index.html     Fotos: node scripts/render.mjs examples/relogio/index.html --still 0.2,1.1,3.5 stills -->
+     Autoteste: node kit/autoteste.mjs examples/relogio/index.html     Fotos: node scripts/render.mjs examples/relogio/index.html --still 0.2,1.1,3.5 stills
+     Prévia com controles: abra file:///<caminho>/examples/relogio/index.html?previa no Chrome. O audio/mix.wav tem um bipe em cada segundo inteiro, junto do anel.
+     Ele foi feito assim: ffmpeg -f lavfi -i "aevalsrc=exprs=0.5*sin(2*PI*880*t)*exp(-30*mod(t\,1)):s=8000:d=4" -ac 1 -c:a pcm_s16le audio/mix.wav -->
 <link rel="stylesheet" href="../../runtime/fonts.css">
 <style>
 * { box-sizing: border-box; }

@@ -1,5 +1,7 @@
 // M.render e o modo ?previa do runtime, no Chrome (scripts/_cdp.mjs), sobre o examples/relogio.
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -7,19 +9,20 @@ import { launchChrome } from "../scripts/_cdp.mjs";
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
 const EXEMPLO = pathToFileURL(join(RAIZ, "examples", "relogio", "index.html")).href;
+const TEMP = mkdtempSync(join(tmpdir(), "runtime-previa-"));
 
 let br;
 before(async () => { br = await launchChrome({ args: ["--allow-file-access-from-files"] }); });
-after(async () => { await br?.close(); });
+after(async () => { await br?.close(); rmSync(TEMP, { recursive: true, force: true }); });
 
-// Abre o exemplo (com o sufixo de endereço dado) e espera o window.__ready.
+// Abre o exemplo (ou outro endereço), com o sufixo dado, e espera o window.__ready.
 // Não usa o goto() do _cdp.mjs: o timer de 30 s dele seguraria o processo do teste depois do fim.
-async function abrir(sufixo = "", { largura = 1920, altura = 1080 } = {}) {
+async function abrir(sufixo = "", { largura = 1920, altura = 1080, url = EXEMPLO } = {}) {
   const p = await br.newPage({ width: largura, height: altura });
   const erros = [];
   p.on("Runtime.exceptionThrown", (e) => erros.push((e.exceptionDetails?.exception?.description || e.exceptionDetails?.text || "").split("\n")[0]));
   const carregou = new Promise((ok) => { const off = p.on("Page.loadEventFired", () => { off(); ok(); }); });
-  await p.send("Page.navigate", { url: EXEMPLO + sufixo });
+  await p.send("Page.navigate", { url: url + sufixo });
   await carregou;
   await p.eval("window.__ready");
   return { p, erros };
@@ -90,4 +93,178 @@ test("o selfTest acusa um desenhista que guarda estado entre quadros", { timeout
   await p.close();
   assert.equal(r.ok, false);
   assert.ok(r.divergencias > 0);
+});
+
+// ---------- ?previa (item 14) ----------
+
+// Espera a prévia montar (ela monta depois do window.__ready); false se não montar em 3 s.
+const esperarPrevia = (p) => p.eval("new Promise(r => { let n = 0; const f = () => document.getElementById('md-previa') ? r(true) : ++n > 150 ? r(false) : setTimeout(f, 20); f(); })");
+// Espera ms milissegundos dentro da página (os quadros da prévia andam por requestAnimationFrame).
+const esperar = (p, ms) => p.eval(`new Promise(r => setTimeout(r, ${ms}))`);
+// Lê o que a prévia e o M.render do exemplo mostram agora.
+const LER = `(() => { const a = document.getElementById('md-previa-audio'), l = document.getElementById('leitura');
+  return { quadro: +l.dataset.quadro, leitura: l.textContent, hora: document.getElementById('md-previa-hora').textContent,
+    botao: document.getElementById('md-previa-tocar').textContent, som: document.getElementById('md-previa-som').textContent,
+    audio: a ? { t: a.currentTime, parado: a.paused } : null }; })()`;
+
+test("?previa: o quadro cabe na janela e os controles ficam embaixo", { timeout: 30000 }, async () => {
+  const { p, erros } = await abrir("?previa", { largura: 1280, altura: 720 });
+  assert.equal(await esperarPrevia(p), true, "a prévia não montou");
+  const r = await p.eval(`(() => {
+    const ret = id => { const b = document.getElementById(id).getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
+    const faixa = document.getElementById('md-previa-tempo'), a = document.getElementById('md-previa-audio');
+    return { tocar: document.getElementById('md-previa-tocar').textContent, recomecar: document.getElementById('md-previa-recomecar').textContent,
+      faixa: [faixa.type, +faixa.min, +faixa.max], hora: document.getElementById('md-previa-hora').textContent,
+      audio: a && a.tagName === 'AUDIO' ? a.src : null, palco: ret('main'), barra: ret('md-previa') };
+  })()`);
+  await p.close();
+  assert.deepEqual([r.tocar, r.recomecar], ["Reproduzir", "Recomeçar"]);
+  assert.deepEqual(r.faixa, ["range", 0, 4]);
+  assert.equal(r.hora, "0,00 / 4,00 s · quadro 0");
+  assert.ok(r.audio && r.audio.endsWith("/examples/relogio/audio/mix.wav"), `áudio: ${r.audio}`);
+  const { palco, barra } = r;
+  assert.ok(palco.w < 1280 && Math.abs(palco.w / palco.h - 16 / 9) < 0.01, `o palco reduzido mantém 16:9: ${palco.w}x${palco.h}`);
+  assert.ok(palco.x >= 0 && palco.x + palco.w <= 1280 && palco.y >= 0, `o palco cabe na largura: ${JSON.stringify(palco)}`);
+  assert.ok(Math.abs(palco.x - (1280 - palco.x - palco.w)) <= 1, `o palco fica no centro: ${palco.x}`);
+  assert.ok(palco.y + palco.h <= barra.y, `o palco fica acima da barra: ${palco.y + palco.h} > ${barra.y}`);
+  assert.ok(barra.y + barra.h <= 720 && barra.w === 1280, `a barra fica embaixo, na largura toda: ${JSON.stringify(barra)}`);
+  assert.deepEqual(erros, []);
+});
+
+test("?previa: a busca por tempo leva o filme e o áudio ao tempo pedido", { timeout: 30000 }, async () => {
+  const { p, erros } = await abrir("?previa", { largura: 1280, altura: 720 });
+  assert.equal(await esperarPrevia(p), true, "a prévia não montou");
+  await p.eval("(() => { const f = document.getElementById('md-previa-tempo'); f.value = '2.5'; f.dispatchEvent(new Event('input', { bubbles: true })); })()");
+  const a = await p.eval(LER);
+  const tecla = (code, shift = false) => p.eval(`document.dispatchEvent(new KeyboardEvent('keydown', { code: '${code}', key: '${code}', shiftKey: ${shift}, bubbles: true }))`);
+  await tecla("ArrowRight");
+  const b = await p.eval(LER);
+  await tecla("ArrowLeft"); await tecla("ArrowLeft");
+  const c = await p.eval(LER);
+  await tecla("ArrowLeft", true);
+  const d = await p.eval(LER);
+  await p.close();
+  assert.deepEqual([a.quadro, a.leitura, a.hora], [75, "2,50 s", "2,50 / 4,00 s · quadro 75"], "o M.render desenhou o tempo pedido");
+  assert.ok(Math.abs(a.audio.t - 2.5) < 0.01, `o áudio foi junto: ${a.audio.t}`);
+  assert.equal(b.quadro, 76, "seta para a direita: um quadro adiante");
+  assert.equal(c.quadro, 74, "seta para a esquerda: um quadro atrás");
+  assert.equal(d.quadro, 44, "Shift + seta: um segundo atrás");
+  assert.ok(Math.abs(d.audio.t - 44 / 30) < 0.01, `o áudio segue a seta: ${d.audio.t}`);
+  assert.deepEqual(erros, []);
+});
+
+test("?previa: reproduzir anda o filme no relógio do áudio; pausar para os dois", { timeout: 30000 }, async () => {
+  const { p, erros } = await abrir("?previa", { largura: 1280, altura: 720 });
+  assert.equal(await esperarPrevia(p), true, "a prévia não montou");
+  assert.equal(await p.eval("new Promise(r => { const a = document.getElementById('md-previa-audio'); a.readyState >= 1 ? r(true) : (a.onloadedmetadata = () => r(true), a.onerror = () => r(false)); })"), true, "o audio/mix.wav do exemplo não carregou");
+  await p.eval("document.getElementById('md-previa-tocar').click()");
+  await esperar(p, 700);
+  const a = await p.eval(LER);
+  // O áudio é o relógio: se ele pula, o filme vai atrás no quadro seguinte (o relógio da página não pularia).
+  await p.eval("document.getElementById('md-previa-audio').currentTime = 3");
+  await esperar(p, 150);
+  const b = await p.eval(LER);
+  await p.eval("document.getElementById('md-previa-tocar').click()");
+  const c = await p.eval(LER);
+  await esperar(p, 300);
+  const d = await p.eval(LER);
+  await p.close();
+  assert.equal(a.botao, "Pausar");
+  assert.equal(a.audio.parado, false, "o áudio está tocando");
+  assert.ok(a.quadro >= 9, `o filme andou: quadro ${a.quadro}`);
+  assert.ok(Math.abs(a.quadro / 30 - a.audio.t) < 0.1, `filme e áudio juntos: ${a.quadro / 30} e ${a.audio.t}`);
+  assert.ok(b.quadro >= 90 && b.quadro <= 100, `o filme seguiu o pulo do áudio para 3 s: quadro ${b.quadro}`);
+  assert.equal(c.botao, "Reproduzir");
+  assert.equal(c.audio.parado, true, "pausar para o áudio");
+  assert.equal(d.quadro, c.quadro, "pausado, o filme não anda");
+  assert.deepEqual(erros, []);
+});
+
+test("?previa com áudio que não existe: avisa e toca no relógio da página", { timeout: 30000 }, async () => {
+  const { p, erros } = await abrir("?previa&audio=nao-existe.wav", { largura: 1280, altura: 720 });
+  assert.equal(await esperarPrevia(p), true, "a prévia não montou");
+  assert.equal(await p.eval("new Promise(r => { let n = 0; const f = () => /sem áudio/.test(document.getElementById('md-previa-som').textContent) ? r(true) : ++n > 150 ? r(false) : setTimeout(f, 20); f(); })"), true, "não avisou da falta do áudio");
+  const a = await p.eval(LER);
+  await p.eval("document.getElementById('md-previa-tocar').click()");
+  await esperar(p, 500);
+  const b = await p.eval(LER);
+  await p.eval("document.getElementById('md-previa-tocar').click()");
+  await p.close();
+  assert.match(a.som, /nao-existe\.wav/);
+  assert.ok(b.quadro >= 6, `sem áudio, o filme anda pelo relógio da página: quadro ${b.quadro}`);
+  assert.deepEqual(erros, []);
+});
+
+// WAV mudo (PCM 16 bits, mono, 8 kHz) de s segundos, gravado na pasta temporária; devolve o endereço file://.
+function wavMudo(nome, s) {
+  const n = Math.round(8000 * s) * 2, b = Buffer.alloc(44 + n);
+  b.write("RIFF", 0); b.writeUInt32LE(36 + n, 4); b.write("WAVEfmt ", 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(8000, 24); b.writeUInt32LE(16000, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write("data", 36); b.writeUInt32LE(n, 40);
+  const arq = join(TEMP, nome + ".wav");
+  writeFileSync(arq, b);
+  return pathToFileURL(arq).href;
+}
+
+test("?previa: áudio mais curto que o filme passa o relógio para a página; no fim, para; tocar de novo recomeça", { timeout: 30000 }, async () => {
+  const curto = wavMudo("curto", 0.4);
+  const { p, erros } = await abrir("?previa&audio=" + encodeURIComponent(curto), { largura: 1280, altura: 720 });
+  assert.equal(await esperarPrevia(p), true, "a prévia não montou");
+  assert.equal(await p.eval("new Promise(r => { const a = document.getElementById('md-previa-audio'); a.readyState >= 1 ? r(true) : (a.onloadedmetadata = () => r(true), a.onerror = () => r(false)); })"), true, "o WAV curto não carregou");
+  await p.eval("document.getElementById('md-previa-tocar').click()");
+  await esperar(p, 1000);
+  const ac = await p.eval(LER);
+  const fim = await p.eval("document.getElementById('md-previa-audio').ended");
+  // perto do fim: tocar até o último quadro e parar
+  await p.eval("document.getElementById('md-previa-tocar').click()");
+  await p.eval("(() => { const f = document.getElementById('md-previa-tempo'); f.value = '3.8'; f.dispatchEvent(new Event('input')); })()");
+  await p.eval("document.getElementById('md-previa-tocar').click()");
+  await esperar(p, 600);
+  const b = await p.eval(LER);
+  await p.eval("document.getElementById('md-previa-tocar').click()");      // tocar de novo, parado no fim
+  const c = await p.eval(LER);
+  await p.eval("document.getElementById('md-previa-tocar').click()");
+  await p.close();
+  assert.equal(fim, true, "o áudio de 0,4 s acabou");
+  assert.ok(ac.quadro >= 24, `depois do fim do áudio, o filme seguiu pelo relógio da página: quadro ${ac.quadro}`);
+  assert.deepEqual([b.botao, b.quadro], ["Reproduzir", 120], "no fim do filme, para no último instante");
+  assert.ok(c.quadro <= 3 && c.botao === "Pausar", `tocar no fim recomeça do zero: quadro ${c.quadro}`);
+  assert.deepEqual(erros, []);
+});
+
+// Filme mínimo de 2 s numa pasta temporária, com o runtime pelo caminho absoluto e a opção preview dada.
+function filmeMinimo(nome, preview) {
+  const rt = pathToFileURL(join(RAIZ, "runtime")).href, arq = join(TEMP, nome + ".html");
+  writeFileSync(arq, `<!doctype html><html><head><meta charset="utf-8"></head><body>
+<div id="main" style="position:absolute;left:0;top:0;width:640px;height:360px;background:#EDEBE6"></div>
+<script src="${rt}/vendor/gsap.min.js"></script><script src="${rt}/motion.js"></script>
+<script>const M = Motion.film({ fps: 30, duration: 2, width: 640, height: 360, preview: ${JSON.stringify(preview)} }); window.__ready = Motion.loaded();</script>
+</body></html>`);
+  return pathToFileURL(arq).href;
+}
+
+test("?previa: preview.audio no Motion.film escolhe o áudio, false tira o áudio, e ?audio= vale mais", { timeout: 30000 }, async () => {
+  const outro = filmeMinimo("outro", { audio: "som/outro.wav" }), mudo = filmeMinimo("mudo", { audio: false });
+  const ler = async (url, sufixo) => {
+    const { p, erros } = await abrir(sufixo, { url, largura: 800, altura: 600 });
+    assert.equal(await esperarPrevia(p), true, "a prévia não montou");
+    const r = await p.eval("(() => { const a = document.getElementById('md-previa-audio'); return { src: a ? a.src : null, audios: document.querySelectorAll('audio').length, som: document.getElementById('md-previa-som').textContent }; })()");
+    await p.close();
+    assert.deepEqual(erros, []);
+    return r;
+  };
+  const a = await ler(outro, "?previa"), b = await ler(mudo, "?previa"), c = await ler(outro, "?previa&audio=trilha.wav");
+  assert.ok(a.src.endsWith("/som/outro.wav"), a.src);
+  assert.deepEqual([b.src, b.audios, b.som], [null, 0, "sem áudio"]);
+  assert.ok(c.src.endsWith("/trilha.wav"), c.src);
+});
+
+test("sem ?previa a página não muda", { timeout: 30000 }, async () => {
+  const { p, erros } = await abrir();
+  await esperar(p, 300);                                   // a prévia montaria logo depois do __ready
+  const r = await p.eval(`(() => { const m = document.getElementById('main'), b = m.getBoundingClientRect();
+    return { previa: document.querySelectorAll('[id^="md-previa"]').length, audios: document.querySelectorAll('audio').length,
+      pai: m.parentElement === document.body, palco: [b.left, b.top, b.width, b.height], corpo: getComputedStyle(document.body).width }; })()`);
+  await p.close();
+  assert.deepEqual(r, { previa: 0, audios: 0, pai: true, palco: [0, 0, 1920, 1080], corpo: "1920px" });
+  assert.deepEqual(erros, []);
 });

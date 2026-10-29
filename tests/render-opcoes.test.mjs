@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { after } from "node:test";
@@ -163,4 +163,43 @@ test("render-trechos recusa --esperar-memoria que não é número ou é negativo
     assert.equal(r.status, 2, `--esperar-memoria ${v}: ${r.stderr}`);
     assert.match(r.stderr, /--esperar-memoria/);
   }
+});
+
+// ---- item 9: render.mjs --still --limpar ----
+
+const pastaComFotoVelha = () => {
+  const pasta = join(novaPasta(), "fotos");
+  mkdirSync(join(pasta, "still_pasta.png"), { recursive: true });   // pasta com nome de foto: não é arquivo, fica
+  writeFileSync(join(pasta, "still_velho.png"), "foto velha", "utf8");
+  writeFileSync(join(pasta, "outro.txt"), "não mexa", "utf8");
+  return pasta;
+};
+
+test("--still --limpar apaga só still_*.png da pasta e grava a foto nova", () => {
+  const pasta = pastaComFotoVelha();
+  const r = spawnSync(process.execPath, [RENDER, FILME, pasta, "--still", "0.1", "--limpar"], { encoding: "utf8", timeout: 120000 });
+  assert.equal(r.status, 0, r.stderr);
+  const itens = readdirSync(pasta).sort();
+  assert.ok(!itens.includes("still_velho.png"), `a foto velha tinha que sumir: ${itens}`);
+  assert.ok(itens.includes("outro.txt"), "outro.txt tinha que ficar");
+  assert.ok(itens.includes("still_pasta.png"), "a pasta com nome de foto tinha que ficar");
+  assert.ok(itens.includes("still_0.10s.png"), `a foto nova tinha que estar lá: ${itens}`);
+  assert.match(r.stderr, /removed 1 still_\*\.png/, "diz quantas fotos apagou");
+});
+
+test("--still sem --limpar deixa as fotos velhas onde estão", () => {
+  const pasta = pastaComFotoVelha();
+  const r = spawnSync(process.execPath, [RENDER, FILME, pasta, "--still", "0.1"], { encoding: "utf8", timeout: 120000 });
+  assert.equal(r.status, 0, r.stderr);
+  const itens = readdirSync(pasta);
+  assert.ok(itens.includes("still_velho.png"), "sem --limpar a foto velha fica");
+  assert.ok(itens.includes("still_0.10s.png"));
+});
+
+test("--limpar sem --still é recusado antes de abrir o Chrome", () => {
+  const pasta = novaPasta();
+  const r = spawnSync(process.execPath, [RENDER, FILME, join(pasta, "x.mp4"), "--limpar"], { encoding: "utf8" });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /--limpar needs --still/);
+  assert.ok(!existsSync(join(pasta, "x.mp4")));
 });

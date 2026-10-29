@@ -13,6 +13,8 @@
 //   --scale 0.5         render at 0.5x pixels (layout unchanged) for fast drafts
 //   --format jpeg|png   frame transport (default jpeg q92; png = lossless, slower)
 //   --still t,t,t       write PNG stills at those times instead of a video
+//   --limpar            with --still: delete the old still_*.png in the output folder before writing (only that pattern; other
+//                       files and subfolders stay), so a new round does not mix with the last one
 //   --shutter 180       SHUTTER BLUR, single pass: instead of one seek per frame, seek --subframes times across the open shutter
 //                       (angle in degrees, 0-360; 180 = open for half the frame time) and average them with ffmpeg tmix inside the
 //                       same encode (no intermediate files). The shutter opens AT the frame time and closes before the next frame,
@@ -49,7 +51,7 @@ import { launchChrome, parseArgs, die, helpFrom } from './_cdp.mjs';
 const HELP = helpFrom(import.meta.url);
 const { pos, opt } = parseArgs(process.argv.slice(2), {
   help: 'bool', fps: 's', width: 's', height: 's', from: 's', to: 's', duration: 's', audio: 's', crf: 's',
-  preset: 's', scale: 's', format: 's', still: 's', shutter: 's', subframes: 's', grain: 's', 'grain-seed': 's',
+  preset: 's', scale: 's', format: 's', still: 's', shutter: 's', subframes: 's', grain: 's', 'grain-seed': 's', limpar: 'bool',
 });
 if (opt.help || pos.length < 1) { console.log(HELP); process.exit(opt.help ? 0 : 1); }
 
@@ -68,6 +70,7 @@ const grain = opt.grain !== undefined ? num(opt.grain, 0, 'grain') : 0;
 if (grain < 0 || grain > 0.2) die('--grain must be 0..0.2 (0.03-0.06 typical)');
 const grainSeed = Math.round(num(opt['grain-seed'], 7, 'grain-seed'));
 const stillMode = opt.still !== undefined;
+if (opt.limpar && !stillMode) die('--limpar needs --still');
 if (stillMode && (shutterOn || grain)) console.error('warn: --shutter/--grain apply to video output only; stills are single sharp frames');
 const src = pos[0];
 const url = /^(https?|file):/i.test(src) ? src : (fs.existsSync(src) ? pathToFileURL(path.resolve(src)).href : die(`input not found: ${src}`));
@@ -178,6 +181,12 @@ const cleanup = async () => { try { await browser?.close(); } catch {} };
 
   if (stillMode) {
     fs.mkdirSync(stillDir, { recursive: true });
+    if (opt.limpar) {
+      // only files named still_*.png; a folder with that name, other files and events.json stay
+      const velhos = fs.readdirSync(stillDir, { withFileTypes: true }).filter((d) => d.isFile() && /^still_.*\.png$/.test(d.name));
+      for (const d of velhos) fs.rmSync(path.join(stillDir, d.name), { force: true });
+      console.error(`--limpar: removed ${velhos.length} still_*.png from ${stillDir}`);
+    }
     for (const t of stillTimes) {
       const f = path.join(stillDir, `still_${t.toFixed(2)}s.png`);
       fs.writeFileSync(f, await grab(t)); console.log(f);

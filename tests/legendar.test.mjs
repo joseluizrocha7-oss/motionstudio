@@ -266,10 +266,14 @@ test("paraAss com WrapStyle 2: o libass mantém 1 linha mesmo quando a linha pas
 
 // Faixa vertical (y0 a y1) e horizontal (x0 a x1) da tinta branca (> 128) de um quadro 1080x1920 do vídeo no instante t.
 // Em fundo preto o contorno e a sombra (pretos) não aparecem: sobra só a letra.
-function tintaBranca(video, t) {
+function quadroCinza1080x1920(video, t) {
   const bytes = execFileSync("ffmpeg", ["-v", "error", "-ss", String(t), "-i", video, "-frames:v", "1",
     "-f", "rawvideo", "-pix_fmt", "gray", "-"], { maxBuffer: 1 << 26 });
   assert.equal(bytes.length, 1080 * 1920, "o quadro tem que ter 1080x1920 bytes em cinza");
+  return bytes;
+}
+function tintaBranca(video, t) {
+  const bytes = quadroCinza1080x1920(video, t);
   let y0 = Infinity, y1 = -1, x0 = Infinity, x1 = -1;
   for (let y = 0; y < 1920; y++) for (let x = 0; x < 1080; x++) {
     if (bytes[y * 1080 + x] > 128) { y0 = Math.min(y0, y); y1 = Math.max(y1, y); x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
@@ -298,24 +302,113 @@ test("legendar --margem-baixo 500 num 1080x1920: a tinta da legenda sobe 240 px 
   assert.ok(Math.abs((a.x0 + a.x1) / 2 - 540) <= 2, `a legenda segue centrada: ${(a.x0 + a.x1) / 2}`);
 });
 
-test("legendar --margem-baixo recusa valor que não é número de pixels (código 1, nada gravado)", () => {
-  for (const ruim of ["abc", "-5", "", "  ", "1e999", "NaN"]) {
+test("legendar --margem-baixo 420 com bloco de 2 linhas segue valendo: o pé da legenda fica em y 1500, dentro da área segura", () => {
+  const r = legendarCom(videoPreto("1080x1920"), srtDe("Primeira linha", "Segunda linha"), ["--margem-baixo", "420"]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const t = tintaBranca(r.saida, 0.4);
+  assert.ok(t.y0 >= 250 && t.y1 <= 1500, `a legenda de 2 linhas devia caber em y 250 a 1500: ${t.y0} a ${t.y1}`);
+  assert.ok(t.y1 > 1500 - 24, `o pé da tinta devia ficar perto de y 1500 (a descida da letra deixa uns 12 px): ${t.y1}`);
+});
+
+test("legendar --margem-baixo recusa valor que não é número inteiro de pixels (código 1, nada gravado)", () => {
+  // 420.5 e 0.5: o libass corta a fração (420.5 sai igual a 420 no quadro), então a opção só aceita inteiro.
+  for (const ruim of ["abc", "-5", "", "  ", "1e999", "NaN", "420.5", "0.5"]) {
     const r = legendarCom(videoPreto("1080x1920"), srtDe("Teste curto"), ["--margem-baixo", ruim]);
     assert.equal(r.status, 1, `${JSON.stringify(ruim)}: ${r.stdout}${r.stderr}`);
     assert.match(r.stderr, /^legendar: /);
     assert.ok(r.stderr.includes(`--margem-baixo inválido: "${ruim}"`), `${JSON.stringify(ruim)}: ${r.stderr}`);
+    assert.match(r.stderr, /número inteiro de pixels/);
     assert.ok(!existsSync(r.saida), "não pode gravar a saída");
   }
 });
-test("legendar --margem-baixo recusa margem que empurra a legenda para fora do quadro (altura do vídeo ou mais)", () => {
-  const r = legendarCom(videoPreto("1080x1920"), srtDe("Teste curto"), ["--margem-baixo", "1920"]);
-  assert.equal(r.status, 1, r.stdout + r.stderr);
-  assert.match(r.stderr, /--margem-baixo 1920 não cabe/);
-  assert.match(r.stderr, /1080x1920/);
-  assert.ok(!existsSync(r.saida), "não pode gravar a saída");
-  const p = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--margem-baixo", "1080"]);
-  assert.equal(p.status, 1);
-  assert.match(p.stderr, /1920x1080/);
+test("legendar: as margens laterais também só aceitam inteiro (mesma regra, o libass corta a fração)", () => {
+  for (const opcao of ["--margem-esq", "--margem-dir"]) {
+    const r = legendarCom(videoPreto("1080x1920"), srtDe("Teste curto"), [opcao, "80.5"]);
+    assert.equal(r.status, 1, `${opcao}: ${r.stdout}${r.stderr}`);
+    assert.ok(r.stderr.includes(`${opcao} inválido: "80.5"`), r.stderr);
+    assert.ok(!existsSync(r.saida), "não pode gravar a saída");
+  }
+});
+test("legendar --margem-baixo recusa margem em que o maior bloco do .srt não cabe no quadro (margem + linhas x fonte + contorno >= altura)", () => {
+  const duas = srtDe("Primeira linha", "Segunda linha");
+  // 1080x1920, 2 linhas, contorno: 1920 - 2 x 54 - 2,7 = 1809,3, então a margem máxima é 1809. Medido: com 1850 a tinta ia de y 0 a 68 (1ª linha cortada).
+  const corta = legendarCom(videoPreto("1080x1920"), duas, ["--margem-baixo", "1850"]);
+  assert.equal(corta.status, 1, corta.stdout + corta.stderr);
+  assert.match(corta.stderr, /^legendar: /);
+  assert.match(corta.stderr, /--margem-baixo 1850 não cabe/);
+  assert.match(corta.stderr, /o maior bloco do \.srt tem 2 linhas/);
+  assert.match(corta.stderr, /estilo contorno/);
+  assert.match(corta.stderr, /margem máxima no 9x16 é 1809 px/);
+  assert.match(corta.stderr, /Use 1809 ou menos/);
+  assert.ok(!existsSync(corta.saida), "não pode gravar a saída");
+  // Na fronteira: 1810 é recusado e 1809 passa, com a tinta inteira dentro do quadro (começa abaixo de y 3 = 1920 - 1809 - 2 x 54).
+  assert.equal(legendarCom(videoPreto("1080x1920"), duas, ["--margem-baixo", "1810"]).status, 1);
+  const limite = legendarCom(videoPreto("1080x1920"), duas, ["--margem-baixo", "1809"]);
+  assert.equal(limite.status, 0, limite.stdout + limite.stderr);
+  const t = tintaBranca(limite.saida, 0.4);
+  assert.ok(t.y0 >= 3, `a tinta de 2 linhas na margem 1809 devia ficar abaixo de y 3: ${t.y0}`);
+});
+test("legendar --margem-baixo vale para o maior bloco do .srt: a mesma margem passa com 1 linha e não passa com 2", () => {
+  const uma = legendarCom(videoPreto("1080x1920"), srtDe("Teste curto"), ["--margem-baixo", "1850"]);
+  assert.equal(uma.status, 0, uma.stdout + uma.stderr);   // 1 linha: 1920 - 54 - 2,7 = 1863,3
+  assert.ok(tintaBranca(uma.saida, 0.4).y0 >= 1920 - 1850 - 54, "a tinta de 1 linha cabe no quadro");
+  const mistoSrt = "1\n00:00:00,000 --> 00:00:00,400\nUma linha\n\n2\n00:00:00,400 --> 00:00:00,800\nDuas\nlinhas\n";
+  const misto = legendarCom(videoPreto("1080x1920"), mistoSrt, ["--margem-baixo", "1850"]);
+  assert.equal(misto.status, 1, misto.stdout + misto.stderr);
+  assert.match(misto.stderr, /o maior bloco do \.srt tem 2 linhas/);
+  const tres = legendarCom(videoPreto("1080x1920"), srtDe("a", "b", "c"), ["--margem-baixo", "1750"]);   // 1750 + 3 x 54 + 2,7 = 1914,7 passa; 1760 não
+  assert.equal(tres.status, 0, tres.stdout + tres.stderr);
+  const quatro = legendarCom(videoPreto("1080x1920"), srtDe("a", "b", "c", "d"), ["--margem-baixo", "1750"]);   // 1750 + 4 x 54 = 1966
+  assert.equal(quatro.status, 1);
+  assert.match(quatro.stderr, /tem 4 linhas/);
+  const um = legendarCom(videoPreto("1080x1920"), srtDe("Teste curto"), ["--margem-baixo", "1864"]);
+  assert.equal(um.status, 1);
+  assert.match(um.stderr, /tem 1 linha e/);                                      // singular
+  assert.match(um.stderr, /Use 1863 ou menos/);
+});
+test("legendar --margem-baixo: no estilo caixa a folga de 14 px conta, e no 16x9 o limite é o da grade 1920x1080", () => {
+  // caixa: 1920 - 2 x 54 - 14 = 1798, então a margem máxima é 1797.
+  const caixa = legendarCom(videoPreto("1080x1920"), srtDe("Primeira linha", "Segunda linha"), ["--estilo", "caixa", "--margem-baixo", "1798"]);
+  assert.equal(caixa.status, 1, caixa.stdout + caixa.stderr);
+  assert.match(caixa.stderr, /estilo caixa/);
+  assert.match(caixa.stderr, /Use 1797 ou menos/);
+  // 16x9: fonte 40 e contorno 2: 1080 - 40 - 2 = 1038, então a margem máxima de 1 linha é 1037.
+  const p = legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--margem-baixo", "1038"]);
+  assert.equal(p.status, 1, p.stdout + p.stderr);
+  assert.match(p.stderr, /margem máxima no 16x9 é 1037 px/);
+  assert.equal(legendarCom(videoPreto("1920x1080"), srtDe("Teste curto"), ["--margem-baixo", "1080"]).status, 1);
+});
+
+// O bloco de N linhas ocupa N x fonte acima da margem. Medido em 29/10/2026 no libass (Inter Bold, fonte 54): 4 linhas "HHH" na margem
+// 260 têm a tinta em y 1455, 1509, 1563 e 1617 (passo de 54 = a fonte); a caixa (estilo caixa, 2 linhas, margem 500) vai de y 1298 a 1433,
+// ou seja, 14 px acima do topo do bloco (1420 - 2 x 54 = 1312) e 14 px abaixo do pé (1420). É a medida que a recusa acima usa.
+test("legendar: o passo entre as linhas é a fonte (54 px) e a caixa passa 14 px acima e abaixo do bloco", () => {
+  const quatro = legendarCom(videoPreto("1080x1920"), srtDe("HHH", "HHH", "HHH", "HHH"));
+  assert.equal(quatro.status, 0, quatro.stdout + quatro.stderr);
+  const bytes = quadroCinza1080x1920(quatro.saida, 0.4);
+  const topos = [];
+  let dentro = false;
+  for (let y = 0; y < 1920; y++) {
+    let tem = false;
+    for (let x = 0; x < 1080; x++) if (bytes[y * 1080 + x] > 128) { tem = true; break; }
+    if (tem && !dentro) topos.push(y);
+    dentro = tem;
+  }
+  assert.equal(topos.length, 4, `4 linhas de tinta: ${topos}`);
+  for (let i = 1; i < 4; i++) assert.ok(Math.abs(topos[i] - topos[i - 1] - 54) <= 1, `passo entre as linhas ${i - 1} e ${i}: ${topos[i] - topos[i - 1]}`);
+  const topoDoBloco = 1920 - 260 - 4 * 54;                                       // 1444
+  assert.ok(topos[0] >= topoDoBloco && topos[0] <= topoDoBloco + 16, `a tinta da 1ª linha começa logo abaixo do topo do bloco (${topoDoBloco}): ${topos[0]}`);
+  // Caixa: pixels escuros (< 60) em fundo cinza.
+  const cinza = join(OFICINA, "cinza-1080x1920.mp4");
+  execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=0x808080:s=1080x1920:d=1:r=10",
+    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", cinza]);
+  const c = legendarCom(cinza, srtDe("HHH", "HHH"), ["--estilo", "caixa", "--margem-baixo", "500"]);
+  assert.equal(c.status, 0, c.stdout + c.stderr);
+  const q = quadroCinza1080x1920(c.saida, 0.4);
+  let y0 = Infinity, y1 = -1;
+  for (let y = 0; y < 1920; y++) for (let x = 0; x < 1080; x++) if (q[y * 1080 + x] < 60) { y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  assert.ok(Math.abs(y0 - (1920 - 500 - 2 * 54 - 14)) <= 2, `topo da caixa devia ficar 14 px acima do bloco (y 1298): ${y0}`);
+  assert.ok(Math.abs(y1 - (1920 - 500 + 14)) <= 2, `pé da caixa devia ficar 14 px abaixo da margem (y 1434): ${y1}`);
 });
 test("legendar --margem-baixo sem valor sai com código 1 (e a opção aparece no uso)", () => {
   const r = legendarCom(videoPreto("1080x1920"), srtDe("Teste curto"), ["--margem-baixo"]);

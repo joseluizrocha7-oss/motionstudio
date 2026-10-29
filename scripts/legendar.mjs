@@ -11,10 +11,13 @@
 // atrás do texto (para filmagem de câmera ou fundo cheio de detalhe). --cor-contorno só vale com contorno e
 // --cor-caixa só vale com caixa; o par errado sai com código 1. --cor-texto troca a cor da letra (padrão branca) nos 2 estilos.
 //
-// Margens em pixels do tamanho do vídeo (1080x1920 no 9x16). --margem-baixo é a distância entre o pé da legenda e a borda
-// de baixo: o padrão é 30 no 16x9 e 260 no 9x16 (a legenda de 2 linhas fica em y 1530 a 1660). Roteiro de Reels reserva
-// y 250 a 1500: com --margem-baixo 420 o pé da legenda sobe para y 1500. Valor que não é número, é negativo ou é a
-// altura do vídeo ou mais sai com código 1.
+// Margens em pixels inteiros da grade do .ass: 1080x1920 no 9x16 e 1920x1080 no 16x9 (num vídeo desse tamanho, são os
+// pixels do vídeo; em outro tamanho o libass escala a grade). --margem-baixo é a distância entre o pé da legenda e a
+// borda de baixo: o padrão é 30 no 16x9 e 260 no 9x16 (a legenda de 2 linhas fica em y 1530 a 1660). Roteiro de Reels
+// reserva y 250 a 1500: com --margem-baixo 420 o pé da legenda sobe para y 1500. Com --estilo caixa, a caixa vai cerca
+// de 14 px abaixo do pé do texto (e 14 px acima do topo): some 14 à margem para manter a caixa acima de uma linha segura.
+// Valor que não é número inteiro, é negativo, ou deixa o maior bloco do .srt sem caber no quadro (margem + linhas x fonte
+// + borda, a partir da altura da grade) sai com código 1. Sem essa recusa o bloco passaria do topo e a 1ª linha sairia do quadro.
 //
 // O formato sai do tamanho do vídeo (ffprobe): paisagem = 16x9, retrato = 9x16. O --formato é opcional; se vier
 // e não bater com o vídeo, o comando para. O .srt precisa ter sido gerado para o mesmo formato: o limite de
@@ -30,7 +33,7 @@ import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileS
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LIMITES, lerSrt, paraAss } from "../kit/gerar-legenda.mjs";
+import { LIMITES, lerSrt, margemBaixoMaxima, paraAss } from "../kit/gerar-legenda.mjs";
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const FONTE = join(AQUI, "..", "runtime", "hero3d", "fonts", "Inter-Bold-Latin.ttf");
@@ -56,10 +59,11 @@ function lerArgumentos(argv) {
   return { posicionais, opcoes };
 }
 
-// Margem em pixels: número maior ou igual a 0. Texto vazio ou só de espaço não vale (o Number("") dá 0).
+// Margem em pixels: número inteiro maior ou igual a 0. O libass corta a fração (420.5 sai igual a 420) e o Number("") dá 0:
+// texto vazio ou só de espaço também não vale.
 function margem(nome, valor) {
   const n = String(valor).trim() === "" ? NaN : Number(valor);
-  if (!Number.isFinite(n) || n < 0) throw new Error(`--${nome} inválido: "${valor}" (use um número de pixels, 0 ou mais)`);
+  if (!Number.isInteger(n) || n < 0) throw new Error(`--${nome} inválido: "${valor}" (use um número inteiro de pixels, 0 ou mais)`);
   return n;
 }
 
@@ -74,7 +78,7 @@ function formatoDoVideo(video) {
   const { width: l, height: a } = fluxo ?? {};
   if (!(l > 0 && a > 0)) throw new Error(`${video} não tem trilha de vídeo com largura e altura`);
   if (l === a) throw new Error(`o vídeo é quadrado (${l}x${a}): a legenda só existe para 16x9 (paisagem) e 9x16 (retrato)`);
-  return { tamanho: `${l}x${a}`, altura: a, formato: l > a ? "16x9" : "9x16" };
+  return { tamanho: `${l}x${a}`, formato: l > a ? "16x9" : "9x16" };
 }
 
 function legendar(argv) {
@@ -97,7 +101,7 @@ function legendar(argv) {
   const blocos = lerSrt(readFileSync(srt, "utf8"));
   if (!blocos.length) throw new Error(`${srt} não tem nenhuma legenda (0 blocos)`);
 
-  const { tamanho, altura, formato } = formatoDoVideo(video);
+  const { tamanho, formato } = formatoDoVideo(video);
   if (opcoes.formato !== undefined && opcoes.formato !== formato) {
     throw new Error(`o --formato ${opcoes.formato} não bate com o vídeo: ele tem ${tamanho} (${formato}). Tire o --formato: o legendar.mjs tira o formato do tamanho do vídeo.`);
   }
@@ -119,8 +123,13 @@ function legendar(argv) {
   if (opcoes["margem-dir"] !== undefined) estilo.margemDir = margem("margem-dir", opcoes["margem-dir"]);
   if (opcoes["margem-baixo"] !== undefined) {
     estilo.margemBaixo = margem("margem-baixo", opcoes["margem-baixo"]);
-    // Margem de baixo do tamanho do vídeo (ou mais) empurra a legenda para fora do quadro.
-    if (estilo.margemBaixo >= altura) throw new Error(`--margem-baixo ${opcoes["margem-baixo"]} não cabe no vídeo de ${tamanho}: use menos que a altura (${altura} px)`);
+    // O libass deixa o bloco passar do topo do quadro (a 1ª linha some). Confere o maior bloco do .srt: margem + linhas x fonte + borda < altura.
+    const linhas = Math.max(...blocos.map((b) => b.texto.split("\n").length));
+    const maxima = margemBaixoMaxima(formato, tipo, linhas);
+    if (estilo.margemBaixo > maxima) {
+      throw new Error(`--margem-baixo ${opcoes["margem-baixo"]} não cabe: o maior bloco do .srt tem ${linhas === 1 ? "1 linha" : `${linhas} linhas`} e, ` +
+        `no estilo ${tipo}, a margem máxima no ${formato} é ${maxima} px. Use ${maxima} ou menos.`);
+    }
   }
   const ass = paraAss(blocos, estilo);
 

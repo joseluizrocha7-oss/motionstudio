@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
-import { quebrarTexto, temposDosPedacos, ajustarDuracoes, legendasDoFilme, LIMITES, paraSrt, lerSrt, paraAss, paraJs, lerFala } from "../kit/gerar-legenda.mjs";
+import { quebrarTexto, temposDosPedacos, ajustarDuracoes, legendasDoFilme, LIMITES, paraSrt, lerSrt, paraAss, paraJs, lerFala, margemBaixoMaxima } from "../kit/gerar-legenda.mjs";
 
 test("quebrarTexto equilibra 2 linhas", () => {
   assert.deepEqual(quebrarTexto("Boas-vindas ao fluxo completo do sistema da empresa!"),
@@ -160,10 +160,24 @@ test("paraAss: margemBaixo chega ao MarginV da linha Style, nos 2 formatos e nos
   const c = campos(paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16", margemBaixo: 420 }));
   assert.equal(c.MarginL, "80"); assert.equal(c.MarginR, "80"); assert.equal(c.Fontsize, "54"); assert.equal(c.Alignment, "2");
 });
-test("paraAss recusa margemBaixo que não é número de pixels (0 ou mais)", () => {
-  for (const ruim of [-1, NaN, Infinity, "500", "", null]) {
-    assert.throws(() => paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16", margemBaixo: ruim }), /margemBaixo inválida/, String(ruim));
+test("paraAss recusa margemBaixo que não é número inteiro de pixels (0 ou mais)", () => {
+  for (const ruim of [-1, NaN, Infinity, "500", "", null, 420.5, 0.5]) {
+    assert.throws(() => paraAss([{ a: 0, b: 1, texto: "a" }], { formato: "9x16", margemBaixo: ruim }), /margemBaixo inválida.*número inteiro de pixels/, String(ruim));
   }
+});
+test("margemBaixoMaxima: a maior margem inteira em que o bloco cabe no quadro (linhas x fonte + contorno ou folga da caixa < altura da grade)", () => {
+  // 9x16: fonte 54, contorno 2,7, grade 1920. 1 linha: 1920 - 54 - 2,7 = 1863,3; 2 linhas: 1809,3; 3: 1755,3.
+  assert.equal(margemBaixoMaxima("9x16", "contorno", 1), 1863);
+  assert.equal(margemBaixoMaxima("9x16", "contorno", 2), 1809);
+  assert.equal(margemBaixoMaxima("9x16", "contorno", 3), 1755);
+  // caixa: folga de 14 px (número inteiro: a margem tem que ficar abaixo de 1798, então 1797).
+  assert.equal(margemBaixoMaxima("9x16", "caixa", 2), 1797);
+  // 16x9: fonte 40, contorno 2, grade 1080: 1080 - 40 - 2 = 1038, então 1037.
+  assert.equal(margemBaixoMaxima("16x9", "contorno", 1), 1037);
+  // A margem máxima + o bloco cabe; um pixel a mais não: 1809 + 108 + 2,7 < 1920 <= 1810 + 108 + 2,7.
+  assert.ok(1809 + 2 * 54 + 2.7 < 1920 && 1810 + 2 * 54 + 2.7 >= 1920);
+  assert.throws(() => margemBaixoMaxima("4x3", "contorno", 1), /formato inválido: "4x3"/);
+  assert.throws(() => margemBaixoMaxima("9x16", "borda", 1), /tipo de legenda inválido: "borda"/);
 });
 
 const maiorLinha = (blocos) => Math.max(...blocos.flatMap((b) => b.texto.split("\n").map((l) => l.length)));

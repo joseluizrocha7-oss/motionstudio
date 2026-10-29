@@ -225,6 +225,21 @@ const FORMATOS_ASS = {
 const TIPOS_ASS = ["contorno", "caixa"];   // contorno (padrão): letra com borda e sombra suave; caixa: faixa atrás do texto
 const OPACIDADE_SOMBRA = 0.5;               // sombra do contorno: preto a 50%
 const MARGEM_LATERAL = 80;
+const FOLGA_CAIXA = 14;                     // Outline do tipo caixa: a caixa passa 14 px em volta do bloco de texto (em cima, embaixo e nos lados)
+
+// Maior margem de baixo inteira em que um bloco de `linhas` linhas cabe no quadro: margem + linhas x fonte + borda < altura da grade.
+// A margem e a fonte são pixels da grade do .ass (PlayRes: 1080x1920 no 9x16, 1920x1080 no 16x9); o libass escala a grade para o vídeo.
+// Medido em 29/10/2026 no libass (Inter Bold, 9x16, fonte 54): o passo entre as linhas é igual à fonte (4 linhas "HHH" na margem 260 têm
+// a tinta em y 1455, 1509, 1563 e 1617), então N linhas ocupam N x fonte acima da margem. A tinta começa uns 11 px abaixo do topo desse
+// bloco, e a borda do contorno (f.contorno) cabe nessa folga, então somar a borda é só uma margem de segurança. No tipo caixa, a caixa
+// vai 14 px acima do topo do bloco (2 linhas, margem 500: caixa em y 1298 a 1433, bloco em y 1312 a 1420) e 14 px abaixo do pé.
+// Passou disso, o topo do bloco sai do quadro: medido com 2 linhas, a margem 1850 deixava a tinta em y 0 a 68 (1ª linha cortada).
+export function margemBaixoMaxima(formato, tipo, linhas) {
+  const f = FORMATOS_ASS[formato];
+  if (!f) throw new Error(`formato inválido: "${formato}" (use 16x9 ou 9x16)`);
+  if (!TIPOS_ASS.includes(tipo)) throw new Error(`tipo de legenda inválido: "${tipo}" (use ${TIPOS_ASS.join(" ou ")})`);
+  return Math.ceil(f.altura - linhas * f.fonte - (tipo === "caixa" ? FOLGA_CAIXA : f.contorno)) - 1;
+}
 
 // Segundos em "H:MM:SS.cc" (centésimos).
 function tempoAss(s) {
@@ -244,7 +259,9 @@ const corAss = (cor, opacidade = 1) =>
   `&H${Math.round((1 - opacidade) * 255).toString(16).toUpperCase().padStart(2, "0")}${bgr(cor)}`;
 
 // estilo.tipo: "contorno" (padrão) ou "caixa". Só vale a cor do tipo escolhido (corContorno ou corCaixa).
-// estilo.margemBaixo: pixels entre a legenda e a borda de baixo do vídeo (MarginV); sem ela vale o padrão do formato (30 no 16x9, 260 no 9x16).
+// estilo.margemBaixo: pixels inteiros entre o pé da legenda e a borda de baixo, na grade do .ass (1080x1920 no 9x16, 1920x1080 no 16x9;
+// o libass escala a grade para o vídeo). Vira o MarginV da linha Style. Sem ela vale o padrão do formato (30 no 16x9, 260 no 9x16).
+// O libass corta a fração (420.5 sai igual a 420), por isso só vale inteiro.
 export function paraAss(blocos, estilo) {
   const f = FORMATOS_ASS[estilo?.formato];
   if (!f) throw new Error(`formato inválido: "${estilo?.formato}" (use 16x9 ou 9x16)`);
@@ -252,13 +269,13 @@ export function paraAss(blocos, estilo) {
     margemEsq = MARGEM_LATERAL, margemDir = MARGEM_LATERAL, margemBaixo = f.margemV } = estilo;
   if (!TIPOS_ASS.includes(tipo)) throw new Error(`tipo de legenda inválido: "${tipo}" (use ${TIPOS_ASS.join(" ou ")})`);
   if (!(opacidadeCaixa >= 0 && opacidadeCaixa <= 1)) throw new Error(`opacidadeCaixa fora de 0 a 1: ${opacidadeCaixa}`);
-  if (typeof margemBaixo !== "number" || !Number.isFinite(margemBaixo) || margemBaixo < 0) {
-    throw new Error(`margemBaixo inválida: ${JSON.stringify(margemBaixo)} (use um número de pixels, 0 ou mais)`);
+  if (!Number.isInteger(margemBaixo) || margemBaixo < 0) {
+    throw new Error(`margemBaixo inválida: ${JSON.stringify(margemBaixo)} (use um número inteiro de pixels, 0 ou mais)`);
   }
-  // caixa: BorderStyle 3 desenha a caixa com OutlineColour; Outline 14 é a folga dela em volta do texto.
+  // caixa: BorderStyle 3 desenha a caixa com OutlineColour; Outline 14 (FOLGA_CAIXA) é a folga dela em volta do texto.
   // contorno: BorderStyle 1 desenha a borda com OutlineColour (opaca) e a sombra com BackColour.
   const [corBorda, corFundo, borda, espessura, sombra, espaco, desfoque] = tipo === "caixa"
-    ? [corAss(corCaixa, opacidadeCaixa), corAss(corCaixa, opacidadeCaixa), 3, 14, 0, 0, ""]
+    ? [corAss(corCaixa, opacidadeCaixa), corAss(corCaixa, opacidadeCaixa), 3, FOLGA_CAIXA, 0, 0, ""]
     : [corAss(corContorno), corAss("#000000", OPACIDADE_SOMBRA), 1, f.contorno, f.sombra, f.espaco, `{\\blur${f.desfoque}}`];
   const estiloLegenda = ["Legenda", "Inter Variable", f.fonte, corAss(corTexto), corAss(corTexto), corBorda, corFundo,
     -1, 0, 0, 0, 100, 100, espaco, 0, borda, espessura, sombra, 2, margemEsq, margemDir, margemBaixo, 1].join(",");

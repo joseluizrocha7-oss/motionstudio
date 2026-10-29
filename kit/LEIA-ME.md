@@ -61,6 +61,7 @@ node $SKILL/scripts/legendar.mjs $P/film/final-9x16.mp4 $P/film/legenda-9x16.srt
 | o estilo da voz | `estilo` no `roteiro.json` (o dinâmico é o padrão desde 28/10/2026) |
 | toque e sopro gravados no lugar dos sintetizados (em teste) | `gerar-som.mjs --toque pop-hand --ar fast-whoosh`; ver `efeitos-gravados/LEIA-ME.md` |
 | um texto que não precisa ser lido no T1 (ilustrativo) | `data-ler="ignorar"` no elemento; dizer no NOTE.md |
+| um ícone animado numa peça (no máximo 1 por peça, só no quadro em que a voz nomeia a peça) | copiar `_cor.js` e o ícone de `$SKILL/library/lottie/` para `film/assets/` e carregar no `film/fonte/base.html`; o `M.lottie` vai em `film/fonte/<linha>.js` (exemplo no SKILL.md, passo 5) |
 
 ## O que cada peça faz
 

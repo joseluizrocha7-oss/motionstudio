@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ícones animados num painel de tutorial (M.lottie + library/lottie)</title>
+<meta name="viewport" content="width=1920, height=1080">
+<!-- Amostra de 10 s: um título e 3 peças de painel entrando uma por vez, cada uma com o seu ícone animado
+     (library/lottie/) entrando junto, como se a voz nomeasse a peça naquele instante. Os ícones vêm na cor
+     de destaque do painel por LOTTIE.cor. Textos genéricos, dados inventados.
+     O player do Lottie é um módulo ES: abra com render.mjs, autoteste.mjs ou erros.mjs, não com dois cliques.
+     node scripts/erros.mjs examples/lottie-painel/index.html        (sem exceção)
+     node kit/autoteste.mjs examples/lottie-painel/index.html        (0 divergências)
+     node scripts/render.mjs examples/lottie-painel/index.html painel.mp4 --shutter 180 --subframes 8 -->
+<link rel="stylesheet" href="../../runtime/fonts.css">
+<style>
+/* Um destaque só (--destaque): o ícone e o fundo do selo da peça que a voz nomeia. */
+:root {
+  --chao: #EEF1F6;
+  --ponto: rgba(27, 35, 51, .10);
+  --tinta: #1B2333;
+  --tinta-2: #5F6B7E;
+  --tinta-3: #8E99AA;
+  --destaque: #2F6FEB;
+  --font: "Inter", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--chao); }
+#main { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--chao); color: var(--tinta); font-family: var(--font); font-weight: 500; }
+#grade { position: absolute; inset: 0; background-image: radial-gradient(var(--ponto) 1.6px, transparent 1.9px); background-size: 34px 34px; background-position: 17px 17px; }
+#luz { position: absolute; inset: 0; background: radial-gradient(ellipse 55% 65% at 62% 50%, rgba(255,255,255,.7), rgba(255,255,255,0) 70%); }
+#cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+
+#titulo { position: absolute; left: 170px; top: 432px; font-size: 92px; line-height: 104px; font-weight: 600; letter-spacing: -.035em; white-space: pre; }
+#sub { position: absolute; left: 174px; top: 552px; font-size: 38px; line-height: 48px; font-weight: 500; letter-spacing: -.01em; color: var(--tinta-2); white-space: pre; }
+
+/* A peça do painel: cartão branco, selo com o ícone à esquerda, título e linha de apoio, hora à direita. */
+.peca { position: absolute; left: 880px; width: 860px; height: 164px; border-radius: 30px; background: #fff;
+  box-shadow: 0 22px 48px -26px rgba(22, 34, 64, .38), 0 1px 0 rgba(22, 34, 64, .05); }
+.selo { position: absolute; left: 30px; top: 26px; width: 112px; height: 112px; }
+.selo .fundo { position: absolute; inset: 0; border-radius: 50%; background: rgba(47, 111, 235, .10); }
+.selo canvas { position: absolute; left: 6px; top: 6px; width: 100px; height: 100px; display: block; }
+.peca .nome { position: absolute; left: 174px; top: 38px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.02em; white-space: pre; }
+.peca .apoio { position: absolute; left: 174px; top: 92px; font-size: 29px; line-height: 36px; font-weight: 500; color: var(--tinta-2); white-space: pre; }
+.peca .hora { position: absolute; right: 38px; top: 44px; font-size: 26px; line-height: 36px; font-weight: 500; color: var(--tinta-3); white-space: pre; }
+</style>
+</head>
+<body>
+<div id="main">
+  <div id="grade"></div>
+  <div id="luz"></div>
+  <div id="cam">
+    <div id="titulo">Resumo do dia</div>
+    <div id="sub">Três avisos da sua carteira</div>
+
+    <div id="peca-1" class="peca" style="top: 258px">
+      <div class="selo"><div class="fundo"></div><canvas width="200" height="200"></canvas></div>
+      <div class="nome">Pagamento confirmado</div><div class="apoio">Parcela de outubro recebida</div><div class="hora">Agora</div>
+    </div>
+    <div id="peca-2" class="peca" style="top: 458px">
+      <div class="selo"><div class="fundo"></div><canvas width="200" height="200"></canvas></div>
+      <div class="nome">Boleto vencido</div><div class="apoio">Vencimento em 25/10</div><div class="hora">Há 3 dias</div>
+    </div>
+    <div id="peca-3" class="peca" style="top: 658px">
+      <div class="selo"><div class="fundo"></div><canvas width="200" height="200"></canvas></div>
+      <div class="nome">Comissão paga</div><div class="apoio">Transferida para a sua conta</div><div class="hora">Hoje</div>
+    </div>
+  </div>
+</div>
+
+<script src="../../runtime/vendor/gsap.min.js"></script>
+<script src="../../runtime/motion.js"></script>
+<script src="../../library/lottie/_cor.js"></script>
+<script src="../../library/lottie/confirmado.js"></script>
+<script src="../../library/lottie/alerta.js"></script>
+<script src="../../library/lottie/dinheiro.js"></script>
+<script>
+/* SEEK CONTRACT: tudo o que aparece é função pura do tempo; só chamadas Motion. */
+const M = window.__M = Motion.film({ fps: 30, duration: 10, width: 1920, height: 1080, clock: 'smooth' });
+const DESTAQUE = getComputedStyle(document.documentElement).getPropertyValue('--destaque').trim();
+
+// O título entra palavra por palavra; a linha de apoio logo depois.
+M.words('#titulo', { at: 6, mech: 'rise', dist: 56, frames: 14, gaps: [4, 4] });
+M.enter('#sub', { at: 22, frames: 14, ease: 'softLand', from: { y: 26, opacity: 0 } });
+
+// Uma peça a cada 2,4 s, no quadro em que a voz a nomeia. O ícone começa 5 quadros depois do cartão,
+// quando ele já está quase pousado; o fundo do selo abre um pouco antes.
+// Sem smear: o render usa --shutter, e os dois borrões juntos borram duas vezes.
+const PECAS = [
+  { id: '#peca-1', at: 54, icone: 'confirmado', fala: 'Pagamento confirmado' },
+  { id: '#peca-2', at: 126, icone: 'alerta', fala: 'Boleto vencido' },
+  { id: '#peca-3', at: 198, icone: 'dinheiro', fala: 'Comissão paga' },
+];
+for (const p of PECAS) {
+  M.enter(p.id, { at: p.at, frames: 16, ease: 'softLand', from: { y: 48, scale: .96, opacity: 0 } });
+  M.enter(p.id + ' .fundo', { at: p.at + 3, frames: 14, ease: 'softLand', from: { scale: .6, opacity: 0 } });
+  M.lottie(p.id + ' canvas', { data: LOTTIE.cor(LOTTIE[p.icone], DESTAQUE), at: p.at + 5 });
+  M.mark(p.at, 'fala', p.fala);
+}
+
+// A câmera nunca para: aproxima 3% no filme inteiro.
+M.drift('#cam', { prop: 'scale', from: 1, to: 1.03, start: 0, end: 300 });
+
+window.__ready = Motion.loaded().then(() => { if (/selftest/.test(location.search)) Motion.selfTest(M, { samples: 24 }); });
+</script>
+</body>
+</html>

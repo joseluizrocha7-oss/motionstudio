@@ -142,6 +142,22 @@ gera os `index-*.html` (versões, temas, 9:16 e 16:9) com a duração tirada da 
 No 9:16 o celular é 1,75x o do 16:9; o que fica ao lado do aparelho no 16:9 vai para a faixa
 de baixo, e o que precisa ficar junto do botão vai por cima do app (`z-index`).
 
+**Ícone animado numa peça.** `library/lottie/` tem 5 ícones feitos à mão: `confirmado`, `alerta`,
+`dinheiro`, `email` e `documento`. Use no máximo 1 ícone por peça do painel. O ícone entra só no
+quadro em que a voz nomeia a peça, junto com ela. Peça que a voz não nomeia fica sem ícone. Copie o
+`_cor.js` e o `.js` do ícone para `film/assets/` e carregue os dois no `base.html`, depois do
+`motion.js`. Na linha do tempo, ponha um `<canvas>` na peça e chame o `M.lottie`:
+```js
+const ACENTO = getComputedStyle(document.documentElement).getPropertyValue('--acento').trim();
+const el = peca('<canvas width="112" height="112" style="width:56px;height:56px"></canvas>Pagamento confirmado', x, y, a, b, { classe: 'nota' });
+M.lottie(el.querySelector('canvas'), { data: LOTTIE.cor(LOTTIE.confirmado, ACENTO), at: a + 5 });
+```
+O `LOTTIE.cor` devolve uma cópia do ícone na cor de destaque do filme. O ícone começa 5 quadros
+depois da peça, quando ela está quase pousada. Ele se desenha em uns 25 quadros e para no último.
+Dê ao canvas o dobro do tamanho de tela (`width="112"` para 56 px): o traço sai liso. Ícone de
+banco de ícones só entra com licença comercial conferida, numa linha do `library/lottie/LICENCAS.md`.
+Exemplo que roda: `examples/lottie-painel/index.html`.
+
 **6. Antes do render (todos obrigatórios):**
 ```bash
 node "$SKILL/scripts/erros.mjs" film/index-vertical.html   # sem exceção
@@ -357,6 +373,7 @@ chegando no nome.
 | `kit/` | o projeto de tutorial (`novo-projeto.mjs` copia para a pasta do filme; `LEIA-ME.md`); `kit/efeitos-gravados/`: 3 sons CC0 em teste |
 | `scripts/` | `render.mjs`, `render_partes.sh`, `render-trechos.mjs` (o render_partes em paralelo, com cache; usa `_pagina.mjs`), `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs` (texto lido no MP4, pelo OCR do Windows em `ocr-windows.ps1`), `entonacao.mjs`, `pausas.mjs`, `mix.py`, `legendar.mjs` (grava o `.srt` no MP4 com o ffmpeg), `voice.py` (só as ferramentas de áudio local: `split`, `refine`, `music-fit`; a voz sai do `kit/vozes/tts.mjs`), `brand.mjs`, `fetch_logo.mjs`, `providers.sh`, `_cdp.mjs` (Chrome por CDP) |
 | `runtime/` | o motor de animação (`motion.js`, API em `runtime/README.md`) |
+| `library/` | `moments.jsonl` (precedentes de movimento) e `lottie/` (5 ícones animados feitos à mão, `_cor.js` com o `LOTTIE.cor`, `_gerar.mjs` que grava os ícones e `LICENCAS.md`) |
 | `references/` | o método de direção (`metodo.md`) e os guias de ofício, em inglês |
 | `taste/` | os vereditos do Jose e os antes e depois (fora do git) |
 | `historico/` | o porquê de cada regra local, com data e caso (fora do git) |

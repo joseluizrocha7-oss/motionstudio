@@ -203,7 +203,7 @@ O que você recebe:
 | [`scripts/`](scripts/) | Render, portões e ferramentas: `render.mjs`, `render_partes.sh`, `trocar-trecho.sh`, `look.py`, `lint.mjs`, `camera.mjs`, `ouvir.py`, `ler.mjs`, `entonacao.mjs`, `pausas.mjs`, `mix.py`, `sync.mjs`, `brand.mjs`, `legendar.mjs`, `providers.sh` |
 | [`runtime/`](runtime/) | O motor de animação que volta a qualquer quadro (`motion.js`; API em `runtime/README.md`) |
 | [`references/`](references/) | O método de direção e os guias de ofício (movimento, tipografia, mundo, som, câmera), em inglês |
-| [`library/`](library/) | Precedentes de movimento por tipo de momento (`moments.jsonl`) |
+| [`library/`](library/) | Precedentes de movimento por tipo de momento (`moments.jsonl`) e ícones animados feitos à mão para as peças do painel (`lottie/`, com `LICENCAS.md`) |
 | [`templates/`](templates/), [`examples/`](examples/) | Ponto de partida de um filme e exemplos que rodam |
 | [`taste/`](taste/) | Lugar dos vereditos do dono da skill (o que aprovou e reprovou); ficam fora do git |
 | [`NOTICE`](NOTICE), [`LICENSE`](LICENSE) | Atribuições e licenças |

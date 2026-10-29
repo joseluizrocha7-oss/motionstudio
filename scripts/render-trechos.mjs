@@ -15,6 +15,9 @@
 //                    muda com o monitor ligado). Cada GPU dá pixels um pouco diferentes.
 //   --memoria GB     memória livre para abrir mais um Chrome (padrão 3); trecho em que a livre cai abaixo de
 //                    1,5 GB é refeito
+//   --esperar-memoria MIN  tempo máximo, em minutos, esperando a memória livre chegar a --memoria para abrir um Chrome
+//                    (padrão 10; aceita fração; 0 = não espera). Passou do tempo: o script não renderiza, sai com
+//                    código 3 e escreve o comando do render_partes.sh para o mesmo filme e a mesma saída
 //   --cache DIR      pasta do cache de trechos (padrão: cache-render/ ao lado do filme)
 //   --sem-cache      não lê nem grava o cache
 //   --atalho         EM TESTE, não provado: quadro com as 8 subamostras no mesmo estado leva 1 foto (ver abaixo)
@@ -47,7 +50,9 @@
 //    o trecho é refeito. Um Chrome que cai da GPU para o software desenha diferente (46 a 58 dB).
 //
 // Saída: <saida.mp4>, <saida.mp4>.events.json e <saida.mp4>.render.json (as medidas).
-// Código de saída: 0 ok, 1 falha, 2 uso errado.
+// Início: se achar outro render.mjs, render-trechos.mjs ou render-rapido.mjs vivo na máquina, avisa com a linha de
+// comando de cada um (dois renders juntos disputam memória e derrubam o Chrome). Não mata nada.
+// Código de saída: 0 ok, 1 falha, 2 uso errado, 3 memória livre insuficiente (a mensagem traz o comando do render_partes.sh).
 import { spawn, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -56,13 +61,14 @@ import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { launchChrome, parseArgs, die, helpFrom } from './_cdp.mjs';
 import { PAGE_LIB, PAGINA_TESTE } from './_pagina.mjs';
+import { acharRenders, esperarMemoria, instrucaoPartes, listarProcessos } from './_concorrencia.mjs';
 
 const MOTOR = 'render-trechos 1';
 const HELP = helpFrom(import.meta.url);
 const { pos, opt } = parseArgs(process.argv.slice(2), {
   help: 'bool', fps: 's', width: 's', height: 's', dur: 's', de: 's', ate: 's', audio: 's', crf: 's', preset: 's', scale: 's',
   format: 's', shutter: 's', subframes: 's', grain: 's', 'grain-seed': 's', trabalhos: 's', cache: 's', 'sem-cache': 'bool',
-  atalho: 'bool', parte: 's', planejar: 'bool', cenas: 'bool', memoria: 's', gpu: 's',
+  atalho: 'bool', parte: 's', planejar: 'bool', cenas: 'bool', memoria: 's', 'esperar-memoria': 's', gpu: 's',
 });
 if (opt.help || pos.length < 2) { console.log(HELP); process.exit(opt.help ? 0 : 2); }
 const num = (v, d, name) => { if (v === undefined) return d; const n = Number(v); if (!Number.isFinite(n)) die(`--${name} precisa ser um número`, 2); return n; };
@@ -80,7 +86,9 @@ const grainSeed = Math.round(num(opt['grain-seed'], 7, 'grain-seed'));
 const trabalhos = Math.max(1, Math.round(num(opt.trabalhos, 2, 'trabalhos')));
 const parteS = num(opt.parte, 5, 'parte');
 const memAbrir = num(opt.memoria, 3, 'memoria') * 1e9;   // GB livres para abrir mais um Chrome
-const MEM_TRECHO = 1.5e9;                                  // abaixo disso durante o trecho, ele é refeito
+const esperarMin = num(opt['esperar-memoria'], 10, 'esperar-memoria');   // minutos esperando memória para abrir um Chrome
+if (esperarMin < 0) die('--esperar-memoria não pode ser negativo', 2);
+const MEM_TRECHO = 1.5e9;                                 // abaixo disso durante o trecho, ele é refeito
 // GPU fixa (20/10/2026): sem preferência, o Chrome sem janela desenha na GPU que o Windows lista primeiro, e
 // isso muda quando se liga um monitor. Intel e NVIDIA dão pixels diferentes. "baixo" = a GPU de baixo consumo
 // (a Intel nesta máquina, a mesma dos renders até 20/10), "alto" = a NVIDIA, "sistema" = o que o Windows escolher.
@@ -161,6 +169,13 @@ function tempos(g) {
 
 (async () => {
   const inicio = Date.now();
+  if (!opt.planejar) {
+    const { processos, erro } = listarProcessos();
+    if (erro) log(`aviso: não consegui listar os processos (${erro}); não sei se há outro render na máquina`);
+    const outros = acharRenders(processos);
+    for (const p of outros) log(`aviso: outro render está vivo (pid ${p.pid}): ${p.comando.slice(0, 400)}`);
+    if (outros.length) log(`aviso: renders juntos disputam a memória. Este espera até ${esperarMin} min por ${(memAbrir / 1e9).toFixed(1)} GB livres (--esperar-memoria) e depois sai com o comando do render_partes.sh.`);
+  }
   fs.mkdirSync(pastaTrab, { recursive: true });
   if (usaCache) fs.mkdirSync(pastaCache, { recursive: true });
   const ffv = (spawnSync('ffmpeg', ['-version'], { encoding: 'utf8' }).stdout || '').split('\n')[0];
@@ -251,14 +266,22 @@ function tempos(g) {
   // descarta cache, e a foto muda. Por isso: um Chrome abre por vez, só com --memoria GB livres, e o trecho
   // em que a memória livre caiu abaixo de 1,5 GB é jogado fora e refeito.
   const est = { fotos: 0, quadros: 0, atalhos: 0, refeitos: 0, minLivre: Infinity };
+  // Memória que não chega não se resolve com outra tentativa: sai com código 3 e o comando do render_partes.sh (um Chrome
+  // por vez), com o mesmo filme e a mesma saída. O script não troca de motor sozinho.
+  const REPASSA = ['width', 'height', 'scale', 'shutter', 'subframes', 'crf', 'preset', 'format', 'grain', 'grain-seed'];
+  const comandoPartes = () => instrucaoPartes({
+    script: path.join(path.dirname(fileURLToPath(import.meta.url)), 'render_partes.sh'), filme: path.resolve(src), saida, dur: total,
+    parte: opt.parte, fps: opt.fps, audio: opt.audio ? path.resolve(opt.audio) : undefined,
+    render: REPASSA.filter((k) => opt[k] !== undefined).map((k) => [`--${k}`, opt[k]]),
+  });
+  const semDeAte = opt.de !== undefined || opt.ate !== undefined ? '\n  (o render_partes.sh renderiza o filme todo: não tem --de nem --ate)' : '';
+  const erroMemoria = (msg) => Object.assign(new Error(`${msg}. Rode o filme com o render_partes.sh (um Chrome por vez):\n  ${comandoPartes()}${semDeAte}`), { codigo: 3 });
   let portao = Promise.resolve();
   const abreComMemoria = () => {
     const p = portao.then(async () => {
-      let avisou = false;
-      while (os.freemem() < memAbrir) {
-        if (!avisou) { log(`esperando memória: ${(os.freemem() / 1e9).toFixed(1)} GB livres, preciso de ${(memAbrir / 1e9).toFixed(1)} para abrir mais um Chrome`); avisou = true; }
-        await new Promise((r) => setTimeout(r, 2000));
-      }
+      const chegou = await esperarMemoria({ minimo: memAbrir, limiteMs: esperarMin * 60000,
+        aoEsperar: (livre) => log(`esperando memória: ${(livre / 1e9).toFixed(1)} GB livres, preciso de ${(memAbrir / 1e9).toFixed(1)} para abrir mais um Chrome (até ${esperarMin} min)`) });
+      if (!chegou) throw erroMemoria(`a memória livre não chegou a ${(memAbrir / 1e9).toFixed(1)} GB em ${esperarMin} min (agora ${(os.freemem() / 1e9).toFixed(1)} GB). Provável causa: outro render na máquina`);
       return abre();
     });
     portao = p.catch(() => {});
@@ -284,7 +307,7 @@ function tempos(g) {
       let fotos = 0, atalhos = 0;
       try {
         for (let g = t.a; g < t.b; g++) {
-          if (minLivre < MEM_TRECHO) throw new Error(`a memória livre caiu a ${(minLivre / 1e9).toFixed(2)} GB no quadro ${g} (abaixo de ${(MEM_TRECHO / 1e9).toFixed(1)} GB o Chrome descarta cache e a foto muda)`);
+          if (minLivre < MEM_TRECHO) throw Object.assign(new Error(`a memória livre caiu a ${(minLivre / 1e9).toFixed(2)} GB no quadro ${g} (abaixo de ${(MEM_TRECHO / 1e9).toFixed(1)} GB o Chrome descarta cache e a foto muda)`), { memoria: true });
           const ts = tempos(g);
           if (atalho && iguais[g - f0]) {
             // as 8 subamostras com o mesmo estado: 1 foto; as outras só pintadas, na mesma ordem do render antigo
@@ -298,7 +321,7 @@ function tempos(g) {
         }
         if (await C.caminho() !== caminho0) throw new Error('o Chrome mudou de caminho de desenho durante o trecho');
         minLivre = Math.min(minLivre, os.freemem());
-        if (minLivre < MEM_TRECHO) throw new Error(`a memória livre caiu a ${(minLivre / 1e9).toFixed(2)} GB durante o trecho (abaixo de ${(MEM_TRECHO / 1e9).toFixed(1)} GB o Chrome descarta cache e a foto muda)`);
+        if (minLivre < MEM_TRECHO) throw Object.assign(new Error(`a memória livre caiu a ${(minLivre / 1e9).toFixed(2)} GB durante o trecho (abaixo de ${(MEM_TRECHO / 1e9).toFixed(1)} GB o Chrome descarta cache e a foto muda)`), { memoria: true });
         ff.stdin.end();
         if (await ffSai !== 0) throw new Error('ffmpeg falhou: ' + ffErr.slice(-400));
       } catch (e) { try { ff.stdin.destroy(); ff.kill(); } catch {} await ffSai.catch(() => {}); throw e; }
@@ -328,8 +351,14 @@ function tempos(g) {
           log(`trecho ${t.i + 1}/${trechos.length} (${(t.a / fps).toFixed(1)} a ${(t.b / fps).toFixed(1)} s) em ${((Date.now() - t1) / 1000).toFixed(0)} s, ${r.fotos} fotos${r.atalhos ? `, ${r.atalhos} quadros idênticos` : ''}, memória livre mínima ${(r.minLivre / 1e9).toFixed(1)} GB  [${feitos}/${totalFila}]`);
           break;
         } catch (e) {
+          if (e.codigo === 3) throw e;   // a memória não chegou a tempo: não há tentativa a repetir
           est.refeitos++;
-          if (tentativa >= 4) throw new Error(`o trecho ${t.i + 1} não saiu em 4 tentativas: ${e.message.split('\n')[0]}`);
+          if (tentativa >= 4) {
+            const falha = new Error(`o trecho ${t.i + 1} não saiu em 4 tentativas: ${e.message.split('\n')[0]}`);
+            // Caso de 29/10/2026: 4 falhas no mesmo trecho com a memória livre entre 1,43 e 1,50 GB, outro render na máquina.
+            if (e.memoria) { falha.message += `\nA memória livre ficou baixa nas 4 tentativas. Rode o filme com o render_partes.sh (um Chrome por vez):\n  ${comandoPartes()}${semDeAte}`; falha.codigo = 3; }
+            throw falha;
+          }
           log(`trecho ${t.i + 1} falhou (${e.message.split('\n')[0]}), tentativa ${tentativa + 1}`);
         }
       }
@@ -369,7 +398,10 @@ function tempos(g) {
   log(`pronto: ${saida}, ${nFinal} quadros${opt.audio ? ', com som' : ''}`);
   log(`trechos: ${rel.trechos} (${rel.trechos_do_cache} do cache, ${rel.trechos_renderizados} renderizados, ${rel.segundos_renderizados} s de filme); fotos: ${rel.fotos} de ${rel.fotos_do_render_antigo}; tempo: estados ${rel.s_estados} s, render ${rel.s_render} s, juntar ${rel.s_juntar} s, total ${rel.s_total} s`);
   console.log(saida);
-})().catch((e) => { console.error(`${hora()} erro: ${e.message}`); process.exitCode = 1; })
+})().catch((e) => {
+  console.error(`${hora()} erro: ${e.message}`); process.exitCode = e.codigo || 1;
+  if (e.codigo === 3) fs.rmSync(pastaTrab, { recursive: true, force: true });
+})
   .finally(() => {
     if (erros.size) { console.error(`\nerros do console da página (${erros.size} distintos):`); [...erros].slice(0, 20).forEach(([k, v]) => console.error(`  ${v > 1 ? `[x${v}] ` : ''}${k}`)); }
     process.exit(process.exitCode || 0);

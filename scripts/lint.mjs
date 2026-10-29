@@ -29,6 +29,12 @@
 //     V3 status dot             6-14 px filled circle right before a text                                                    WARN
 //     V4 zinc grey text         colour within 10 of Tailwind zinc 300/400/500/600 (#d4d4d8 #a1a1aa #71717a #52525b)            WARN
 //     V5 vibe-coded UI card     one surface (or the page) holds >= 2 of: greeting, label.value, status dot, zinc text         FAIL
+//     F1 font not as asked      a text that asked for an @font-face family, or wrote an invalid font-family (an unquoted
+//                               name with a digit such as Source Serif 4: the "4" is not an identifier, Chrome drops the
+//                               declaration without a word), but was drawn in a system font. The font used is Chrome's own
+//                               answer (CDP CSS.getPlatformFontsForNode), compared with document.fonts. Message in pt-BR.
+//                               Invalid names are read from <style>, style="" and the SVG font-family attribute (not from
+//                               the font shorthand or a linked stylesheet); the render check covers any source        WARN
 //   [data-ui="captured"] marks a faithful rebuild of a captured product screen: V5 is skipped inside it (the exemption is printed).
 //
 // Output: PASS / WARN / FAIL per rule with the sample times, an element snippet and the bbox [x0,y0,x1,y1] (0-1 of the frame),
@@ -57,6 +63,13 @@ const PAGE_LIB = String.raw`(() => {
   const ids = new WeakMap(); let nid = 0;
   const id = (e) => { let v = ids.get(e); if (!v) { v = ++nid; ids.set(e, v); } return v; };
   const raf2 = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const cs = (e) => getComputedStyle(e);
+  const snip = (e, txt) => {
+    const cls = (typeof e.className === 'string' ? e.className : '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.');
+    return '<' + e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (cls ? '.' + cls : '') + '>' + (txt ? ' ' + JSON.stringify(txt.slice(0, 40)) : '');
+  };
+  const hidden = (e) => { for (let n = e; n && n !== document.body; n = n.parentElement) { const s = cs(n); if (s.display === 'none') return true; } return false; };
+  const opacity = (e) => { let o = 1; for (let n = e; n && n.nodeType === 1; n = n.parentElement) o *= parseFloat(cs(n).opacity); return o; };
   window.__lintInfo = () => {
     const main = document.querySelector('[data-composition-id="main"]');
     const tls = window.__timelines && typeof window.__timelines === 'object' ? window.__timelines : null;
@@ -97,7 +110,6 @@ const PAGE_LIB = String.raw`(() => {
   };
   window.__lintScan = () => {
     const W = innerWidth, H = innerHeight;
-    const cs = (e) => getComputedStyle(e);
     const rgba = (c) => {
       let m = /^rgba?\(([^)]+)\)/.exec(c || '');
       if (m) { const p = m[1].split(/[ ,\/]+/).filter(Boolean).map(parseFloat); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; }
@@ -105,12 +117,6 @@ const PAGE_LIB = String.raw`(() => {
       if (m) { const p = m[1].split(/[ \/]+/).filter(Boolean).map(parseFloat); return [p[0] * 255, p[1] * 255, p[2] * 255, p.length > 3 ? p[3] : 1]; }
       return [0, 0, 0, 0];
     };
-    const snip = (e, txt) => {
-      const cls = (typeof e.className === 'string' ? e.className : '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.');
-      return '<' + e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (cls ? '.' + cls : '') + '>' + (txt ? ' ' + JSON.stringify(txt.slice(0, 40)) : '');
-    };
-    const hidden = (e) => { for (let n = e; n && n !== document.body; n = n.parentElement) { const s = cs(n); if (s.display === 'none') return true; } return false; };
-    const opacity = (e) => { let o = 1; for (let n = e; n && n.nodeType === 1; n = n.parentElement) o *= parseFloat(cs(n).opacity); return o; };
     // fraction of a rect that survives the overflow clipping of its ancestors
     const visFrac = (e, r) => {
       let x0 = r.left, y0 = r.top, x1 = r.right, y1 = r.bottom; const a0 = Math.max(1, (x1 - x0) * (y1 - y0));
@@ -196,6 +202,57 @@ const PAGE_LIB = String.raw`(() => {
     }
     return { blocks, shapes, surfaces };
   };
+  // ---- F1, the font a text really used. A font-family that is not valid CSS is dropped without a word: an unquoted
+  // name with a digit ("Source Serif 4": the "4" is not an identifier) leaves the text in the inherited font. Raw
+  // text is the only place the dropped declaration is still visible, so it is read from <style>, style="" and the
+  // SVG attribute, and checked with CSS.supports. Which font Chrome used comes from the node side (CDP).
+  const unq = (s) => s.trim().replace(/^["']|["']$/g, '');
+  const famRx = /(?:^|;)\s*font-family\s*:\s*([^;]+)/gi;
+  window.__lintBad = [];
+  window.__lintFE = [];
+  const fseen = new Set();
+  window.__lintFontPrepare = () => {
+    const bad = [], inval = (raw) => { const v = raw.replace(/\s*!important\s*$/i, '').trim(); return v && !CSS.supports('font-family', v) ? v : null; };
+    for (const st of document.querySelectorAll('style')) {
+      const css = st.textContent.replace(/\/\*[\s\S]*?\*\//g, '');
+      for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) for (const d of m[2].matchAll(famRx)) { const v = inval(d[1]); if (v) bad.push({ sel: m[1].trim(), value: v }); }
+    }
+    for (const e of document.querySelectorAll('[font-family], [style]')) {
+      const v0 = e instanceof SVGElement && e.hasAttribute('font-family') ? inval(e.getAttribute('font-family')) : null;
+      if (v0) bad.push({ el: e, value: v0 });
+      for (const d of (e.getAttribute('style') || '').matchAll(famRx)) { const v = inval(d[1]); if (v) bad.push({ el: e, value: v }); }
+    }
+    window.__lintBad = bad;
+    return bad.filter((b) => b.sel === '@font-face').map((b) => b.value);
+  };
+  // Text elements visible now that asked for an @font-face family or for an invalid one, not seen before. The elements
+  // stay in window.__lintFE (the node side turns them into CDP nodes by index); the list returned is plain data.
+  window.__lintFontCands = async () => {
+    if (document.fonts.status !== 'loaded') {                       // a face used for the first time at this sample may still be loading
+      try { await document.fonts.ready; } catch (e) {}
+      await raf2();
+    }
+    const W = innerWidth, H = innerHeight, faces = {}, out = [];
+    for (const f of document.fonts) { const k = unq(f.family).toLowerCase(); const x = faces[k] || (faces[k] = { nome: unq(f.family), status: f.status }); if (f.status === 'loaded') x.status = 'loaded'; }
+    window.__lintFE = [];
+    const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+      const p = n.parentElement; if (!p || /^(script|style|noscript|template|title)$/i.test(p.tagName)) continue;
+      const txt = n.textContent.replace(/\s+/g, ' ').trim(); if (!txt) continue;
+      if (hidden(p) || cs(p).visibility === 'hidden' || opacity(p) < 0.05) continue;
+      const rg = document.createRange(); rg.selectNodeContents(n);
+      const rs = [...rg.getClientRects()].filter((q) => q.width > 0.5 && q.height > 0.5); if (!rs.length) continue;
+      const x0 = Math.min(...rs.map((q) => q.left)), y0 = Math.min(...rs.map((q) => q.top)), x1 = Math.max(...rs.map((q) => q.right)), y1 = Math.max(...rs.map((q) => q.bottom));
+      if (x1 < 0 || x0 > W || y1 < 0 || y0 > H) continue;
+      const key = id(p) + '|' + txt.slice(0, 60); if (fseen.has(key)) continue; fseen.add(key);
+      const face = cs(p).fontFamily.split(',').map(unq).filter(Boolean).map((f) => faces[f.toLowerCase()]).find(Boolean) || null;
+      const inv = window.__lintBad.find((b) => { if (b.el) return b.el.contains(p); try { return !!p.closest(b.sel); } catch (e) { return false; } });
+      if (!face && !inv) continue;                                  // asked for a system font: not ours to judge
+      out.push({ idx: window.__lintFE.length, key, snip: snip(p, txt), bbox: [x0 / W, y0 / H, x1 / W, y1 / H], face, inv: inv ? inv.value : null });
+      window.__lintFE.push(p);
+    }
+    return out;
+  };
   return true;
 })()`;
 
@@ -206,6 +263,7 @@ const R = [
   ['C7', 'kicker above headline', 'FAIL'], ['D1', 'deck layout (left-anchored headline block)', 'FAIL'], ['P1', 'progress bar', 'FAIL'],
   ['T1', 'letter-typed headline', 'FAIL'], ['V1', 'greeting header', 'FAIL'], ['V2', 'label . value line', 'FAIL'],
   ['V3', 'status dot beside text', 'WARN'], ['V4', 'zinc-grey text', 'WARN'], ['V5', 'vibe-coded UI card (cluster)', 'FAIL'],
+  ['F1', 'fonte usada diferente da pedida (@font-face)', 'WARN'],
 ];
 const RULE = Object.fromEntries(R.map(([id, name, sev]) => [id, { id, name, sev, hits: new Map() }]));
 const addHit = (rule, t, key, d) => {
@@ -301,6 +359,37 @@ function evalSample(t, A, B, hits) {
   else if (c.kinds.size >= 2 && c.captured) hits.exempt.add('V5 skipped in a [data-ui="captured"] surface (' + [...c.kinds].sort().join(', ') + ')');
 }
 
+// F1: the font a text really used (CDP CSS.getPlatformFontsForNode) against what it asked for. Not a lint of the style,
+// a check of the render: the page can only say what it asked for, Chrome says what it drew. Returns the pt-BR note, or
+// null when there is nothing to say. A text is judged only if it asked for an @font-face family or for an invalid one
+// (a system font on purpose is not our business), and only if some glyph came out in a font that is not a web font.
+// Chrome's familyName for a web font is the name inside the file ("Inter Variable"), not the CSS name, so the web
+// font is told by isCustomFont.
+function notaFonte(c, fonts) {
+  const web = fonts.filter((f) => f.isCustomFont), outras = fonts.filter((f) => !f.isCustomFont);
+  if (!outras.length) return null;
+  const usada = outras.map((f) => '"' + f.familyName + '"').join(', ');
+  const glifos = (l) => l.reduce((s, f) => s + (f.glyphCount || 0), 0);
+  if (web.length) return c.face || c.inv ? `pediu "${c.face ? c.face.nome : c.inv}", mas a fonte não tem ${glifos(outras)} dos ${glifos(fonts)} glifos do texto; o que faltou saiu em ${usada}` : null;
+  if (c.inv) return `font-family inválido: "${c.inv}" não vale e o Chrome descartou a declaração; o texto saiu em ${usada}. Nome com algarismo ou símbolo vai entre aspas`;
+  const por = { error: 'a @font-face não carregou (status error: confira o caminho do arquivo)', loaded: 'a @font-face carregou, mas não tem os glifos deste texto' }[c.face.status] || `a @font-face está com status ${c.face.status} e não foi usada`;
+  return `pediu "${c.face.nome}", mas ${por}; o texto saiu em ${usada}`;
+}
+async function evalFonts(page, t) {
+  const cands = await page.eval('window.__lintFontCands()', { timeout: 30000 });
+  if (!cands.length) return;
+  const lista = await page.send('Runtime.evaluate', { expression: 'window.__lintFE' });
+  const props = await page.send('Runtime.getProperties', { objectId: lista.result.objectId, ownProperties: true });
+  const obj = new Map(props.result.filter((x) => /^\d+$/.test(x.name) && x.value && x.value.objectId).map((x) => [Number(x.name), x.value.objectId]));
+  for (const c of cands) {
+    if (!obj.has(c.idx)) continue;
+    const { nodeId } = await page.send('DOM.requestNode', { objectId: obj.get(c.idx) });
+    const { fonts } = await page.send('CSS.getPlatformFontsForNode', { nodeId });
+    const note = notaFonte(c, fonts || []);
+    if (note) addHit('F1', t, c.key, { text: '', snippet: c.snip, bbox: c.bbox.map(r2), note });
+  }
+}
+
 // T1 letter-typed headlines: pair readings, mid-word growth; plus caret next to a headline-size block
 function evalTyping(t, A, B) {
   const head = A.blocks.filter((b) => !b.ui && b.fs >= 0.05);
@@ -339,9 +428,18 @@ let br, exitCode = 0;
   }
   const hits = { exempt: new Set() };
   const barSeries = new Map();                                      // shape id -> [{t, w, snip, bbox}]
+  // F1 needs the DOM and CSS agents of CDP; if they fail the other rules still run
+  let fontes = false;
+  try {
+    await page.send('DOM.enable'); await page.send('CSS.enable'); await page.send('DOM.getDocument', { depth: 0 });
+    for (const v of await page.eval('window.__lintFontPrepare()'))   // @font-face with an invalid family name is dropped whole
+      addHit('F1', times[0], '@font-face ' + v, { text: '', snippet: '@font-face', note: `font-family inválido na @font-face: "${v}" não vale e o Chrome descartou a regra, então a fonte nunca carrega. Nome com algarismo ou símbolo vai entre aspas` });
+    fontes = true;
+  } catch (e) { console.error('warn: font check (F1) skipped: ' + e.message); }
   for (const t of times) {
     await page.eval(`window.__lintSeek(${t})`, { timeout: 40000 });
     const A = JSON.parse(await page.eval('JSON.stringify(window.__lintScan())', { timeout: 30000 }));
+    if (fontes) { try { await evalFonts(page, t); } catch (e) { console.error('warn: font check (F1) failed at t=' + t + ': ' + e.message); fontes = false; } }
     const t2 = t + 0.1 <= dur ? t + 0.1 : Math.max(0, t - 0.1);
     await page.eval(`window.__lintSeek(${t2})`, { timeout: 40000 });
     const B = JSON.parse(await page.eval('JSON.stringify(window.__lintScan())', { timeout: 30000 }));
@@ -380,7 +478,7 @@ let br, exitCode = 0;
       console.log(`${r.id} ${r.name.padEnd(46, '.')} ${r.status}${r.hits.length ? '  (' + r.hits.length + ' distinct)' : ''}`);
       for (const h of r.hits.slice(0, 6)) {
         const ts = h.times.length > 6 ? h.times.slice(0, 6).join(',') + ',... (' + h.times.length + ' samples)' : h.times.join(',') + 's';
-        console.log(`    ${h.sev === 'WARN' && r.status === 'FAIL' ? '[warn] ' : ''}t=${ts}  ${h.text ? JSON.stringify(h.text.slice(0, 70)) + '  ' : ''}${h.snippet}  bbox=[${h.bbox.join(',')}]${h.fs ? '  fs=' + h.fs + '%H' : ''}${h.note ? '\n      ' + h.note : ''}`);
+        console.log(`    ${h.sev === 'WARN' && r.status === 'FAIL' ? '[warn] ' : ''}t=${ts}  ${h.text ? JSON.stringify(h.text.slice(0, 70)) + '  ' : ''}${h.snippet}${h.bbox ? '  bbox=[' + h.bbox.join(',') + ']' : ''}${h.fs ? '  fs=' + h.fs + '%H' : ''}${h.note ? '\n      ' + h.note : ''}`);
       }
       if (r.hits.length > 6) console.log(`    ... ${r.hits.length - 6} more (use --json)`);
     }

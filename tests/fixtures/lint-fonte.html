@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Fixture do lint.mjs: fonte usada</title>
+<!-- Filme sintético de 1920x1080 e 1 s (texto inventado) para tests/ler-lint.test.mjs.
+     A família "Teste 4" é a Inter Bold do repositório com um algarismo no nome. Sem aspas, o "4" não é
+     identificador e o Chrome descarta a declaração inteira (font-family inválido), sem aviso.
+     O corpo da página usa Georgia: o que não pega a "Teste 4" cai nela, e a diferença aparece no desenho.
+       svg-sem-aspas    font-family="Teste 4" no SVG: inválido, cai na Georgia (acusa)
+       svg-com-aspas    font-family="'Teste 4'" no SVG: vale, sai na Inter (não acusa)
+       html-sem-aspas   regra .sem-aspas com font-family: Teste 4: inválido, cai na Georgia (acusa)
+       html-ok          regra .ok com "Teste 4" entre aspas (não acusa)
+       html-quebrada    @font-face "Falha 5" aponta para um arquivo que não existe: cai na serifa (acusa)
+       html-seta        "Teste 4" em dia, mas a seta → não existe no subconjunto latino da Inter (acusa, em parte)
+       html-inline      style="font-family: Teste 4" sem aspas: inválido, cai na Georgia (acusa)
+       html-arial       Arial pedida de propósito, sem @font-face (não acusa)
+       @font-face "Face 6" sem aspas: a regra inteira é descartada (acusa, sem elemento) -->
+<style>
+  @font-face { font-family: "Teste 4"; src: url("../../runtime/hero3d/fonts/Inter-Bold-Latin.ttf"); font-weight: 700; }
+  @font-face { font-family: "Falha 5"; src: url("fonte-que-nao-existe.ttf"); font-weight: 700; }
+  @font-face { font-family: Face 6; src: url("../../runtime/hero3d/fonts/Inter-Bold-Latin.ttf"); font-weight: 700; }
+  html, body { margin: 0; background: #000; }
+  body { font: 700 80px Georgia, serif; color: #fff; }
+  #main { position: relative; width: 1920px; height: 1080px; text-align: center; overflow: hidden; }
+  #main p { margin: 0; line-height: 130px; }
+  svg { display: block; }
+  .sem-aspas { font-family: Teste 4, serif; }
+  .ok { font-family: "Teste 4", serif; }
+  .quebrada { font-family: "Falha 5", serif; }
+</style>
+</head>
+<body>
+<div id="main" data-composition-id="main" data-width="1920" data-height="1080" data-duration="1">
+  <svg width="1920" height="280" viewBox="0 0 1920 280" fill="#fff" font-size="80" font-weight="700" text-anchor="middle">
+    <text id="svg-sem-aspas" x="960" y="110" font-family="Teste 4">Átomo no SVG sem aspas</text>
+    <text id="svg-com-aspas" x="960" y="240" font-family="'Teste 4'">Átomo no SVG com aspas</text>
+  </svg>
+  <p class="sem-aspas" id="html-sem-aspas">Átomo no HTML sem aspas</p>
+  <p class="ok" id="html-ok">Átomo no HTML com aspas</p>
+  <p class="quebrada" id="html-quebrada">Átomo com arquivo quebrado</p>
+  <p class="ok" id="html-seta">Átomo → seta</p>
+  <p id="html-inline" style="font-family: Teste 4">Átomo com style inline sem aspas</p>
+  <p id="html-arial" style="font-family: Arial, sans-serif">Átomo em Arial de propósito</p>
+</div>
+<script>
+  window.__duration = 1;
+  window.__seek = async () => {};
+  window.__ready = true;
+</script>
+</body>
+</html>
